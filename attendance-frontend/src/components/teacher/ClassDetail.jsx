@@ -1,0 +1,364 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import axios from "axios";
+import SERVER_URL from "../../config/api";
+import AppShell from "../../ui/AppShell";
+import Badge from "../../ui/Badge";
+import Button from "../../ui/Button";
+import Card from "../../ui/Card";
+import EmptyState from "../../ui/EmptyState";
+import Field from "../../ui/Field";
+import { PageLoader } from "../../ui/Spinner";
+import { useToast } from "../../ui/Toast";
+import { roomLabel } from "../../utils/rooms";
+import RoomPicker from "./RoomPicker";
+import { teacherLinks, useTeacherSession } from "./teacherSession";
+import "./classes.css";
+
+const requestConfig = { withCredentials: true };
+const errorMessage = (requestError, fallback) => requestError.response?.data?.message || fallback;
+const SAMPLE_CSV = "email,name\n2023ugcs001@nitjsr.ac.in,First Student\n2023ugcs002@nitjsr.ac.in,Second Student\n";
+const HEADER_CELLS = ["email", "college email", "student email"];
+
+const downloadSample = () => {
+  const url = URL.createObjectURL(new Blob([SAMPLE_CSV], { type: "text/csv" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "roster-sample.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+};
+
+// One line per non-empty input row, marked valid / header / error, for the preview.
+const previewRows = (rosterText, preview) => {
+  const errorsByRow = new Map(preview.errors.filter((entry) => entry.row).map((entry) => [entry.row, entry.message]));
+  let seenData = false;
+  return rosterText.split(/\r?\n/).flatMap((line, index) => {
+    const text = line.trim();
+    if (!text) return [];
+    const row = index + 1;
+    const firstCell = text.split(",")[0].trim().toLowerCase();
+    const isHeader = !seenData && HEADER_CELLS.includes(firstCell);
+    seenData = true;
+    if (isHeader) return [{ row, text, status: "header" }];
+    const message = errorsByRow.get(row);
+    return [{ row, text, status: message ? "error" : "valid", message }];
+  });
+};
+
+const ClassDetail = () => {
+  const { classId } = useParams();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { user, logout } = useTeacherSession();
+
+  const [courseClass, setCourseClass] = useState(null);
+  const [roster, setRoster] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [busy, setBusy] = useState(false);
+
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ title: "", section: "", roomId: "" });
+
+  const [filter, setFilter] = useState("");
+  const [newStudent, setNewStudent] = useState({ email: "", name: "" });
+  const [addError, setAddError] = useState("");
+
+  const [rosterText, setRosterText] = useState("");
+  const [preview, setPreview] = useState(null);
+
+  const loadClass = useCallback(async () => {
+    const [classResponse, rosterResponse] = await Promise.all([
+      axios.get(`${SERVER_URL}/classes/${classId}`, requestConfig),
+      axios.get(`${SERVER_URL}/classes/${classId}/roster`, requestConfig),
+    ]);
+    setCourseClass(classResponse.data.courseClass);
+    setRoster(rosterResponse.data.enrollments);
+  }, [classId]);
+
+  useEffect(() => {
+    if (!user) return;
+    loadClass().catch((requestError) => {
+      toast(errorMessage(requestError, "Could not load this class."), "error");
+      navigate("/teacher/classes");
+    });
+    axios.get(`${SERVER_URL}/rooms`, requestConfig).then((response) => setRooms(response.data.rooms)).catch(() => {});
+  }, [user, loadClass, navigate, toast]);
+
+  const visibleRoster = useMemo(() => {
+    const query = filter.trim().toLowerCase();
+    if (!query) return roster;
+    return roster.filter((entry) => `${entry.email} ${entry.name}`.toLowerCase().includes(query));
+  }, [roster, filter]);
+
+  const removedByImport = useMemo(() => {
+    if (!preview) return [];
+    const incoming = new Set(preview.entries.map((entry) => entry.email));
+    return roster.filter((entry) => !incoming.has(entry.email));
+  }, [preview, roster]);
+
+  if (!user || !courseClass) return <PageLoader label="Loading class…" />;
+
+  const startEditing = () => {
+    setEditForm({ title: courseClass.title, section: courseClass.section || "", roomId: courseClass.defaultRoom?._id || "" });
+    setEditing(true);
+  };
+
+  const saveEdit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      await axios.patch(`${SERVER_URL}/classes/${classId}`, editForm, requestConfig);
+      await loadClass();
+      setEditing(false);
+      toast("Class updated.", "success");
+    } catch (requestError) {
+      toast(errorMessage(requestError, "Could not update the class."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleArchive = async () => {
+    const archiving = !courseClass.archived;
+    if (archiving && !window.confirm(`Archive ${courseClass.courseCode}? It will be hidden from your class list and cannot start check-ins. You can restore it later.`)) return;
+    setBusy(true);
+    try {
+      await axios.post(`${SERVER_URL}/classes/${classId}/archive`, { archived: archiving }, requestConfig);
+      await loadClass();
+      toast(archiving ? "Class archived." : "Class restored.", "success");
+    } catch (requestError) {
+      toast(errorMessage(requestError, "Could not change the archive state."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addStudent = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setAddError("");
+    try {
+      const response = await axios.post(`${SERVER_URL}/classes/${classId}/roster/students`, newStudent, requestConfig);
+      setNewStudent({ email: "", name: "" });
+      await loadClass();
+      toast(`${response.data.enrollment.email} added.`, "success");
+    } catch (requestError) {
+      setAddError(errorMessage(requestError, "Could not add this student."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeStudent = async (entry) => {
+    if (!window.confirm(`Remove ${entry.name || entry.email} from ${courseClass.courseCode}? Their past attendance stays recorded.`)) return;
+    setBusy(true);
+    try {
+      await axios.delete(`${SERVER_URL}/classes/${classId}/roster/students/${encodeURIComponent(entry.email)}`, requestConfig);
+      await loadClass();
+      toast(`${entry.email} removed.`, "success");
+    } catch (requestError) {
+      toast(errorMessage(requestError, "Could not remove this student."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleFile = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setRosterText(String(reader.result || ""));
+      setPreview(null);
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  };
+
+  const runPreview = async () => {
+    setBusy(true);
+    try {
+      const response = await axios.post(`${SERVER_URL}/classes/${classId}/roster/preview`, { rosterText }, requestConfig);
+      setPreview(response.data.preview);
+    } catch (requestError) {
+      toast(errorMessage(requestError, "Could not preview the roster."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveImport = async () => {
+    setBusy(true);
+    try {
+      const response = await axios.put(`${SERVER_URL}/classes/${classId}/roster`, { rosterText }, requestConfig);
+      setRosterText("");
+      setPreview(null);
+      await loadClass();
+      toast(`Roster saved: ${response.data.activeStudentCount} active students.`, "success");
+    } catch (requestError) {
+      toast(errorMessage(requestError, "Could not save the roster."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const rows = preview ? previewRows(rosterText, preview) : [];
+  const generalErrors = preview ? preview.errors.filter((entry) => !entry.row) : [];
+
+  return (
+    <AppShell
+      role="teacher"
+      name={user.name || user.email}
+      email={user.email}
+      onLogout={logout}
+      links={teacherLinks("classes")}
+    >
+      <Link to="/teacher/classes" className="class-back">← All classes</Link>
+
+      <div className="ui-page-head">
+        <div>
+          <p className="class-detail__code">
+            {courseClass.courseCode}
+            {courseClass.section ? ` · Section ${courseClass.section}` : ""}
+          </p>
+          <h1 className="ui-page-head__title">{courseClass.title}</h1>
+          <div className="class-detail__badges">
+            <Badge variant="neutral">{roomLabel(courseClass.defaultRoom)}</Badge>
+            <Badge variant={courseClass.activeStudentCount ? "primary" : "warning"}>
+              {courseClass.activeStudentCount} students
+            </Badge>
+            {courseClass.archived && <Badge variant="warning" dot>Archived</Badge>}
+          </div>
+        </div>
+        <div className="ui-page-head__actions">
+          <Button variant="secondary" onClick={startEditing} disabled={busy}>Edit class</Button>
+          <Button variant={courseClass.archived ? "soft" : "ghost"} onClick={toggleArchive} disabled={busy}>
+            {courseClass.archived ? "Restore class" : "Archive"}
+          </Button>
+        </div>
+      </div>
+
+      {editing && (
+        <Card className="classes-section" title="Edit class" subtitle="The course code cannot be changed.">
+          <form className="edit-grid" onSubmit={saveEdit}>
+            <Field label="Class title" htmlFor="edit-title">
+              <input id="edit-title" className="ui-input" required maxLength={120} value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} />
+            </Field>
+            <Field label="Section" htmlFor="edit-section">
+              <input id="edit-section" className="ui-input" maxLength={40} value={editForm.section} onChange={(event) => setEditForm({ ...editForm, section: event.target.value })} />
+            </Field>
+            <Field label="Room" htmlFor="edit-room">
+              <RoomPicker
+                id="edit-room"
+                rooms={rooms}
+                value={editForm.roomId}
+                onChange={(roomId) => setEditForm((current) => ({ ...current, roomId }))}
+                onRoomCreated={(room) => setRooms((current) => [...current, room])}
+                required
+              />
+            </Field>
+            <div className="edit-grid__actions">
+              <Button type="submit" loading={busy}>Save changes</Button>
+              <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
+            </div>
+          </form>
+        </Card>
+      )}
+
+      <Card className="classes-section" title="Roster" subtitle="Only students on this list can sign in and check in to this class."
+        actions={roster.length > 8 && (
+          <input className="ui-input roster-filter" placeholder="Search name or email" value={filter} onChange={(event) => setFilter(event.target.value)} />
+        )}
+      >
+        <form className="add-student" onSubmit={addStudent}>
+          <input className="ui-input" type="email" required placeholder="2023ugcs001@nitjsr.ac.in" value={newStudent.email} onChange={(event) => setNewStudent({ ...newStudent, email: event.target.value })} aria-label="Student college email" />
+          <input className="ui-input" placeholder="Name (optional)" maxLength={120} value={newStudent.name} onChange={(event) => setNewStudent({ ...newStudent, name: event.target.value })} aria-label="Student name" />
+          <Button type="submit" variant="soft" loading={busy} disabled={!newStudent.email.trim()}>Add student</Button>
+        </form>
+        {addError && <p className="ui-field__error add-student__error">{addError}</p>}
+
+        {roster.length === 0 ? (
+          <EmptyState icon="👥" title="No students yet" text="Add students one by one above, or import the whole class from a CSV below." />
+        ) : (
+          <div className="roster-table-wrap">
+            <table className="roster-table">
+              <thead>
+                <tr><th>Roll</th><th>Name</th><th>Email</th><th>Batch</th><th aria-label="Actions" /></tr>
+              </thead>
+              <tbody>
+                {visibleRoster.map((entry) => (
+                  <tr key={entry._id}>
+                    <td>{entry.identity?.rollNumber || "—"}</td>
+                    <td>{entry.name || <span className="ui-muted">—</span>}</td>
+                    <td className="roster-table__email">{entry.email}</td>
+                    <td>{entry.identity?.batch ? `${entry.identity.batch} ${entry.identity.programmeBranch || ""}` : "—"}</td>
+                    <td className="roster-table__actions">
+                      <Button size="sm" variant="ghost" onClick={() => removeStudent(entry)} disabled={busy}>Remove</Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {visibleRoster.length === 0 && <p className="ui-muted roster-table__none">No students match “{filter}”.</p>}
+          </div>
+        )}
+      </Card>
+
+      <Card className="classes-section" title="Import from CSV"
+        subtitle="Replaces the whole roster. One college email per line, or email,name. Students missing from the file are removed from this class."
+        actions={<Button size="sm" variant="ghost" onClick={downloadSample}>Download sample CSV</Button>}
+      >
+        <div className="ui-stack">
+          <input type="file" accept=".csv,text/csv,text/plain" onChange={handleFile} aria-label="Choose CSV file" />
+          <textarea
+            className="ui-textarea"
+            rows={8}
+            value={rosterText}
+            onChange={(event) => { setRosterText(event.target.value); setPreview(null); }}
+            placeholder={"email,name\n2023ugcs001@nitjsr.ac.in,First Student"}
+            aria-label="Roster CSV"
+          />
+          <div className="import-actions">
+            <Button variant="secondary" onClick={runPreview} loading={busy && !preview} disabled={!rosterText.trim() || busy}>Preview</Button>
+            <Button onClick={saveImport} disabled={busy || !preview || preview.errors.length > 0 || preview.entries.length === 0}>Save roster</Button>
+          </div>
+
+          {preview && (
+            <div className="import-preview">
+              <div className="import-preview__summary">
+                <Badge variant="success">{preview.entries.length} valid</Badge>
+                <Badge variant={preview.errors.length ? "danger" : "neutral"}>{preview.errors.length} errors</Badge>
+                {removedByImport.length > 0 && (
+                  <Badge variant="warning">{removedByImport.length} current students will be removed</Badge>
+                )}
+              </div>
+              {preview.errors.length > 0 && <p className="ui-field__error">Fix the highlighted rows, then preview again. Saving is blocked while there are errors.</p>}
+              {generalErrors.map((entry) => <p key={entry.message} className="ui-field__error">{entry.message}</p>)}
+              <ol className="import-rows">
+                {rows.slice(0, 300).map((row) => (
+                  <li key={row.row} className={`import-row import-row--${row.status}`}>
+                    <span className="import-row__num">{row.row}</span>
+                    <span className="import-row__text">{row.text}</span>
+                    <span className="import-row__status">
+                      {row.status === "valid" && "✓"}
+                      {row.status === "header" && "header"}
+                      {row.status === "error" && row.message}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              {rows.length > 300 && <p className="ui-muted">Showing the first 300 rows.</p>}
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card className="classes-section" title="Check-in sessions">
+        <EmptyState icon="🔊" title="No check-ins yet" text="Starting a check-in from this page is coming next. Past sessions and attendance will appear here." />
+      </Card>
+    </AppShell>
+  );
+};
+
+export default ClassDetail;

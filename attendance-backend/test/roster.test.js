@@ -1,6 +1,26 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseRosterText } = require("../utils/roster");
+const { normaliseRosterEntry, parseRosterText } = require("../utils/roster");
+
+test("single-student add uses the same rules as CSV import", () => {
+  const { entry, error } = normaliseRosterEntry("  2023UGCS111@NITJSR.AC.IN ", " Aprajita ");
+  assert.equal(error, undefined);
+  assert.equal(entry.email, "2023ugcs111@nitjsr.ac.in");
+  assert.equal(entry.name, "Aprajita");
+  assert.equal(entry.identity.rollNumber, "111");
+
+  assert.match(normaliseRosterEntry("someone@gmail.com").error, /@nitjsr\.ac\.in/);
+  assert.match(normaliseRosterEntry("x@sub.nitjsr.ac.in").error, /@nitjsr\.ac\.in/);
+  assert.match(normaliseRosterEntry("").error, /@nitjsr\.ac\.in/);
+  assert.equal(normaliseRosterEntry("a b@nitjsr.ac.in").entry, undefined);
+});
+
+test("a header row is skipped only on the first non-empty line", () => {
+  const { entries, errors } = parseRosterText("\n Email ,Name\n2023ugcs001@nitjsr.ac.in\nemail");
+  assert.equal(entries.length, 1);
+  assert.equal(errors.length, 1);
+  assert.equal(errors[0].row, 4);
+});
 
 test("accepts a CSV header and derives identity fields from a college email", () => {
   const { entries, errors } = parseRosterText(

@@ -32,6 +32,12 @@ const classSchema = new mongoose.Schema(
       ref: "Room",
       required: true,
     },
+    // Archived classes are hidden from lists and cannot start check-ins.
+    archived: {
+      type: Boolean,
+      default: false,
+    },
+    archivedAt: Date,
   },
   { timestamps: true }
 );

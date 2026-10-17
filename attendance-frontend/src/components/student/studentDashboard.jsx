@@ -6,8 +6,10 @@ import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
+import EmptyState from "../../ui/EmptyState";
 import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
+import { roomLabel } from "../../utils/rooms";
 import "./studentDashboard.css";
 
 const STATUS_VIEW = {
@@ -47,6 +49,7 @@ const StudentDashboard = () => {
     const toast = useToast();
     const [user, setUser] = useState(null);
     const [deviceStatus, setDeviceStatus] = useState(location.state?.deviceStatus || "checking");
+    const [classes, setClasses] = useState(null);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -57,8 +60,12 @@ const StudentDashboard = () => {
                     return;
                 }
                 setUser(response.data.user);
-                const bindingResponse = await axios.get(`${SERVER_URL}/device-bindings/status`, { withCredentials: true });
+                const [bindingResponse, classesResponse] = await Promise.all([
+                    axios.get(`${SERVER_URL}/device-bindings/status`, { withCredentials: true }),
+                    axios.get(`${SERVER_URL}/me/classes`, { withCredentials: true }).catch(() => null),
+                ]);
                 setDeviceStatus(bindingResponse.data.status);
+                setClasses(classesResponse ? classesResponse.data.classes : []);
             } catch (error) {
                 if (error.response?.status && error.response.status !== 401) {
                     toast("Could not load your dashboard. Please try again.", "error");
@@ -137,6 +144,34 @@ const StudentDashboard = () => {
                     </ol>
                 </Card>
             </div>
+
+            <Card className="student-classes" title="Your classes" subtitle="Classes whose roster includes your college email.">
+                {classes === null ? (
+                    <p className="ui-muted">Loading…</p>
+                ) : classes.length === 0 ? (
+                    <EmptyState
+                        icon="🏫"
+                        title="No classes yet"
+                        text="You’ll see a class here once your teacher adds your college email to its roster."
+                    />
+                ) : (
+                    <ul className="student-class-list">
+                        {classes.map((courseClass) => (
+                            <li key={courseClass._id} className="student-class">
+                                <span className="student-class__code">
+                                    {courseClass.courseCode}
+                                    {courseClass.section ? ` · Section ${courseClass.section}` : ""}
+                                </span>
+                                <span className="student-class__title">{courseClass.title}</span>
+                                <span className="student-class__meta">
+                                    {roomLabel(courseClass.defaultRoom)}
+                                    {courseClass.teacher?.name ? ` · ${courseClass.teacher.name}` : ""}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </Card>
         </AppShell>
     );
 };

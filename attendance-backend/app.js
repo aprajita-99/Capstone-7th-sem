@@ -54,6 +54,9 @@ app.use("/api/v1", classRoute);
 const googleAuthRoute = require('./routes/googleAuthRoute');
 app.use("/api/v1", googleAuthRoute);
 
+const meRoute = require('./routes/meRoute');
+app.use("/api/v1", meRoute);
+
 const errorMiddleware = require('./middleware/error');
 app.use(errorMiddleware);
 
