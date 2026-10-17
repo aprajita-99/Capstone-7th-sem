@@ -18,7 +18,9 @@ const deviceBindingRequestSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected"],
+      // superseded = closed automatically because another device of the same
+      // student was approved.
+      enum: ["pending", "approved", "rejected", "superseded"],
       default: "pending",
       index: true,
     },

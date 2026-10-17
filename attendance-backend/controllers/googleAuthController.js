@@ -7,6 +7,7 @@ const Enrollment = require("../models/enrollmentModels");
 const DeviceBindingRequest = require("../models/deviceBindingRequestModels");
 const CourseClass = require("../models/classModels");
 const { fingerprintPublicKey } = require("../utils/deviceBinding");
+const { PURPOSES, issueChallenge, verifyDeviceProof } = require("../utils/deviceProof");
 const {
   WORKSPACE_DOMAIN,
   normaliseEmail,
@@ -87,14 +88,41 @@ exports.googleSignIn = catchAsyncError(async (req, res, next) => {
   sendToken(user, 200, res);
 });
 
+exports.issueDeviceChallenge = catchAsyncError(async (req, res, next) => {
+  if (req.user.role !== "student") {
+    return next(new ErrorHandler("Only student devices sign attendance requests", 403));
+  }
+  const { purpose } = req.body;
+  if (!PURPOSES.includes(purpose)) {
+    return next(new ErrorHandler(`Purpose must be one of: ${PURPOSES.join(", ")}`, 400));
+  }
+
+  res.status(201).json({ success: true, ...(await issueChallenge(req.user._id, purpose)) });
+});
+
 exports.claimDeviceBinding = catchAsyncError(async (req, res, next) => {
   if (req.user.role !== "student") {
     return next(new ErrorHandler("Only student devices need attendance binding", 400));
   }
 
-  const fingerprint = fingerprintPublicKey(req.body.publicKeyJwk);
+  const { publicKeyJwk, challengeId, signature } = req.body;
+  const fingerprint = fingerprintPublicKey(publicKeyJwk);
   if (!fingerprint) {
     return next(new ErrorHandler("A valid P-256 device public key is required", 400));
+  }
+
+  // The browser must sign with the private half of the key it submits, so a
+  // copied public key alone cannot claim a binding.
+  const proof = await verifyDeviceProof({
+    user: req.user,
+    challengeId,
+    signature,
+    purpose: "bind",
+    payload: { publicKey: { crv: publicKeyJwk.crv, kty: publicKeyJwk.kty, x: publicKeyJwk.x, y: publicKeyJwk.y } },
+    publicKeyJwk,
+  });
+  if (!proof.ok) {
+    return next(new ErrorHandler(proof.reason, 401));
   }
 
   const now = new Date();
@@ -187,6 +215,14 @@ exports.decideDeviceReview = catchAsyncError(async (req, res, next) => {
   review.reviewedBy = req.user._id;
   review.reviewedAt = new Date();
   await review.save();
+
+  if (decision === "approved") {
+    // Only one device can be bound; close the student's other open requests.
+    await DeviceBindingRequest.updateMany(
+      { student: review.student, status: "pending", _id: { $ne: review._id } },
+      { $set: { status: "superseded", reviewedBy: req.user._id, reviewedAt: new Date() } }
+    );
+  }
 
   res.status(200).json({ success: true, status: decision });
 });
