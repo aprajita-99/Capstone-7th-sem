@@ -3,9 +3,11 @@ import React, { useEffect, useRef } from "react";
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || "690196150991-39rsb4sffjvfl66jt22unp0uulhfgu5m.apps.googleusercontent.com";
 const SCRIPT_ID = "google-identity-services";
 // College-only account chooser by default. Set REACT_APP_GOOGLE_HOSTED_DOMAIN
-// to an empty value while testing so test Gmail accounts stay selectable; the
-// server still gates every sign-in by domain or TEST_STUDENT_EMAILS.
-const HOSTED_DOMAIN = process.env.REACT_APP_GOOGLE_HOSTED_DOMAIN ?? "nitjsr.ac.in";
+// to an empty value or "any" while testing so test Gmail accounts stay
+// selectable ("any" exists because some hosts cannot store an empty value);
+// the server still gates every sign-in by domain or TEST_STUDENT_EMAILS.
+const HOSTED_DOMAIN_SETTING = (process.env.REACT_APP_GOOGLE_HOSTED_DOMAIN ?? "nitjsr.ac.in").trim();
+const HOSTED_DOMAIN = HOSTED_DOMAIN_SETTING.toLowerCase() === "any" ? "" : HOSTED_DOMAIN_SETTING;
 
 const GoogleSignInButton = ({ onCredential, onLoadError, disabled }) => {
   const buttonRef = useRef(null);
