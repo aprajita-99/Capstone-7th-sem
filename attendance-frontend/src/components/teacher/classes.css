@@ -1,0 +1,182 @@
+/* Classes & rosters + class detail pages */
+
+.classes-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.classes-section { margin-top: 16px; }
+
+@media (max-width: 860px) {
+  .classes-grid { grid-template-columns: 1fr; }
+}
+
+.classes-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* Class list */
+.class-cards { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+.class-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.class-card:hover { border-color: var(--indigo-300); box-shadow: var(--shadow-sm); }
+.class-card--archived { background: var(--slate-50); }
+.class-card--archived .class-card__title { color: var(--text-soft); }
+
+.class-card__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.class-card__code { font-size: 12px; font-weight: 600; color: var(--indigo-600); letter-spacing: 0.01em; }
+.class-card__title { font-size: 14.5px; font-weight: 600; color: var(--text); }
+.class-card__meta { font-size: 12.5px; color: var(--text-faint); }
+.class-card__side { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
+/* Room picker */
+.room-picker { display: flex; flex-direction: column; gap: 8px; }
+.room-picker__add { display: flex; gap: 8px; align-items: center; }
+.room-picker__add .ui-input { flex: 1; min-width: 0; }
+
+/* Device review queue */
+.review-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+.review-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  flex-wrap: wrap;
+}
+
+.review-row__who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.review-row__who strong { font-size: 14px; }
+.review-row__who span { font-size: 12.5px; color: var(--text-faint); overflow-wrap: anywhere; }
+.review-row__actions { display: flex; gap: 6px; }
+
+/* Class detail */
+.class-back {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-soft);
+  text-decoration: none;
+}
+
+.class-back:hover { color: var(--indigo-700); }
+
+.class-detail__code { font-size: 13px; font-weight: 600; color: var(--indigo-600); margin-bottom: 2px; }
+.class-detail__badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+.edit-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1.4fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.edit-grid__actions { grid-column: 1 / -1; display: flex; gap: 8px; }
+
+@media (max-width: 760px) {
+  .edit-grid { grid-template-columns: 1fr; }
+}
+
+/* Roster */
+.roster-filter { width: 220px; padding: 8px 12px; font-size: 13px; }
+
+.add-student {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr auto;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.add-student__error { margin-bottom: 6px; }
+
+@media (max-width: 640px) {
+  .add-student { grid-template-columns: 1fr; }
+  .roster-filter { width: 100%; }
+}
+
+.roster-table-wrap { margin-top: 12px; overflow-x: auto; }
+
+.roster-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+
+.roster-table th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.roster-table td { padding: 9px 10px; border-bottom: 1px solid var(--slate-100); vertical-align: middle; }
+.roster-table tbody tr:hover { background: var(--slate-50); }
+.roster-table__email { overflow-wrap: anywhere; }
+.roster-table__actions { text-align: right; width: 1%; white-space: nowrap; }
+.roster-table__none { padding: 14px 10px; }
+
+/* CSV import */
+.import-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.import-preview { display: flex; flex-direction: column; gap: 10px; }
+.import-preview__summary { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.import-rows {
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+
+.import-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--slate-100);
+  align-items: baseline;
+}
+
+.import-row:last-child { border-bottom: 0; }
+.import-row__num { color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.import-row__text { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; }
+.import-row__status { font-size: 12.5px; text-align: right; }
+
+.import-row--valid .import-row__status { color: var(--success); font-weight: 700; }
+.import-row--header { color: var(--text-faint); }
+.import-row--error { background: var(--danger-soft); }
+.import-row--error .import-row__status { color: #b91c1c; font-weight: 600; }
+
+@media (max-width: 640px) {
+  .import-row { grid-template-columns: 36px 1fr; }
+  .import-row__status { grid-column: 2; text-align: left; }
+}

@@ -20,9 +20,9 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **0** | Security fixes (expired/invalid session → 401, token cookie-only, production CORS allowlist, Windows `start:shared`) | **Shipped** |
 | **0** | Hosting: backend on Render, frontend on Vercel (`capstone-7th-sem.vercel.app`, `/api` proxied to Render) | **Shipped** |
 | **1** | Google sign-in (college domain + test accounts), roles, roster gate, logout / session check | **Shipped** |
-| **2** | Classes, rooms (API), roster CSV preview / save / read | **Shipped** (API + old-style page) |
+| **2** | Classes, rooms (API), roster CSV preview / save / read | **Shipped** |
 | **2** | Standard classroom list (101–112, 201–212, 301–312) seeded via `npm run seed:rooms` | **Shipped** |
-| **2** | Room picker grouped by floor, single-student add/remove, class edit/archive, restyled pages | **Planned** |
+| **2** | Room picker grouped by floor, class detail page, single-student add/remove, class edit/archive/restore, CSV preview with row highlighting, student "Your classes" | **Built** (API checks + build pass; owner click-through pending) |
 | **3** | Device binding v1 (key per browser + teacher review queue) | **Shipped** |
 | **3** | Device binding v2 (signed challenges — proves the phone holds its key) | **Planned** |
 | **4** | Sound lab (sample rate, mic settings, 5-tone margins) | **Shipped** (partial — gaps listed in Phase 4) |
@@ -275,7 +275,7 @@ Classes are held in a fixed set of 36 rooms on three floors. A room is just its 
 | --- | --- | --- |
 | Health / auth | `GET /health` · `POST /auth/google` · `GET /islogin` · `GET /logout` · `GET /time` | 1 (+6) |
 | Rooms | `GET /rooms` · `POST /rooms` | 2 |
-| Classes | `GET /classes` · `POST /classes` · `PATCH /classes/:classId` · `POST /classes/:classId/archive` | 2 |
+| Classes | `GET /classes` · `POST /classes` · `GET /classes/:classId` · `PATCH /classes/:classId` · `POST /classes/:classId/archive` | 2 |
 | Roster | `POST /classes/:classId/roster/preview` · `PUT /classes/:classId/roster` · `GET /classes/:classId/roster` · `POST /classes/:classId/roster/students` · `DELETE /classes/:classId/roster/students/:email` | 2 |
 | Student classes | `GET /me/classes` | 2 |
 | Devices | `POST /device/challenge` · `POST /device-bindings/claim` · `GET /device-bindings/status` · `GET /device-reviews` · `POST /device-reviews/:reviewId` | 3 |
@@ -406,8 +406,9 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 | --- | --- | --- |
 | `GET /rooms` · `POST /rooms` | Teacher | exists |
 | `GET /classes` · `POST /classes` | Teacher | exists (`GET` hides archived unless `?archived=1`) |
-| `PATCH /classes/:classId` | Teacher (owner) | `{title?, section?, roomId?}` → `{courseClass}` |
-| `POST /classes/:classId/archive` | Teacher (owner) | → `{courseClass}` (no new sessions allowed) |
+| `GET /classes/:classId` | Teacher (owner) | → `{courseClass}` with `activeStudentCount` |
+| `PATCH /classes/:classId` | Teacher (owner) | `{title?, section?, roomId?}` → `{courseClass}` (course code is not editable) |
+| `POST /classes/:classId/archive` | Teacher (owner) | `{archived?: false}` restores; otherwise archives → `{courseClass}` (archived: hidden from lists, no new sessions) |
 | `POST /classes/:classId/roster/preview` · `PUT …/roster` · `GET …/roster` | Teacher (owner) | exists |
 | `POST /classes/:classId/roster/students` | Teacher (owner) | `{email, name?}` → `{enrollment}` (same validation as CSV) |
 | `DELETE /classes/:classId/roster/students/:email` | Teacher (owner) | → `{success}` (sets `inactive`) |

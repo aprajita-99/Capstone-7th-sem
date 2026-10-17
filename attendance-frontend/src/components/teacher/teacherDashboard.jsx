@@ -11,6 +11,8 @@ import EmptyState from "../../ui/EmptyState";
 import { PageLoader } from "../../ui/Spinner";
 import StatCard from "../../ui/StatCard";
 import { useToast } from "../../ui/Toast";
+import { roomLabel } from "../../utils/rooms";
+import { teacherLinks } from "./teacherSession";
 import "./teacherDashboard.css";
 
 const requestConfig = { withCredentials: true };
@@ -77,11 +79,7 @@ const TeacherDashboard = () => {
             name={name}
             email={user.email}
             onLogout={handleLogout}
-            links={[
-                { to: "/teacher-dashboard", label: "Dashboard", active: true },
-                { to: "/teacher/classes", label: "Classes & rosters" },
-                { to: "/acoustic-lab", label: "Phone audio test" },
-            ]}
+            links={teacherLinks("dashboard")}
         >
             <div className="ui-page-head">
                 <div>
@@ -124,7 +122,7 @@ const TeacherDashboard = () => {
                         <ul className="class-list">
                             {classes.slice(0, 4).map((courseClass) => (
                                 <li key={courseClass._id}>
-                                    <button type="button" className="class-list__item" onClick={() => navigate("/teacher/classes")}>
+                                    <button type="button" className="class-list__item" onClick={() => navigate(`/teacher/classes/${courseClass._id}`)}>
                                         <span className="class-list__main">
                                             <span className="class-list__title">
                                                 {courseClass.title}
@@ -132,7 +130,7 @@ const TeacherDashboard = () => {
                                                     {courseClass.courseCode}{courseClass.section ? ` · ${courseClass.section}` : ""}
                                                 </span>
                                             </span>
-                                            <span className="class-list__meta">Room {courseClass.defaultRoom?.roomNo || "—"}</span>
+                                            <span className="class-list__meta">{roomLabel(courseClass.defaultRoom)}</span>
                                         </span>
                                         <Badge variant="neutral">{courseClass.activeStudentCount || 0} students</Badge>
                                     </button>

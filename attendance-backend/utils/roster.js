@@ -43,6 +43,21 @@ const deriveIdentity = (email) => {
   };
 };
 
+const MAX_ROSTER_SIZE = 250;
+
+// Validate one roster row. Shared by CSV import and single-student add so both
+// follow exactly the same rules.
+const normaliseRosterEntry = (rawEmail, rawName = "") => {
+  const email = String(rawEmail || "").trim().toLowerCase();
+  const name = String(rawName || "").trim().slice(0, 120);
+
+  if (!email.endsWith(`@${INSTITUTIONAL_DOMAIN}`) || !/^[^\s@]+@nitjsr\.ac\.in$/i.test(email)) {
+    return { error: `Use a valid @${INSTITUTIONAL_DOMAIN} email.` };
+  }
+
+  return { entry: { email, name, identity: deriveIdentity(email) } };
+};
+
 const parseRosterText = (rosterText) => {
   if (typeof rosterText !== "string" || !rosterText.trim()) {
     return { entries: [], errors: [{ row: null, message: "Paste a CSV or one college email per line." }] };
@@ -66,34 +81,33 @@ const parseRosterText = (rosterText) => {
       return;
     }
 
-    const email = (cells[0] || "").trim().toLowerCase();
-    const name = (cells[1] || "").trim();
-
-    if (firstDataLine && ["email", "college email", "student email"].includes(email)) {
+    const headerCell = (cells[0] || "").trim().toLowerCase();
+    if (firstDataLine && ["email", "college email", "student email"].includes(headerCell)) {
       firstDataLine = false;
       return;
     }
     firstDataLine = false;
 
-    if (!email.endsWith(`@${INSTITUTIONAL_DOMAIN}`) || !/^[^\s@]+@nitjsr\.ac\.in$/i.test(email)) {
-      errors.push({ row, message: `Use a valid @${INSTITUTIONAL_DOMAIN} email.` });
+    const { entry, error } = normaliseRosterEntry(cells[0], cells[1]);
+    if (error) {
+      errors.push({ row, message: error });
       return;
     }
 
-    if (seenEmails.has(email)) {
+    if (seenEmails.has(entry.email)) {
       errors.push({ row, message: "Duplicate email in this roster." });
       return;
     }
 
-    seenEmails.add(email);
-    entries.push({ email, name, identity: deriveIdentity(email) });
+    seenEmails.add(entry.email);
+    entries.push(entry);
   });
 
-  if (entries.length > 250) {
-    errors.push({ row: null, message: "A single class roster can contain at most 250 students." });
+  if (entries.length > MAX_ROSTER_SIZE) {
+    errors.push({ row: null, message: `A single class roster can contain at most ${MAX_ROSTER_SIZE} students.` });
   }
 
   return { entries, errors };
 };
 
-module.exports = { INSTITUTIONAL_DOMAIN, parseRosterText };
+module.exports = { INSTITUTIONAL_DOMAIN, MAX_ROSTER_SIZE, normaliseRosterEntry, parseRosterText };

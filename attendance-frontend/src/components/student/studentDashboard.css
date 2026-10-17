@@ -83,3 +83,26 @@
   display: grid;
   place-items: center;
 }
+
+/* Your classes */
+.student-classes { margin-top: 16px; }
+
+.student-class-list {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.student-class {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.student-class__code { font-size: 12px; font-weight: 600; color: var(--indigo-600); }
+.student-class__title { font-size: 14.5px; font-weight: 600; }
+.student-class__meta { font-size: 12.5px; color: var(--text-faint); }
