@@ -9,6 +9,7 @@
   "scripts": {
     "prestart": "node scripts/verify-node-version.js",
     "test": "node --test",
+    "seed:rooms": "node scripts/seed-rooms.js",
     "start": "node index.js"
   },
   "engines": {
