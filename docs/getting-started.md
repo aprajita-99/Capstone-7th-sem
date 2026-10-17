@@ -26,6 +26,12 @@ npm start          # http://localhost:4000
 
 The backend needs a secret file, `attendance-backend/config/config.env` — it is **not in git**. Ask the project owner for it. It holds the database URL, JWT secret, Google client ID, and the teacher/test-account lists.
 
+First time on a new database, create the standard classroom list (101–112, 201–212, 301–312):
+
+```bash
+npm run seed:rooms
+```
+
 Quick check that it is up:
 
 ```bash

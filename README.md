@@ -61,6 +61,7 @@ This is a prototype — not yet used for real attendance.
 attendance-frontend/   React app — UI, tone codec, sound lab
 attendance-backend/    Express API — auth, classes, rosters, device reviews
 docs/                  Short plain-English docs — start here
+FEATURES.md            Features + phased implementation plan (flows, data, APIs)
 plan.md                Engineering plan (signal design, gates, roadmap)
 progress.md            Build log and current status
 ```
@@ -92,6 +93,7 @@ cd attendance-frontend && npm run test:acoustic # 12 tests — the tone codec
 ## Documentation
 
 - 📄 **[docs/](docs/)** — what the project is, how to run it, how it works, troubleshooting
+- 🧭 [`FEATURES.md`](FEATURES.md) — every feature, end-to-end flows, data model, APIs and the phased build plan
 - 🗺️ [`plan.md`](plan.md) — signal design and staged engineering plan
 - 📈 [`progress.md`](progress.md) — what's built, measured results, what's next
 

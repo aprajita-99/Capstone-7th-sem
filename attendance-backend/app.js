@@ -6,18 +6,22 @@ const app = express();
 
 // Browser origins allowed to call this API with cookies.
 // Add exact origins (deployments) with CLIENT_URLS=origin1,origin2 in config.env.
-const defaultOrigins = [
+// In production only CLIENT_URL / CLIENT_URLS are allowed: production cookies
+// are SameSite=None, so a loose origin rule there would let other sites make
+// signed-in requests.
+const isProduction = ["PRODUCTION", "production"].includes(process.env.NODE_ENV);
+const developmentOrigins = [
   "http://localhost:3000", // React development server
   "http://127.0.0.1:3000", // Same server, alternate host name
-  "https://attendance-frontend-sage.vercel.app", // Deployment inherited with the project
 ];
 const allowedOrigins = new Set(
-  [...defaultOrigins, process.env.CLIENT_URL, ...String(process.env.CLIENT_URLS || "").split(",")]
+  [...(isProduction ? [] : developmentOrigins), process.env.CLIENT_URL, ...String(process.env.CLIENT_URLS || "").split(",")]
     .map((origin) => String(origin || "").trim().replace(/\/+$/, ""))
     .filter(Boolean)
 );
-// Shared quick tunnels used for phone testing get a fresh random host each run.
-const sharedTunnelOrigin = /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/;
+// Shared quick tunnels used for phone testing get a fresh random host each run
+// (development only).
+const sharedTunnelOrigin = isProduction ? null : /^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/;
 
 app.use(
   cors({
@@ -25,7 +29,7 @@ app.use(
       // No Origin header: curl, the React development proxy, server-to-server.
       if (!origin) return callback(null, true);
       const normalisedOrigin = origin.replace(/\/+$/, "");
-      if (allowedOrigins.has(normalisedOrigin) || sharedTunnelOrigin.test(normalisedOrigin)) {
+      if (allowedOrigins.has(normalisedOrigin) || sharedTunnelOrigin?.test(normalisedOrigin)) {
         return callback(null, true);
       }
       return callback(null, false);

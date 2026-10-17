@@ -17,7 +17,7 @@ On a student's first sign-in, the website quietly creates a private key in that 
 
 ## Classes, rooms and rosters (teacher side)
 
-- A **room** is just a room number, e.g. `B-204`.
+- A **room** is just a room number. The college uses 36 rooms: 101–112 (first floor), 201–212 (second), 301–312 (third).
 - A **class** has a course code, title, a default room, and a **roster** — the list of student emails (imported from the college CSV).
 - Only emails on the roster can check in for that class.
 
