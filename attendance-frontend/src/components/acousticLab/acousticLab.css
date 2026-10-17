@@ -1,46 +1,136 @@
+/* Sound lab + link test (public pages, no app shell) */
+
 .acoustic-lab {
-  box-sizing: border-box;
   min-height: 100vh;
   max-width: 940px;
   margin: 0 auto;
-  padding: 40px 24px 64px;
-  color: #172033;
+  padding: 32px 20px 64px;
+  color: var(--text);
 }
 
-.acoustic-lab--loading { display: grid; place-items: center; }
 .acoustic-lab__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
-.acoustic-lab__header h1 { margin: 4px 0 8px; }
-.acoustic-lab__header p { margin: 0; color: #586174; }
-.acoustic-lab__eyebrow { color: #2865d7 !important; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.acoustic-lab__back, .acoustic-lab__controls button { border: 0; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 700; padding: 11px 16px; }
-.acoustic-lab__back { background: #e8edf7; color: #24324a; }
-.acoustic-lab__notice, .acoustic-lab__panel { margin-top: 24px; border: 1px solid #d8e0ed; border-radius: 12px; background: #fff; padding: 20px; }
-.acoustic-lab__notice { border-left: 4px solid #e7a520; background: #fffaf0; }
-.acoustic-lab__notice h2, .acoustic-lab__panel h2 { margin: 0 0 8px; font-size: 1.1rem; }
-.acoustic-lab__notice p, .acoustic-lab__panel p { line-height: 1.55; margin: 0; }
-.acoustic-lab__controls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
-.acoustic-lab__controls button { background: #2865d7; color: #fff; }
-.acoustic-lab__controls button:disabled { cursor: wait; opacity: 0.65; }
-.acoustic-lab__controls .acoustic-lab__secondary { background: #e8edf7; color: #24324a; }
-.acoustic-lab__error { margin-top: 20px; border-radius: 8px; background: #fee9e7; color: #992015; padding: 12px; }
-.acoustic-lab__device-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 0; }
-.acoustic-lab__device-grid div { border-radius: 8px; background: #f4f7fb; padding: 12px; }
-.acoustic-lab__device-grid dt { color: #586174; font-size: 0.85rem; }
+.acoustic-lab__header h1 { margin: 4px 0 8px; font-size: 24px; letter-spacing: -0.02em; }
+.acoustic-lab__header p { color: var(--text-soft); line-height: 1.55; }
+.acoustic-lab__header .ui-brand { margin-bottom: 18px; }
+.acoustic-lab__eyebrow { color: var(--indigo-600) !important; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.acoustic-lab__notice,
+.acoustic-lab__panel {
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 20px;
+}
+
+.acoustic-lab__notice { border-left: 4px solid var(--warning); background: var(--warning-soft); }
+.acoustic-lab__notice h2,
+.acoustic-lab__panel h2 { margin: 0 0 8px; font-size: 16px; }
+.acoustic-lab__notice p,
+.acoustic-lab__panel p { line-height: 1.55; margin: 0; }
+
+.acoustic-lab__controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 18px; }
+
+.acoustic-lab__error {
+  margin-top: 20px;
+  border-radius: var(--radius);
+  border: 1px solid var(--danger-border);
+  background: var(--danger-soft);
+  color: #b91c1c;
+  padding: 12px 14px;
+}
+
+.acoustic-lab__device-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.acoustic-lab__device-grid div { border-radius: var(--radius); background: var(--slate-50); padding: 12px; }
+.acoustic-lab__device-grid dt { color: var(--text-soft); font-size: 13px; }
 .acoustic-lab__device-grid dd { font-weight: 700; margin: 5px 0 0; }
-.acoustic-lab__baseline { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-.acoustic-lab__baseline span { border-radius: 999px; background: #edf2fa; padding: 7px 10px; font-size: 0.9rem; }
+
+.acoustic-lab__baseline { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.acoustic-lab__baseline span { border-radius: 999px; background: var(--slate-100); padding: 6px 10px; font-size: 13px; }
+
 .acoustic-lab__table-wrap { margin-top: 16px; overflow-x: auto; }
 .acoustic-lab table { border-collapse: collapse; min-width: 560px; width: 100%; }
-.acoustic-lab th, .acoustic-lab td { border-bottom: 1px solid #d8e0ed; padding: 12px; text-align: left; }
-.acoustic-lab th { color: #586174; font-size: 0.85rem; }
-.acoustic-lab__verdict { border-radius: 999px; display: inline-block; font-size: 0.86rem; font-weight: 700; padding: 5px 9px; }
-.acoustic-lab__verdict--strong { background: #dff5e8; color: #14643a; }
-.acoustic-lab__verdict--tentative { background: #fff0ca; color: #785000; }
-.acoustic-lab__verdict--weak { background: #fee6e2; color: #9b281b; }
+.acoustic-lab th,
+.acoustic-lab td { border-bottom: 1px solid var(--border); padding: 12px; text-align: left; }
+.acoustic-lab th { color: var(--text-soft); font-size: 13px; }
+
+.acoustic-lab__verdict { border-radius: 999px; display: inline-block; font-size: 13px; font-weight: 700; padding: 4px 9px; }
+.acoustic-lab__verdict--strong { background: var(--success-soft); color: #047857; }
+.acoustic-lab__verdict--tentative { background: var(--warning-soft); color: #b45309; }
+.acoustic-lab__verdict--weak { background: var(--danger-soft); color: #b91c1c; }
 .acoustic-lab__recommendation { margin-top: 16px !important; font-weight: 700; }
 
+/* Live tone meter (sound lab) */
+.lab-meter { margin-top: 14px; }
+.lab-meter__label { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-soft); margin-bottom: 6px; }
+.lab-meter__track { height: 12px; border-radius: 999px; background: var(--slate-100); overflow: hidden; position: relative; }
+.lab-meter__fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--indigo-400), var(--indigo-600)); transition: width 0.1s linear; }
+.lab-meter__mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--success); }
+
+/* Link test */
+.link-settings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+.link-segment {
+  display: flex;
+  border: 1px solid var(--slate-300);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.link-segment button {
+  flex: 1;
+  border: 0;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--slate-600);
+  padding: 10px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.link-segment button + button { border-left: 1px solid var(--slate-300); }
+.link-segment button small { font-size: 11.5px; font-weight: 500; color: var(--text-faint); }
+.link-segment button.is-active { background: var(--indigo-50); color: var(--indigo-700); }
+.link-segment button.is-active small { color: var(--indigo-600); }
+.link-segment button:disabled { cursor: not-allowed; }
+
+.link-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--slate-700); }
+.link-field input[type="range"] { width: 100%; accent-color: var(--indigo-600); }
+.link-field--inline { margin-top: 14px; max-width: 320px; }
+
+.link-level { height: 8px; border-radius: 999px; background: var(--slate-100); overflow: hidden; margin: 12px 0; }
+.link-level span { display: block; height: 100%; background: var(--success); transition: width 0.2s linear; }
+
+.link-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 12px 0; }
+.link-stats div { border-radius: var(--radius); background: var(--slate-50); padding: 12px; display: flex; flex-direction: column; gap: 4px; }
+.link-stats span { font-size: 12.5px; color: var(--text-soft); }
+.link-stats strong { font-size: 22px; letter-spacing: -0.02em; }
+
+.link-rate { margin-top: 12px !important; font-weight: 700; padding: 10px 12px; border-radius: var(--radius); }
+.link-rate--pass { background: var(--success-soft); color: #047857; }
+.link-rate--fail { background: var(--danger-soft); color: #b91c1c; }
+
+.link-results {
+  margin: 8px 0 0;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--slate-900);
+  color: var(--slate-100);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 @media (max-width: 640px) {
-  .acoustic-lab { padding: 24px 16px 48px; }
+  .acoustic-lab { padding: 22px 16px 48px; }
   .acoustic-lab__header { flex-direction: column; }
-  .acoustic-lab__device-grid { grid-template-columns: 1fr; }
+  .acoustic-lab__device-grid,
+  .link-settings { grid-template-columns: 1fr; }
 }

@@ -25,9 +25,10 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **2** | Room picker grouped by floor, class detail page, single-student add/remove, class edit/archive/restore, CSV preview with row highlighting, student "Your classes" | **Shipped** |
 | **3** | Device binding v1 (key per browser + teacher review queue) | **Shipped** |
 | **3** | Device binding v2 (signed challenges — proves the phone holds its key; approving one device supersedes the student's other requests) | **Shipped** |
-| **4** | Sound lab (sample rate, mic settings, 5-tone margins) | **Shipped** (partial — gaps listed in Phase 4) |
+| **4** | Sound lab (sample rate, mic settings, 5-tone margins, < 44.1 kHz refusal, 6 ms fades, live meter) | **Shipped** |
 | **4** | FSK codec (encode / decode / checksum), 12 synthetic tests | **Shipped** |
-| **4** | Live transmitter / receiver engine, phone-to-phone link test, band decision | **Planned** |
+| **4** | Band profiles (high 18.00–19.76 kHz, mid 16.50–18.26 kHz), streaming receiver, transmitter, wake lock, `/acoustic-lab/link` test page | **Built** (17/17 codec tests; phone tests pending) |
+| **4** | Phone-to-phone measurements at 1 m / 6 m / far corner → band decision | **Planned** (owner) |
 | **5** | Check-in sessions (teacher starts, students hear key, server marks present) | **Planned** |
 | **6** | Cascade relay (students re-play the next key to reach the back of the room) | **Planned** |
 | **7** | Face service (match + liveness) | **Planned** |
@@ -490,7 +491,7 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 
 | Module | Responsibility |
 | --- | --- |
-| `src/acoustic/fsk.js` (exists) | Make the band a **profile**: `{baseHz, spacingHz, toneCount}`; default stays 18 000 / 110 / 17. Add `PROFILES = {high: …, mid: …}` (e.g. mid = 16 500 Hz base). All functions take an optional profile. |
+| `src/acoustic/fsk.js` (exists) | Make the band a **profile**: `{baseHz, spacingHz}` (tone count stays 17 — the frame layout depends on it); default stays 18 000 / 110. Add `PROFILES = {high: …, mid: …}` (e.g. mid = 16 500 Hz base). All functions take an optional profile. |
 | `public/capture-worklet.js` (new) | AudioWorklet that forwards raw mic samples (Float32 chunks) to the main thread. |
 | `src/acoustic/mic.js` (new) | `openMic()` → `getUserMedia({audio:{channelCount:1, echoCancellation:false, noiseSuppression:false, autoGainControl:false}})`, AudioContext, **refuse < 44 100 Hz**, report applied settings. |
 | `src/acoustic/receiver.js` (new) | Ring buffer (~3 s); every ~300 ms runs `decodeFrame()` in search mode; emits `{value, margins, at}`; de-duplicates the same key. |

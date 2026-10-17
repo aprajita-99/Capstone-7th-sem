@@ -5,7 +5,9 @@
  * (`npm run test:acoustic`) and is imported by the React app.
  *
  * Signal design (starting values from plan.md; tune only with measurements):
- * - 17 tones, 110 Hz apart, from 18.0 kHz to 19.76 kHz.
+ * - 17 tones, 110 Hz apart. The band is a profile: "high" = 18.0-19.76 kHz
+ *   (default, plan.md starting value), "mid" = 16.5-18.26 kHz (measured to be
+ *   stronger on budget phones). Tone count and frame layout never change.
  * - Tone 0 (18.0 kHz) is the start marker; tones 1..16 carry symbols.
  * - Frame: 2 marker symbols + 7 data symbols + 2 check symbols, 120 ms each (~1.32 s).
  * - Data and check symbols are digits 0..14 (base 15); 15^7 = 170,859,375 keys.
@@ -17,8 +19,15 @@
  */
 
 const TONE_COUNT = 17;
-const BASE_FREQUENCY_HZ = 18000;
-const TONE_SPACING_HZ = 110;
+
+// Frequency band profiles. Only the base and spacing move; the frame does not.
+const PROFILES = {
+  high: { id: "high", label: "High band", baseHz: 18000, spacingHz: 110 },
+  mid: { id: "mid", label: "Mid band", baseHz: 16500, spacingHz: 110 },
+};
+const DEFAULT_PROFILE = PROFILES.high;
+const BASE_FREQUENCY_HZ = DEFAULT_PROFILE.baseHz;
+const TONE_SPACING_HZ = DEFAULT_PROFILE.spacingHz;
 const SYMBOL_DURATION_MS = 120;
 const FADE_DURATION_MS = 6;
 
@@ -38,9 +47,16 @@ const DECISION_WINDOW_FRACTION = 0.35;
 const SEARCH_HOP_MS = 10;
 const MIN_MARKER_SPAN_SYMBOLS = 1.5;
 
-const toneFrequency = (toneIndex) => BASE_FREQUENCY_HZ + toneIndex * TONE_SPACING_HZ;
+const toneFrequency = (toneIndex, profile = DEFAULT_PROFILE) => profile.baseHz + toneIndex * profile.spacingHz;
 
-const toneFrequencies = () => Array.from({ length: TONE_COUNT }, (_, index) => toneFrequency(index));
+const toneFrequencies = (profile = DEFAULT_PROFILE) =>
+  Array.from({ length: TONE_COUNT }, (_, index) => toneFrequency(index, profile));
+
+// e.g. "16.50–18.26 kHz"
+const profileRange = (profile = DEFAULT_PROFILE) =>
+  `${(toneFrequency(0, profile) / 1000).toFixed(2)}–${(toneFrequency(TONE_COUNT - 1, profile) / 1000).toFixed(2)} kHz`;
+
+const resolveProfile = (profile) => (typeof profile === "string" ? PROFILES[profile] : profile) || DEFAULT_PROFILE;
 
 const assertDigits = (digits, expectedLength, label) => {
   if (!Array.isArray(digits) || digits.length !== expectedLength) {
@@ -149,13 +165,14 @@ const symbolEnvelope = (index, symbolSamples, fadeSamples) => {
  */
 const encodeFrame = (dataDigits, sampleRate, options = {}) => {
   const amplitude = options.amplitude ?? 1;
+  const profile = resolveProfile(options.profile);
   const symbolSamples = Math.round((sampleRate * SYMBOL_DURATION_MS) / 1000);
   const fadeSamples = Math.max(1, Math.round((sampleRate * FADE_DURATION_MS) / 1000));
   const toneSequence = frameTones(dataDigits);
   const samples = new Float32Array(symbolSamples * toneSequence.length);
 
   toneSequence.forEach((tone, symbolIndex) => {
-    const frequency = toneFrequency(tone);
+    const frequency = toneFrequency(tone, profile);
     const offset = symbolIndex * symbolSamples;
     for (let index = 0; index < symbolSamples; index += 1) {
       const envelope = symbolEnvelope(index, symbolSamples, fadeSamples);
@@ -171,6 +188,7 @@ const encodeFrame = (dataDigits, sampleRate, options = {}) => {
     toneSequence,
     dataDigits: [...dataDigits],
     checkDigits: checkDigitsFor(dataDigits),
+    profile: profile.id,
   };
 };
 
@@ -198,10 +216,10 @@ const singleTonePowerDb = (samples, start, windowSize, sampleRate, frequency) =>
  * Goertzel measurement of all 17 tones over one window.
  * Detection rule from plan.md: a tone counts only if ~9 dB above the median.
  */
-const measureTones = (samples, start, windowSize, sampleRate) => {
+const measureTones = (samples, start, windowSize, sampleRate, profile = DEFAULT_PROFILE) => {
   const db = new Array(TONE_COUNT);
   for (let tone = 0; tone < TONE_COUNT; tone += 1) {
-    db[tone] = singleTonePowerDb(samples, start, windowSize, sampleRate, toneFrequency(tone));
+    db[tone] = singleTonePowerDb(samples, start, windowSize, sampleRate, toneFrequency(tone, profile));
   }
 
   const sorted = [...db].sort((left, right) => left - right);
@@ -217,7 +235,7 @@ const measureTones = (samples, start, windowSize, sampleRate) => {
 /**
  * Try to read the 11 symbols assuming the frame starts exactly at startSample.
  */
-const decodeAtStart = (samples, sampleRate, startSample, detectionMarginDb) => {
+const decodeAtStart = (samples, sampleRate, startSample, detectionMarginDb, profile) => {
   const symbolSamples = Math.round((sampleRate * SYMBOL_DURATION_MS) / 1000);
   const windowSize = Math.max(512, Math.round(symbolSamples * DECISION_WINDOW_FRACTION));
   const frameSamples = symbolSamples * SYMBOL_COUNT;
@@ -229,7 +247,7 @@ const decodeAtStart = (samples, sampleRate, startSample, detectionMarginDb) => {
   for (let symbolIndex = 0; symbolIndex < SYMBOL_COUNT; symbolIndex += 1) {
     const center = startSample + symbolIndex * symbolSamples + Math.floor(symbolSamples / 2);
     const windowStart = center - Math.floor(windowSize / 2);
-    const measurement = measureTones(samples, windowStart, windowSize, sampleRate);
+    const measurement = measureTones(samples, windowStart, windowSize, sampleRate, profile);
     if (measurement.margin < detectionMarginDb) return null;
     tones.push(measurement.tone);
     margins.push(measurement.margin);
@@ -253,9 +271,10 @@ const decodeAtStart = (samples, sampleRate, startSample, detectionMarginDb) => {
  */
 const decodeFrame = (samples, sampleRate, options = {}) => {
   const detectionMarginDb = options.detectionMarginDb ?? DEFAULT_DETECTION_MARGIN_DB;
+  const profile = resolveProfile(options.profile);
 
   if (options.expectedStartSample != null) {
-    return decodeAtStart(samples, sampleRate, options.expectedStartSample, detectionMarginDb);
+    return decodeAtStart(samples, sampleRate, options.expectedStartSample, detectionMarginDb, profile);
   }
 
   const symbolSamples = Math.round((sampleRate * SYMBOL_DURATION_MS) / 1000);
@@ -265,7 +284,7 @@ const decodeFrame = (samples, sampleRate, options = {}) => {
 
   const markerStarts = [];
   for (let start = 0; start + windowSize <= samples.length; start += hopSamples) {
-    const measurement = measureTones(samples, start, windowSize, sampleRate);
+    const measurement = measureTones(samples, start, windowSize, sampleRate, profile);
     if (measurement.tone === MARKER_TONE && measurement.margin >= detectionMarginDb) {
       markerStarts.push(start);
     }
@@ -288,7 +307,7 @@ const decodeFrame = (samples, sampleRate, options = {}) => {
 
     const estimate = Math.round((run.firstStart + run.lastStart + windowSize) / 2 - symbolSamples);
     for (const offset of [0, -hopSamples, hopSamples, -2 * hopSamples, 2 * hopSamples, -3 * hopSamples, 3 * hopSamples]) {
-      const decoded = decodeAtStart(samples, sampleRate, estimate + offset, detectionMarginDb);
+      const decoded = decodeAtStart(samples, sampleRate, estimate + offset, detectionMarginDb, profile);
       if (decoded) return decoded;
     }
   }
@@ -298,6 +317,8 @@ const decodeFrame = (samples, sampleRate, options = {}) => {
 
 module.exports = {
   TONE_COUNT,
+  PROFILES,
+  DEFAULT_PROFILE,
   BASE_FREQUENCY_HZ,
   TONE_SPACING_HZ,
   SYMBOL_DURATION_MS,
@@ -315,6 +336,7 @@ module.exports = {
   DEFAULT_DETECTION_MARGIN_DB,
   toneFrequency,
   toneFrequencies,
+  profileRange,
   valueToDigits,
   digitsToValue,
   checkDigitsFor,
