@@ -1,11 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { MIN_SAMPLE_RATE } from "../../acoustic/mic";
+import Brand from "../../ui/Brand";
 import "./acousticLab.css";
 
 const TEST_FREQUENCIES = [15500, 16500, 17500, 18500, 19500];
 const WINDOW_SIZE = 4096;
 const TONE_DURATION_MS = 700;
 const SETTLE_DURATION_MS = 250;
+const TONE_GAIN = 0.08;
+const FADE_S = 0.006; // 6 ms raised edges, so tones start and stop without clicks
+const METER_RANGE_DB = 40;
 
 const wait = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration));
 
@@ -24,6 +29,7 @@ const AcousticLab = () => {
   const [deviceInfo, setDeviceInfo] = useState(null);
   const [ambient, setAmbient] = useState({});
   const [results, setResults] = useState([]);
+  const [live, setLive] = useState(null);
 
   const audioRef = useRef(null);
   const activeTestRef = useRef(null);
@@ -76,6 +82,12 @@ const AcousticLab = () => {
       const context = new AudioContextClass();
       await context.resume();
 
+      if (context.sampleRate < MIN_SAMPLE_RATE) {
+        stream.getTracks().forEach((track) => track.stop());
+        await context.close();
+        throw new Error(`This phone's audio runs at ${context.sampleRate} Hz; at least ${MIN_SAMPLE_RATE} Hz is needed for the key tones.`);
+      }
+
       if (!context.audioWorklet) {
         stream.getTracks().forEach((track) => track.stop());
         await context.close();
@@ -103,7 +115,10 @@ const AcousticLab = () => {
         const activeTest = activeTestRef.current;
         if (activeTest) {
           const db = data.bins[activeTest.frequency];
-          if (typeof db === "number") activeTest.peakDb = Math.max(activeTest.peakDb, db);
+          if (typeof db === "number") {
+            activeTest.peakDb = Math.max(activeTest.peakDb, db);
+            setLive({ frequency: activeTest.frequency, db, peakDb: activeTest.peakDb });
+          }
           return;
         }
 
@@ -169,19 +184,26 @@ const AcousticLab = () => {
         oscillator.type = "sine";
         oscillator.frequency.value = frequency;
         // Low output to keep calibration comfortable. This is not the final protocol volume.
-        gain.gain.value = 0.08;
+        const startAt = audio.context.currentTime;
+        gain.gain.setValueAtTime(0, startAt);
+        gain.gain.linearRampToValueAtTime(TONE_GAIN, startAt + FADE_S);
         oscillator.connect(gain);
         gain.connect(audio.context.destination);
         audio.oscillator = oscillator;
-        oscillator.start();
+        oscillator.start(startAt);
         await wait(TONE_DURATION_MS);
-        oscillator.stop();
+        const stopAt = audio.context.currentTime;
+        gain.gain.setValueAtTime(TONE_GAIN, stopAt);
+        gain.gain.linearRampToValueAtTime(0, stopAt + FADE_S);
+        oscillator.stop(stopAt + FADE_S + 0.004);
+        await wait(30);
         oscillator.disconnect();
         gain.disconnect();
         audio.oscillator = null;
 
         await wait(SETTLE_DURATION_MS);
         activeTestRef.current = null;
+        setLive(null);
         const baseline = ambientRef.current[frequency] ?? -120;
         const margin = activeTest.peakDb - baseline;
         measurements.push({ frequency, baseline, peakDb: activeTest.peakDb, margin, ...getVerdict(margin) });
@@ -190,6 +212,7 @@ const AcousticLab = () => {
       setPhase("complete");
     } catch (testError) {
       activeTestRef.current = null;
+      setLive(null);
       setPhase("ready");
       setError(testError.message || "Tone calibration stopped unexpectedly.");
     }
@@ -210,11 +233,15 @@ const AcousticLab = () => {
     <main className="acoustic-lab">
       <header className="acoustic-lab__header">
         <div>
+          <Brand />
           <p className="acoustic-lab__eyebrow">Prototype · Layer 1</p>
           <h1>Acoustic capability check</h1>
           <p>This local calibration stores no identity or result, and it cannot mark attendance.</p>
         </div>
-        <button className="acoustic-lab__back" type="button" onClick={() => navigate(-1)}>Back</button>
+        <div className="acoustic-lab__controls">
+          <Link to="/acoustic-lab/link" className="ui-btn ui-btn--soft ui-btn--sm">Phone-to-phone link test</Link>
+          <button className="ui-btn ui-btn--secondary ui-btn--sm" type="button" onClick={() => navigate(-1)}>Back</button>
+        </div>
       </header>
 
       <section className="acoustic-lab__notice">
@@ -225,13 +252,36 @@ const AcousticLab = () => {
       {error && <p className="acoustic-lab__error" role="alert">{error}</p>}
 
       <section className="acoustic-lab__controls">
-        {phase === "idle" && <button type="button" onClick={setupLab}>Allow microphone &amp; inspect device</button>}
-        {phase === "setting-up" && <button type="button" disabled>Preparing microphone…</button>}
-        {phase === "ready" && <button type="button" onClick={runToneSweep}>Run local tone sweep</button>}
-        {phase === "testing" && <button type="button" disabled>Testing tones…</button>}
-        {phase === "complete" && <button type="button" onClick={runToneSweep}>Run again</button>}
-        {(phase === "ready" || phase === "complete") && <button className="acoustic-lab__secondary" type="button" onClick={resetLab}>Stop microphone</button>}
+        {phase === "idle" && <button className="ui-btn ui-btn--primary" type="button" onClick={setupLab}>Allow microphone &amp; inspect device</button>}
+        {phase === "setting-up" && <button className="ui-btn ui-btn--primary" type="button" disabled>Preparing microphone…</button>}
+        {phase === "ready" && <button className="ui-btn ui-btn--primary" type="button" onClick={runToneSweep}>Run local tone sweep</button>}
+        {phase === "testing" && <button className="ui-btn ui-btn--primary" type="button" disabled>Testing tones…</button>}
+        {phase === "complete" && <button className="ui-btn ui-btn--primary" type="button" onClick={runToneSweep}>Run again</button>}
+        {(phase === "ready" || phase === "complete") && <button className="ui-btn ui-btn--secondary" type="button" onClick={resetLab}>Stop microphone</button>}
       </section>
+
+      {phase === "testing" && live && (
+        <section className="acoustic-lab__panel">
+          <h2>Live level — {formatFrequency(live.frequency)}</h2>
+          {(() => {
+            const baseline = ambient[live.frequency] ?? -120;
+            const margin = live.db - baseline;
+            const width = Math.min(100, Math.max(0, (margin / METER_RANGE_DB) * 100));
+            return (
+              <div className="lab-meter">
+                <div className="lab-meter__label">
+                  <span>Above room noise: {margin.toFixed(1)} dB (peak {(live.peakDb - baseline).toFixed(1)} dB)</span>
+                  <span>12 dB = clear</span>
+                </div>
+                <div className="lab-meter__track">
+                  <div className="lab-meter__fill" style={{ width: `${width}%` }} />
+                  <div className="lab-meter__mark" style={{ left: `${(12 / METER_RANGE_DB) * 100}%` }} />
+                </div>
+              </div>
+            );
+          })()}
+        </section>
+      )}
 
       {deviceInfo && (
         <section className="acoustic-lab__panel">
