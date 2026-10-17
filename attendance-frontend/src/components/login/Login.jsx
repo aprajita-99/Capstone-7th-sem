@@ -4,7 +4,7 @@ import "./Login.css";
 import img1 from "../../assets/logo.png";
 import SERVER_URL from "../../config/api";
 import GoogleSignInButton from "./GoogleSignInButton";
-import { getOrCreateDevicePublicKey } from "../../utils/deviceKey";
+import { getOrCreateDevicePublicKey, publicKeyPayload, signDeviceChallenge } from "../../utils/deviceKey";
 import Brand from "../../ui/Brand";
 import { Spinner } from "../../ui/Spinner";
 
@@ -30,11 +30,13 @@ const Login = () => {
             let deviceStatus = "approved";
             if (data.user.role === "student") {
                 const publicKeyJwk = await getOrCreateDevicePublicKey();
+                // Prove this browser holds the private half of the key it submits.
+                const proof = await signDeviceChallenge({ purpose: "bind", payload: publicKeyPayload(publicKeyJwk) });
                 const bindingResponse = await fetch(`${SERVER_URL}/device-bindings/claim`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     credentials: "include",
-                    body: JSON.stringify({ publicKeyJwk }),
+                    body: JSON.stringify({ publicKeyJwk, ...proof }),
                 });
                 const bindingData = await bindingResponse.json();
                 if (!bindingResponse.ok) throw new Error(bindingData.message || "Could not bind this browser to your attendance account.");

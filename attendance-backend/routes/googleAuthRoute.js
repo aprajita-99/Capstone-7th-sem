@@ -2,6 +2,7 @@ const express = require("express");
 const isAuthenticated = require("../middleware/auth");
 const {
   googleSignIn,
+  issueDeviceChallenge,
   claimDeviceBinding,
   getDeviceBindingStatus,
   listDeviceReviews,
@@ -11,6 +12,7 @@ const {
 const router = express.Router();
 
 router.post("/auth/google", googleSignIn);
+router.post("/device/challenge", isAuthenticated, issueDeviceChallenge);
 router.post("/device-bindings/claim", isAuthenticated, claimDeviceBinding);
 router.get("/device-bindings/status", isAuthenticated, getDeviceBindingStatus);
 router.get("/device-reviews", isAuthenticated, isAuthenticated.authorizeRoles("teacher"), listDeviceReviews);
