@@ -22,7 +22,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **1** | Google sign-in (college domain + test accounts), roles, roster gate, logout / session check | **Shipped** |
 | **2** | Classes, rooms (API), roster CSV preview / save / read | **Shipped** |
 | **2** | Standard classroom list (101–112, 201–212, 301–312) seeded via `npm run seed:rooms` | **Shipped** |
-| **2** | Room picker grouped by floor, class detail page, single-student add/remove, class edit/archive/restore, CSV preview with row highlighting, student "Your classes" | **Built** (API checks + build pass; owner click-through pending) |
+| **2** | Room picker grouped by floor, class detail page, single-student add/remove, class edit/archive/restore, CSV preview with row highlighting, student "Your classes" | **Shipped** |
 | **3** | Device binding v1 (key per browser + teacher review queue) | **Shipped** |
 | **3** | Device binding v2 (signed challenges — proves the phone holds its key) | **Planned** |
 | **4** | Sound lab (sample rate, mic settings, 5-tone margins) | **Shipped** (partial — gaps listed in Phase 4) |
