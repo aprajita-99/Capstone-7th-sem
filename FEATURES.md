@@ -24,7 +24,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **2** | Standard classroom list (101–112, 201–212, 301–312) seeded via `npm run seed:rooms` | **Shipped** |
 | **2** | Room picker grouped by floor, class detail page, single-student add/remove, class edit/archive/restore, CSV preview with row highlighting, student "Your classes" | **Shipped** |
 | **3** | Device binding v1 (key per browser + teacher review queue) | **Shipped** |
-| **3** | Device binding v2 (signed challenges — proves the phone holds its key; approving one device supersedes the student's other requests) | **Built** (tests + live checks pass; owner browser check pending) |
+| **3** | Device binding v2 (signed challenges — proves the phone holds its key; approving one device supersedes the student's other requests) | **Shipped** |
 | **4** | Sound lab (sample rate, mic settings, 5-tone margins) | **Shipped** (partial — gaps listed in Phase 4) |
 | **4** | FSK codec (encode / decode / checksum), 12 synthetic tests | **Shipped** |
 | **4** | Live transmitter / receiver engine, phone-to-phone link test, band decision | **Planned** |
