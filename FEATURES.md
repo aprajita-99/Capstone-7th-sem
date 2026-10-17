@@ -18,7 +18,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | --- | --- | --- |
 | **0** | Local dev setup (Atlas DB, own Google client, env files), tests green | **Shipped** (local) |
 | **0** | Security fixes (expired/invalid session → 401, token cookie-only, production CORS allowlist, Windows `start:shared`) | **Shipped** |
-| **0** | Hosting (permanent HTTPS URL on Render + Vercel) | **Planned** |
+| **0** | Hosting: backend on Render, frontend on Vercel (`capstone-7th-sem.vercel.app`, `/api` proxied to Render) | **Shipped** |
 | **1** | Google sign-in (college domain + test accounts), roles, roster gate, logout / session check | **Shipped** |
 | **2** | Classes, rooms (API), roster CSV preview / save / read | **Shipped** (API + old-style page) |
 | **2** | Standard classroom list (101–112, 201–212, 301–312) seeded via `npm run seed:rooms` | **Shipped** |
