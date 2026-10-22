@@ -14,6 +14,10 @@ const { FrameReceiver } = receiverModule;
 const DEFAULT_KEY = "1234567";
 const GAP_MS = 300;
 const SCAN_MS = 500;
+// The codec's detection rule is 9 dB above the median tone (plan.md). A second
+// receiver at 5 dB runs alongside purely as a measurement, to learn whether a
+// lower threshold would rescue weak rooms without letting wrong keys through.
+const EXPERIMENTAL_MARGIN_DB = 5;
 
 const parseKey = (text) => {
   const value = Number(text);
@@ -32,6 +36,7 @@ const LinkTest = () => {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
   const [startedAt, setStartedAt] = useState(null);
+  const [stoppedAt, setStoppedAt] = useState(null);
   const [now, setNow] = useState(Date.now());
   const [screenLock, setScreenLock] = useState(false);
 
@@ -44,12 +49,14 @@ const LinkTest = () => {
   const [wrong, setWrong] = useState(0);
   const [margins, setMargins] = useState([]);
   const [lastHeardAt, setLastHeardAt] = useState(null);
+  const [lowStats, setLowStats] = useState({ decoded: 0, wrong: 0 });
   const [distance, setDistance] = useState("");
   const [sentText, setSentText] = useState("");
   const [copied, setCopied] = useState(false);
 
   const audioRef = useRef(null);
   const receiverRef = useRef(null);
+  const lowReceiverRef = useRef(null);
   const levelRef = useRef(null);
   const timerRef = useRef(null);
   const wakeRef = useRef(null);
@@ -63,13 +70,17 @@ const LinkTest = () => {
     const audio = audioRef.current;
     audioRef.current = null;
     receiverRef.current = null;
+    lowReceiverRef.current = null;
     audio?.transmitter?.stop();
     if (audio?.mic) await audio.mic.stop();
     else if (audio?.context) await audio.context.close().catch(() => {});
     await wakeRef.current?.release();
     wakeRef.current = null;
     setScreenLock(false);
-    setRunning(false);
+    setRunning((wasRunning) => {
+      if (wasRunning) setStoppedAt(Date.now());
+      return false;
+    });
   }, []);
 
   useEffect(() => () => {
@@ -82,6 +93,7 @@ const LinkTest = () => {
     setWrong(0);
     setMargins([]);
     setLastHeardAt(null);
+    setLowStats({ decoded: 0, wrong: 0 });
     setLevel(null);
     setCopied(false);
   };
@@ -109,15 +121,22 @@ const LinkTest = () => {
         const mic = await openMic({
           onChunk: (chunk) => {
             receiverRef.current?.push(chunk);
+            lowReceiverRef.current?.push(chunk);
             levelRef.current = levelDb(chunk);
           },
         });
         receiverRef.current = new FrameReceiver({ sampleRate: mic.sampleRate, profile });
+        lowReceiverRef.current = new FrameReceiver({ sampleRate: mic.sampleRate, profile, detectionMarginDb: EXPERIMENTAL_MARGIN_DB });
         audioRef.current = { mic };
         setDeviceInfo({ sampleRate: mic.sampleRate, ...mic.settings });
         timerRef.current = window.setInterval(() => {
           setNow(Date.now());
           setLevel(levelRef.current);
+          const lowFrames = lowReceiverRef.current?.scan() || [];
+          if (lowFrames.length) {
+            const lowCorrect = lowFrames.filter((frame) => frame.value === keyValue).length;
+            setLowStats((stats) => ({ decoded: stats.decoded + lowCorrect, wrong: stats.wrong + lowFrames.length - lowCorrect }));
+          }
           const frames = receiverRef.current?.scan() || [];
           if (frames.length === 0) return;
           const correct = frames.filter((frame) => frame.value === keyValue);
@@ -128,6 +147,7 @@ const LinkTest = () => {
         }, SCAN_MS);
       }
       setStartedAt(Date.now());
+      setStoppedAt(null);
       setNow(Date.now());
       setRunning(true);
     } catch (startError) {
@@ -143,9 +163,10 @@ const LinkTest = () => {
     audioRef.current?.transmitter?.setVolume(value);
   };
 
-  const elapsedMs = running && startedAt ? now - startedAt : 0;
+  const elapsedMs = startedAt ? (running ? now : stoppedAt ?? now) - startedAt : 0;
   const sentCount = Number(sentText) > 0 ? Number(sentText) : null;
   const rate = sentCount ? (decoded / sentCount) * 100 : null;
+  const lowRate = sentCount ? (lowStats.decoded / sentCount) * 100 : null;
   const avgMargin = average(margins);
   const lowestMargin = margins.length ? Math.min(...margins) : null;
 
@@ -165,6 +186,7 @@ const LinkTest = () => {
           `Wrong-key decodes: ${wrong}`,
           `Frames sent (from sender): ${sentCount ?? "not entered"}${rate !== null ? ` → ${rate.toFixed(1)}% decoded` : ""}`,
           `Signal margin per frame: ${avgMargin !== null ? `avg ${avgMargin.toFixed(1)} dB, lowest ${lowestMargin.toFixed(1)} dB` : "no frames yet"}`,
+          `Experimental ${EXPERIMENTAL_MARGIN_DB} dB threshold: ${lowStats.decoded} decoded${lowRate !== null ? ` (${lowRate.toFixed(1)}%)` : ""}, ${lowStats.wrong} wrong-key`,
         ]),
   ].join("\n");
 
@@ -276,6 +298,10 @@ const LinkTest = () => {
             <div><span>Wrong-key decodes</span><strong>{wrong}</strong></div>
             <div><span>Time</span><strong>{formatSeconds(elapsedMs)}</strong></div>
             <div><span>Avg margin</span><strong>{avgMargin !== null ? `${avgMargin.toFixed(1)} dB` : "—"}</strong></div>
+          </div>
+          <div className="link-stats link-stats--experimental">
+            <div><span>At {EXPERIMENTAL_MARGIN_DB} dB threshold (experiment)</span><strong>{lowStats.decoded}</strong></div>
+            <div><span>Wrong-key at {EXPERIMENTAL_MARGIN_DB} dB</span><strong>{lowStats.wrong}</strong></div>
           </div>
           <p className="ui-muted">
             {lastHeardAt ? `Last frame heard ${formatSeconds(now - lastHeardAt)} ago.` : running ? "Waiting for the first frame…" : ""}

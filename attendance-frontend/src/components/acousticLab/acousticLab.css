@@ -134,3 +134,5 @@
   .acoustic-lab__device-grid,
   .link-settings { grid-template-columns: 1fr; }
 }
+
+.link-stats--experimental div { background: var(--info-soft); }
