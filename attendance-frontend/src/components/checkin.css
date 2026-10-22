@@ -1,0 +1,120 @@
+/* Shared by the teacher live check-in and the student check-in pages */
+
+.checkin-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding: 28px 20px;
+}
+
+.checkin-hero__icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  font-size: 32px;
+  background: var(--indigo-50);
+  color: var(--indigo-600);
+}
+
+.checkin-hero__icon--success { background: var(--success-soft); color: var(--success); }
+.checkin-hero__icon--warning { background: var(--warning-soft); color: var(--warning); }
+.checkin-hero__icon--danger { background: var(--danger-soft); color: var(--danger); }
+
+.checkin-hero__title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.checkin-hero__text { font-size: 14px; color: var(--text-soft); max-width: 46ch; line-height: 1.55; }
+.checkin-hero__actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 6px; }
+
+/* Pulsing rings while sound is playing or being listened for */
+.checkin-pulse { position: relative; }
+.checkin-pulse::before,
+.checkin-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid var(--indigo-300);
+  animation: checkin-pulse 1.8s ease-out infinite;
+}
+.checkin-pulse::after { animation-delay: 0.9s; }
+
+@keyframes checkin-pulse {
+  from { transform: scale(1); opacity: 0.9; }
+  to { transform: scale(1.7); opacity: 0; }
+}
+
+.checkin-timer { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+
+.checkin-level { width: min(280px, 100%); height: 6px; border-radius: 999px; background: var(--slate-100); overflow: hidden; }
+.checkin-level span { display: block; height: 100%; background: var(--success); transition: width 0.2s linear; }
+
+.checkin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .checkin-grid { grid-template-columns: 1fr; }
+}
+
+.checkin-names { list-style: none; display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
+
+.checkin-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13.5px;
+}
+
+.checkin-name__who { display: flex; flex-direction: column; min-width: 0; }
+.checkin-name__who strong { font-weight: 600; }
+.checkin-name__who span { font-size: 12px; color: var(--text-faint); overflow-wrap: anywhere; }
+
+.checkin-steps { list-style: none; display: flex; flex-direction: column; gap: 10px; text-align: left; width: min(420px, 100%); }
+.checkin-steps li { display: flex; gap: 10px; font-size: 14px; color: var(--text-soft); line-height: 1.5; }
+.checkin-steps li strong { color: var(--text); }
+.checkin-steps__num {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--indigo-50);
+  color: var(--indigo-700);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.session-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+.session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13.5px;
+}
+
+.session-row__when { display: flex; flex-direction: column; gap: 2px; }
+.session-row__when span { font-size: 12px; color: var(--text-faint); }
+.session-row__stats { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.checkin-open-card { border-left: 4px solid var(--indigo-500); }
+.checkin-open-card__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.checkin-open-card__row + .checkin-open-card__row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+
+.checkin-card { margin-top: 12px; }

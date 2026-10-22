@@ -9,6 +9,8 @@ import StudentDashboard from './components/student/studentDashboard';
 import TeacherDashboard from './components/teacher/teacherDashboard';
 import ClassManagement from './components/teacher/classManagement';
 import ClassDetail from './components/teacher/ClassDetail';
+import LiveCheckin from './components/teacher/LiveCheckin';
+import CheckIn from './components/student/CheckIn';
 import AcousticLab from './components/acousticLab/AcousticLab';
 import LinkTest from './components/acousticLab/LinkTest';
 
@@ -21,6 +23,8 @@ function App() {
           <Route path={'/login'} element={<Login />} />
           <Route path='/teacher/classes' element={<ClassManagement />} />
           <Route path='/teacher/classes/:classId' element={<ClassDetail />} />
+          <Route path='/teacher/classes/:classId/live' element={<LiveCheckin />} />
+          <Route path='/student/check-in/:sessionId' element={<CheckIn />} />
           <Route path='/acoustic-lab' element={<AcousticLab />} />
           <Route path='/acoustic-lab/link' element={<LinkTest />} />
           <Route path={'/student-dashboard'} element={<StudentDashboard />} />

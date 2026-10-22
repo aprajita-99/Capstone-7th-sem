@@ -29,7 +29,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **4** | FSK codec (encode / decode / checksum), 12 synthetic tests | **Shipped** |
 | **4** | Band profiles (high 18.00–19.76 kHz, mid 16.50–18.26 kHz), streaming receiver with **repeat combining**, transmitter, wake lock, `/acoustic-lab/link` | **Shipped** (19/19 codec tests; first phone runs logged) |
 | **4** | Phone-to-phone measurements at 1 m / 6 m / far corner → band decision | **Planned** (owner) |
-| **5** | Check-in sessions (teacher starts, students hear key, server marks present) | **Planned** |
+| **5** | Check-in sessions: teacher speaker check + live page playing the rotating key, student Join → listen → signed claim → present; joined-but-unheard → review; auto-close; class session history | **Built** (25/25 backend tests, 33/33 live API checks; phone test pending) |
 | **6** | Cascade relay (students re-play the next key to reach the back of the room) | **Planned** |
 | **7** | Face service (match + liveness) | **Planned** |
 | **8** | Student identity enrollment (ID card + live selfie + teacher verification) | **Planned** |
@@ -294,8 +294,8 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | Roster | `POST /classes/:classId/roster/preview` · `PUT /classes/:classId/roster` · `GET /classes/:classId/roster` · `POST /classes/:classId/roster/students` · `DELETE /classes/:classId/roster/students/:email` | 2 |
 | Student classes | `GET /me/classes` | 2 |
 | Devices | `POST /device/challenge` · `POST /device-bindings/claim` · `GET /device-bindings/status` · `GET /device-reviews` · `POST /device-reviews/:reviewId` | 3 |
-| Sessions (teacher) | `POST /classes/:classId/sessions` · `GET /sessions/:sessionId` · `GET /sessions/:sessionId/beacon` · `POST /sessions/:sessionId/close` · `PATCH /sessions/:sessionId/headcount` · `GET /sessions/:sessionId/spot-check` | 5 (+10) |
-| Sessions (student) | `GET /sessions/active` · `POST /sessions/:sessionId/claims` · `GET /sessions/:sessionId/me` | 5 (+6) |
+| Sessions (teacher) | `POST /classes/:classId/sessions` · `GET /classes/:classId/sessions` · `GET /sessions/:sessionId` · `GET /sessions/:sessionId/beacon` · `POST /sessions/:sessionId/close` · `PATCH /sessions/:sessionId/headcount` · `GET /sessions/:sessionId/spot-check` | 5 (+10) |
+| Sessions (student) | `GET /sessions/active` · `POST /sessions/:sessionId/join` · `POST /sessions/:sessionId/claims` · `GET /sessions/:sessionId/me` | 5 (+6) |
 | Enrollment (student) | `GET /enrollment/status` · `POST /enrollment/id-card` · `POST /face/challenge` · `POST /enrollment/selfie` | 8 |
 | Enrollment (teacher) | `GET /enrollment-reviews` · `POST /enrollment-reviews/:userId` | 8 |
 | Face at check-in | `POST /sessions/:sessionId/face` | 9 |
@@ -322,7 +322,7 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 | `/teacher-dashboard` | Teacher | Stats, recent classes | Shipped (extended 11) |
 | `/teacher/classes` | Teacher | Classes, rooms, rosters | Shipped (restyle 2) |
 | `/teacher/classes/:classId` | Teacher | Class detail: roster, sessions, attendance | 2 (+11) |
-| `/teacher/live/:sessionId` | Teacher | Live check-in (beacon, counts, headcount, spot-check, thumbnails) | 5 (+6, 9, 10) |
+| `/teacher/classes/:classId/live` | Teacher | Live check-in: speaker check, playing key, counts, names (later: headcount, spot-check, thumbnails) | 5 (+6, 9, 10) |
 | `/teacher/reviews` | Teacher | Devices · enrollments · attendance reviews | 3 (+8, 10) |
 
 ### 4.4 Configuration
@@ -333,7 +333,7 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 | `GOOGLE_CLIENT_ID`, `TEACHER_EMAILS`, `TEST_STUDENT_EMAILS` | backend | Existing | 1 |
 | `CLIENT_URLS`, `NODE_ENV` | backend | Allowed origins; `PRODUCTION` = secure cookies, no tunnel wildcard | 0 |
 | `TIMEZONE` (default `Asia/Kolkata`) | backend | Day boundary for lock / same-day rules | 5 |
-| `CHECKIN_WINDOW_MIN` (6), `KEY_LIFETIME_SEC` (15), `MAX_WAVES` (5) | backend | Session defaults | 5–6 |
+| `CHECKIN_WINDOW_MIN` (6), `KEY_LIFETIME_SEC` (15), `MAX_WAVES` (5), `CHECKIN_PROFILE` (`mid`) | backend | Session defaults (band = mid until the band decision) | 5–6 |
 | `FACE_SERVICE_URL`, `FACE_SERVICE_TOKEN` | backend | Face service | 7 |
 | `EVIDENCE_TTL_HOURS` (24) | backend | Retention | 5 |
 | `REACT_APP_GOOGLE_CLIENT_ID`, `REACT_APP_API_URL`, `REACT_APP_GOOGLE_HOSTED_DOMAIN` | frontend | Existing | 1 |
@@ -538,7 +538,7 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 **Database.**
 - **`attendancesessions`:** `class`, `teacher`, `room`, `status (open|closed|locked)`, `startedAt`, `closesAt`, `closedAt`, `lockAt` (end of the IST day), `settings{windowMin, keyLifetimeSec, maxWaves, profile, faceRequired:false}`, `headcount` (Phase 10), `stats{present, review, absent, byWave{}}`. Index `{class:1, status:1}`; only one `open` session per class.
 - **`wavekeys`:** `session`, `wave` (0…), `value` (integer `0 … 15^7−1`), `validFrom`, `validUntil`. Index `{session:1, wave:1, validUntil:-1}`. Rotated when expired (new doc).
-- **`attendancerecords`:** `session`, `class`, `student` (ref), `email`, `status (present|review|absent)`, `reasons[]`, `acoustic{heard, wave, heardAt, keyWave}`, `device{fingerprint, verified}`, `face{…}` (Phase 9), `decision{by, at, note}` (Phase 10), `query{…}` (Phase 10). Unique `{session:1, student:1}`.
+- **`attendancerecords`:** `session`, `class`, `student` (ref, empty for roster students who never signed in), `email`, `status (joined|present|review|absent)`, `reasons[]`, `joinedAt`, `acoustic{heard, wave, heardAt}`, `device{fingerprint, verified}`, `face{…}` (Phase 9), `decision{by, at, note}` (Phase 10), `query{…}` (Phase 10). Unique `{session:1, email:1}`.
 - **`checkinevidence`:** `record`, `ip`, `userAgent`, `gps?` (optional, only after notice), `frames[]` (Phase 9), `expiresAt` (**TTL index**, `EVIDENCE_TTL_HOURS`).
 
 **API.**
@@ -546,10 +546,12 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 | Method & path | Who | Request → Response |
 | --- | --- | --- |
 | `POST /classes/:classId/sessions` | Teacher (owner) | `{windowMin?}` → `{session}` (409 if one already open; 400 if class archived) |
+| `GET /classes/:classId/sessions` | Teacher (owner) | → `{openSession, sessions[], defaults{profile, windowMin}}` (recent 20, auto-closing expired ones) |
 | `GET /sessions/:sessionId` | Teacher (owner) | → `{session, counts, records:[{student, status, wave, reasons}]}` (poll every 2 s) |
 | `GET /sessions/:sessionId/beacon` | Teacher (owner) | → `{wave:0, value, validUntil, profile}` (rotates K0) |
 | `POST /sessions/:sessionId/close` | Teacher (owner) | → `{session}`; creates `absent` records for roster students without a record |
-| `GET /sessions/active` | Student | → `{sessions:[{_id, class, closesAt, profile}]}` for the student's active classes |
+| `GET /sessions/active` | Student | → `{sessions:[{_id, class, closesAt, profile, myStatus}]}` for the student's active classes |
+| `POST /sessions/:sessionId/join` | Student (on roster) | → `{record:{status:"joined"}, session}` — idempotent; needed so a joined-but-unheard student goes to review, not absent |
 | `POST /sessions/:sessionId/claims` | Student | `{key, challengeId, signature}` → `{status, wave}` (signed payload `{sessionId, key}`) |
 | `GET /sessions/:sessionId/me` | Student | → `{record}` (own status) |
 
@@ -563,12 +565,13 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 - Auto-close: on each read/claim, if `now > closesAt` close the session (no cron needed); plus a lightweight `setInterval` sweep every minute in `index.js`.
 
 **Frontend work.**
-- `components/teacher/LiveCheckin.jsx` (`/teacher/live/:sessionId`): big **Start/Close**, timer, wake lock, polls `/beacon` and re-loads the transmitter when the key rotates (loop K0 with ~300 ms gap), counts (present / review / not yet), live name list.
+- `components/teacher/LiveCheckin.jsx` (`/teacher/classes/:classId/live`): big **Start/Close**, timer, wake lock, polls `/beacon` and re-loads the transmitter when the key rotates (loop K0 with ~300 ms gap), counts (present / review / not yet), live name list.
 - Class detail + teacher dashboard: **Start check-in** button.
 - `components/student/CheckIn.jsx` (`/student/check-in/:sessionId`): state machine `idle → permissions → listening → submitting → done | failed` with clear messages (mic blocked, sample rate too low, not heard after 60 s → "move closer / ask teacher").
 - Student dashboard polls `/sessions/active` every 10 s while open and shows the **Join** card.
 
 **Rules & edge cases.**
+- Dev only: roster rows may use addresses listed in `TEST_STUDENT_EMAILS` so test students can join check-ins (empty in production → only `@nitjsr.ac.in`).
 - Keys never appear on screen or in logs.
 - Expired / other-session / reused keys → claim rejected (no record change).
 - Polling (not WebSockets): ~120 phones × 1 request / 2 s is light and survives free hosting.

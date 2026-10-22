@@ -11,6 +11,7 @@ import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { roomLabel } from "../../utils/rooms";
 import "./studentDashboard.css";
+import "../checkin.css";
 
 const STATUS_VIEW = {
     approved: {
@@ -50,6 +51,7 @@ const StudentDashboard = () => {
     const [user, setUser] = useState(null);
     const [deviceStatus, setDeviceStatus] = useState(location.state?.deviceStatus || "checking");
     const [classes, setClasses] = useState(null);
+    const [openCheckins, setOpenCheckins] = useState([]);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -75,6 +77,19 @@ const StudentDashboard = () => {
         };
         fetchUser();
     }, [navigate, toast]);
+
+    // Open check-ins for the student's classes, refreshed every 10 seconds.
+    useEffect(() => {
+        if (!user) return undefined;
+        const load = () =>
+            axios
+                .get(`${SERVER_URL}/sessions/active`, { withCredentials: true })
+                .then((response) => setOpenCheckins(response.data.sessions))
+                .catch(() => {});
+        load();
+        const timer = window.setInterval(load, 10000);
+        return () => window.clearInterval(timer);
+    }, [user]);
 
     const handleLogout = useCallback(async () => {
         try {
@@ -113,6 +128,24 @@ const StudentDashboard = () => {
                     </p>
                 </div>
             </div>
+
+            {openCheckins.length > 0 && (
+                <Card className="checkin-open-card" title="Check-in open now">
+                    {openCheckins.map((checkin) => (
+                        <div key={checkin._id} className="checkin-open-card__row">
+                            <span>
+                                <strong>{checkin.class?.courseCode}{checkin.class?.section ? ` · ${checkin.class.section}` : ""}</strong>{" "}
+                                <span className="ui-muted">{checkin.class?.title}</span>
+                            </span>
+                            {checkin.myStatus === "present" ? (
+                                <Badge variant="success" dot>Present</Badge>
+                            ) : (
+                                <Button onClick={() => navigate(`/student/check-in/${checkin._id}`)}>Join check-in</Button>
+                            )}
+                        </div>
+                    ))}
+                </Card>
+            )}
 
             <div className="student-grid">
                 <Card className={`device-card device-card--${deviceStatus}`}>
