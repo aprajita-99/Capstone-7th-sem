@@ -78,6 +78,7 @@ Hardware reality:
 - Many phone speakers and mics roll off above 17-18 kHz. A frequency sweep in Layer 1 measures this per phone model.
 - A lower band is partly audible to younger students: keep volume low and frames short.
 - Refuse to start if the audio sample rate is below 44.1 kHz. Log the real applied mic settings.
+- Measured 2026-10-22 (1 m, mid band): phone **speakers** vary far more than mics at these frequencies (signal margin 12.5 dB vs 28.5 dB between two phones, with the stronger phone at only 50% media volume). The teacher's K0 phone should be a phone with a strong speaker; weak-speaker phones still receive well but relay weakly in the cascade.
 - The tab must stay in the foreground with the screen on (Screen Wake Lock), or the browser pauses audio.
 - Mic and audio need a user gesture (the Join button) and HTTPS.
 - Android output latency varies by 50-200 ms: use `osc.start(time)` scheduling, and do not add random backoff (identical synchronised signals reinforce each other).
