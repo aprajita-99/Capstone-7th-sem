@@ -49,6 +49,8 @@ const LinkTest = () => {
   const [wrong, setWrong] = useState(0);
   const [margins, setMargins] = useState([]);
   const [lastHeardAt, setLastHeardAt] = useState(null);
+  const [firstHeardAt, setFirstHeardAt] = useState(null);
+  const [rebuilt, setRebuilt] = useState(0);
   const [lowStats, setLowStats] = useState({ decoded: 0, wrong: 0 });
   const [distance, setDistance] = useState("");
   const [sentText, setSentText] = useState("");
@@ -93,6 +95,8 @@ const LinkTest = () => {
     setWrong(0);
     setMargins([]);
     setLastHeardAt(null);
+    setFirstHeardAt(null);
+    setRebuilt(0);
     setLowStats({ decoded: 0, wrong: 0 });
     setLevel(null);
     setCopied(false);
@@ -143,7 +147,11 @@ const LinkTest = () => {
           setDecoded((count) => count + correct.length);
           setWrong((count) => count + frames.length - correct.length);
           setMargins((list) => [...list, ...correct.map((frame) => frame.minMarginDb)]);
-          if (correct.length) setLastHeardAt(Date.now());
+          setRebuilt((count) => count + correct.filter((frame) => frame.combined).length);
+          if (correct.length) {
+            setLastHeardAt(Date.now());
+            setFirstHeardAt((first) => first ?? Date.now());
+          }
         }, SCAN_MS);
       }
       setStartedAt(Date.now());
@@ -182,7 +190,8 @@ const LinkTest = () => {
       : [
           deviceInfo ? `Sample rate: ${deviceInfo.sampleRate} Hz · filters off: echo ${deviceInfo.echoCancellationOff ? "yes" : "no"}, noise ${deviceInfo.noiseSuppressionOff ? "yes" : "no"}, auto gain ${deviceInfo.autoGainControlOff ? "yes" : "no"}` : "Sample rate: not started",
           `Listening time: ${formatSeconds(elapsedMs)}`,
-          `Frames decoded (correct key): ${decoded}`,
+          `Frames decoded (correct key): ${decoded}${rebuilt ? ` (${rebuilt} rebuilt from repeats)` : ""}`,
+          `First key heard after: ${firstHeardAt && startedAt ? formatSeconds(firstHeardAt - startedAt) : "not heard"}`,
           `Wrong-key decodes: ${wrong}`,
           `Frames sent (from sender): ${sentCount ?? "not entered"}${rate !== null ? ` → ${rate.toFixed(1)}% decoded` : ""}`,
           `Signal margin per frame: ${avgMargin !== null ? `avg ${avgMargin.toFixed(1)} dB, lowest ${lowestMargin.toFixed(1)} dB` : "no frames yet"}`,
@@ -295,6 +304,8 @@ const LinkTest = () => {
           </div>
           <div className="link-stats">
             <div><span>Decoded (correct key)</span><strong>{decoded}</strong></div>
+            <div><span>Rebuilt from repeats</span><strong>{rebuilt}</strong></div>
+            <div><span>First key heard after</span><strong>{firstHeardAt && startedAt ? formatSeconds(firstHeardAt - startedAt) : "—"}</strong></div>
             <div><span>Wrong-key decodes</span><strong>{wrong}</strong></div>
             <div><span>Time</span><strong>{formatSeconds(elapsedMs)}</strong></div>
             <div><span>Avg margin</span><strong>{avgMargin !== null ? `${avgMargin.toFixed(1)} dB` : "—"}</strong></div>
