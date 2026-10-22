@@ -95,6 +95,63 @@ test("receiver: different keys back to back with short gaps, mid band, 10 dB noi
   assert.deepEqual(found.map((frame) => frame.value), values);
 });
 
+// Each repeat of the key loses one different data/check symbol (faded 40 dB
+// into the noise), so no single frame passes the 9 dB rule on its own.
+const buildFadingStream = ({ values, fadePositions, profile = fsk.PROFILES.mid, gapMs = 300, snrDb = 12, seed = 3 }) => {
+  const random = makeRandom(seed);
+  const symbolSamples = Math.round((SAMPLE_RATE * fsk.SYMBOL_DURATION_MS) / 1000);
+  const gap = Math.round((SAMPLE_RATE * gapMs) / 1000);
+  const frameLength = symbolSamples * fsk.SYMBOL_COUNT;
+  const stream = new Float32Array(SAMPLE_RATE / 2 + values.length * (frameLength + gap) + SAMPLE_RATE);
+  values.forEach((value, index) => {
+    const frame = fsk.encodeFrame(fsk.valueToDigits(value), SAMPLE_RATE, { profile, amplitude: 0.5 }).samples;
+    const faded = fadePositions[index];
+    for (let sample = faded * symbolSamples; sample < (faded + 1) * symbolSamples; sample += 1) frame[sample] *= 0.01;
+    stream.set(frame, SAMPLE_RATE / 2 + index * (frameLength + gap));
+  });
+  const noiseRms = 0.5 / Math.SQRT2 / 10 ** (snrDb / 20);
+  for (let index = 0; index < stream.length; index += 1) stream[index] += (random() * 2 - 1) * noiseRms * Math.sqrt(3);
+  return stream;
+};
+
+test("receiver: repeats that each lose a different tone are rebuilt by combining", () => {
+  const values = Array(4).fill(1234567);
+  const stream = buildFadingStream({ values, fadePositions: [4, 8, 6, 10] });
+
+  const single = runReceiver(stream, fsk.PROFILES.mid).length;
+  const receiverWithout = new FrameReceiver({ sampleRate: SAMPLE_RATE, profile: fsk.PROFILES.mid, combineRepeats: false });
+  const withoutCombining = [];
+  for (let start = 0; start < stream.length; start += CHUNK) {
+    receiverWithout.push(stream.subarray(start, start + CHUNK));
+    if ((start / CHUNK) % SCAN_EVERY_CHUNKS === SCAN_EVERY_CHUNKS - 1) withoutCombining.push(...receiverWithout.scan());
+  }
+  withoutCombining.push(...receiverWithout.scan());
+
+  const withCombining = runReceiver(stream, fsk.PROFILES.mid);
+  console.log(`[combine] 4 faded repeats: single-frame decodes ${withoutCombining.length}, with combining ${withCombining.length} frame(s), values ${withCombining.map((f) => f.value)}, repeats used ${withCombining.map((f) => f.repeatsUsed)}`);
+  assert.equal(withoutCombining.length, 0, "no repeat should decode on its own");
+  assert.ok(single >= 1);
+  assert.ok(withCombining.length >= 1);
+  assert.ok(withCombining.every((frame) => frame.value === 1234567 && frame.combined));
+});
+
+test("receiver: combining never invents a key when two different keys alternate", () => {
+  const random = makeRandom(21);
+  let wrong = 0;
+  let found = 0;
+  for (let trial = 0; trial < 20; trial += 1) {
+    const keyA = Math.floor(random() * fsk.MAX_FRAME_VALUE);
+    const keyB = Math.floor(random() * fsk.MAX_FRAME_VALUE);
+    const values = [keyA, keyB, keyA, keyB, keyA, keyB];
+    const fadePositions = values.map(() => 2 + Math.floor(random() * 9));
+    const frames = runReceiver(buildFadingStream({ values, fadePositions, seed: 100 + trial }), fsk.PROFILES.mid);
+    found += frames.length;
+    wrong += frames.filter((frame) => frame.value !== keyA && frame.value !== keyB).length;
+  }
+  console.log(`[combine] 20 trials of alternating faded keys: ${found} frames emitted, ${wrong} invented keys`);
+  assert.equal(wrong, 0);
+});
+
 test("receiver: silence and the wrong band produce no frames", () => {
   assert.equal(runReceiver(new Float32Array(SAMPLE_RATE * 5), fsk.PROFILES.high).length, 0);
   const highStream = buildStream({ values: [42, 43, 44], profile: fsk.PROFILES.high });

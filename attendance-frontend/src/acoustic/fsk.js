@@ -277,6 +277,21 @@ const decodeFrame = (samples, sampleRate, options = {}) => {
     return decodeAtStart(samples, sampleRate, options.expectedStartSample, detectionMarginDb, profile);
   }
 
+  for (const start of findFrameStarts(samples, sampleRate, { profile, detectionMarginDb }).flat()) {
+    const decoded = decodeAtStart(samples, sampleRate, start, detectionMarginDb, profile);
+    if (decoded) return decoded;
+  }
+  return null;
+};
+
+/**
+ * Candidate frame starts, in time order, one group per two-symbol marker
+ * burst: the estimated start followed by small timing offsets around it.
+ * Shared by decodeFrame and the receiver's repeat combining.
+ */
+const findFrameStarts = (samples, sampleRate, options = {}) => {
+  const detectionMarginDb = options.detectionMarginDb ?? DEFAULT_DETECTION_MARGIN_DB;
+  const profile = resolveProfile(options.profile);
   const symbolSamples = Math.round((sampleRate * SYMBOL_DURATION_MS) / 1000);
   const windowSize = Math.max(512, Math.round(symbolSamples * DECISION_WINDOW_FRACTION));
   const hopSamples = Math.max(1, Math.round((sampleRate * SEARCH_HOP_MS) / 1000));
@@ -301,18 +316,61 @@ const decodeFrame = (samples, sampleRate, options = {}) => {
     }
   }
 
+  const starts = [];
   for (const run of runs) {
     const span = run.lastStart + windowSize - run.firstStart;
     if (span < minMarkerSpan) continue;
 
     const estimate = Math.round((run.firstStart + run.lastStart + windowSize) / 2 - symbolSamples);
-    for (const offset of [0, -hopSamples, hopSamples, -2 * hopSamples, 2 * hopSamples, -3 * hopSamples, 3 * hopSamples]) {
-      const decoded = decodeAtStart(samples, sampleRate, estimate + offset, detectionMarginDb, profile);
-      if (decoded) return decoded;
+    starts.push([0, -1, 1, -2, 2, -3, 3].map((offset) => estimate + offset * hopSamples));
+  }
+  return starts;
+};
+
+/**
+ * Per-symbol readings ({ tone, margin }) for a frame assumed to start at
+ * startSample, without giving up on weak symbols. null if it does not fit.
+ */
+const measureFrameAt = (samples, sampleRate, startSample, options = {}) => {
+  const profile = resolveProfile(options.profile);
+  const symbolSamples = Math.round((sampleRate * SYMBOL_DURATION_MS) / 1000);
+  const windowSize = Math.max(512, Math.round(symbolSamples * DECISION_WINDOW_FRACTION));
+  if (startSample < 0 || startSample + symbolSamples * SYMBOL_COUNT > samples.length) return null;
+
+  const symbols = [];
+  for (let symbolIndex = 0; symbolIndex < SYMBOL_COUNT; symbolIndex += 1) {
+    const center = startSample + symbolIndex * symbolSamples + Math.floor(symbolSamples / 2);
+    const { tone, margin } = measureTones(samples, center - Math.floor(windowSize / 2), windowSize, sampleRate, profile);
+    symbols.push({ tone, margin });
+  }
+  return symbols;
+};
+
+/**
+ * Rebuild one frame from several repeats of the same key: for each symbol
+ * position keep the reading with the highest margin. Every chosen symbol must
+ * still pass the detection rule, and the result must pass the marker,
+ * no-repeat and checksum checks, so mixed-up keys are rejected.
+ */
+const combineReadings = (readings, options = {}) => {
+  const detectionMarginDb = options.detectionMarginDb ?? DEFAULT_DETECTION_MARGIN_DB;
+  if (!Array.isArray(readings) || readings.length === 0) return null;
+
+  const tones = [];
+  const margins = [];
+  for (let symbolIndex = 0; symbolIndex < SYMBOL_COUNT; symbolIndex += 1) {
+    let best = null;
+    for (const reading of readings) {
+      const candidate = reading[symbolIndex];
+      if (candidate && (!best || candidate.margin > best.margin)) best = candidate;
     }
+    if (!best || best.margin < detectionMarginDb) return null;
+    tones.push(best.tone);
+    margins.push(best.margin);
   }
 
-  return null;
+  const decoded = decodeToneSequence(tones);
+  return decoded ? { ...decoded, margins } : null;
 };
 
 module.exports = {
@@ -345,4 +403,7 @@ module.exports = {
   encodeFrame,
   measureTones,
   decodeFrame,
+  findFrameStarts,
+  measureFrameAt,
+  combineReadings,
 };

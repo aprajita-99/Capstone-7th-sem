@@ -27,7 +27,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **3** | Device binding v2 (signed challenges — proves the phone holds its key; approving one device supersedes the student's other requests) | **Shipped** |
 | **4** | Sound lab (sample rate, mic settings, 5-tone margins, < 44.1 kHz refusal, 6 ms fades, live meter) | **Shipped** |
 | **4** | FSK codec (encode / decode / checksum), 12 synthetic tests | **Shipped** |
-| **4** | Band profiles (high 18.00–19.76 kHz, mid 16.50–18.26 kHz), streaming receiver, transmitter, wake lock, `/acoustic-lab/link` test page | **Built** (17/17 codec tests; phone tests pending) |
+| **4** | Band profiles (high 18.00–19.76 kHz, mid 16.50–18.26 kHz), streaming receiver with **repeat combining**, transmitter, wake lock, `/acoustic-lab/link` | **Shipped** (19/19 codec tests; first phone runs logged) |
 | **4** | Phone-to-phone measurements at 1 m / 6 m / far corner → band decision | **Planned** (owner) |
 | **5** | Check-in sessions (teacher starts, students hear key, server marks present) | **Planned** |
 | **6** | Cascade relay (students re-play the next key to reach the back of the room) | **Planned** |
@@ -232,7 +232,21 @@ Classes are held in a fixed set of 36 rooms on three floors. A room is just its 
 - At **23:59 IST** the session **locks**: no more changes. Check-in photos, IP and location details are **deleted**; the reference face and ID stay for the term.
 - Teacher exports CSV anytime; student sees their attendance %.
 
-### 3.6 Decision table (what the server marks)
+### 3.6 Hearing the teacher in bad conditions (owner requirement, 2026-10-22)
+
+Every student phone must hear the teacher's key even in a noisy room, at the back, or with a weak phone. A student needs **one** good frame during the window, not every frame, so reception is built in layers:
+
+| Layer | What it does | Phase |
+| --- | --- | --- |
+| Repeat combining | Each repeat of the key may lose a different tone; the receiver merges the best reading of each tone across recent repeats. Checksum + server key check reject any mixed-up key | 4 (**shipped**) |
+| Whole-window playback | The teacher's phone plays the key on loop at full gain for the entire check-in window (many chances per student) | 5 |
+| Teacher speaker check | Before **Start**, a 10 s self-test on the teacher's phone with a "set media volume to maximum" prompt; warns if the speaker is weak (speakers vary far more than mics — measured 12.5 vs 28.5 dB) | 5 |
+| Relay (cascade) | Phones that heard the key replay it, so back rows hear a nearby phone instead of the teacher | 6 |
+| Never silently absent | A phone that still never hears the key (broken mic, phone in a bag) goes to **review (`not_heard`)**, never straight to absent, as long as the student joined | 5 + 10 |
+
+Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of frames; a strong-speaker sender at 50% media volume reached ~92%+ with 28.5 dB average margin.
+
+### 3.7 Decision table (what the server marks)
 
 | Sound heard + signed by bound device | Face (when required) | Enrollment | Result |
 | --- | --- | --- | --- |
@@ -559,6 +573,7 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 - Expired / other-session / reused keys → claim rejected (no record change).
 - Polling (not WebSockets): ~120 phones × 1 request / 2 s is light and survives free hosting.
 - Teacher's phone must stay on the Live page with screen on.
+- **Reception (§3.6):** before **Start**, the Live page runs a 10 s speaker self-test (reuse `AcousticLab` measurement: play the chosen band, measure own-mic margin) and prompts "set media volume to maximum"; warns below ~20 dB margin. K0 plays at full gain for the whole window. A student who joined but never heard a key gets `review (not_heard)`, not `absent`.
 
 **Done when.** Unit tests: `attendanceDecision`, key validity windows, claim rejections (closed session, off-roster, bad signature, stale key, duplicate). Manual on the hosted URL: teacher phone + 2 student phones → both present; a key copied after expiry is rejected; close → missing roster students absent.
 
@@ -701,7 +716,7 @@ Decisions use two thresholds: `score ≥ MATCH_THRESHOLD` → match; `REVIEW_THR
 
 **Rules & edge cases.** Face step must start within the session window; poor light → `unsure` → review (never silent absent); a student without verified enrollment can still check in by sound but lands in `review (not_enrolled)`.
 
-**Done when.** Unit tests: decision table §3.6 fully covered. Manual: enrolled student → present; friend holding the student's phone → review (`face_failed`); photo on another phone → liveness fails.
+**Done when.** Unit tests: decision table §3.7 fully covered. Manual: enrolled student → present; friend holding the student's phone → review (`face_failed`); photo on another phone → liveness fails.
 
 ---
 
