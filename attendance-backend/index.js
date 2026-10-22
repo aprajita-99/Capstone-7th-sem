@@ -18,6 +18,12 @@ const server = app.listen(process.env.PORT, () => {
     console.log(`server is working at http://localhost:${process.env.PORT}`);
 });
 
+// Close check-ins whose window has ended even if nobody opens them again.
+const { sweepExpiredSessions } = require("./controllers/sessionController");
+setInterval(() => {
+    sweepExpiredSessions().catch((err) => console.log(`session sweep failed: ${err.message}`));
+}, 60 * 1000).unref();
+
 //handling uncaught exception
 process.on("uncaughtException", err => {
     console.log(`Error:${err.message}`);

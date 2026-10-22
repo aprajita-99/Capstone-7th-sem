@@ -14,6 +14,7 @@ import { roomLabel } from "../../utils/rooms";
 import RoomPicker from "./RoomPicker";
 import { teacherLinks, useTeacherSession } from "./teacherSession";
 import "./classes.css";
+import "../checkin.css";
 
 const requestConfig = { withCredentials: true };
 const errorMessage = (requestError, fallback) => requestError.response?.data?.message || fallback;
@@ -54,6 +55,7 @@ const ClassDetail = () => {
 
   const [courseClass, setCourseClass] = useState(null);
   const [roster, setRoster] = useState([]);
+  const [sessions, setSessions] = useState({ openSession: null, sessions: [] });
   const [rooms, setRooms] = useState([]);
   const [busy, setBusy] = useState(false);
 
@@ -74,6 +76,10 @@ const ClassDetail = () => {
     ]);
     setCourseClass(classResponse.data.courseClass);
     setRoster(rosterResponse.data.enrollments);
+    axios
+      .get(`${SERVER_URL}/classes/${classId}/sessions`, requestConfig)
+      .then((response) => setSessions({ openSession: response.data.openSession, sessions: response.data.sessions }))
+      .catch(() => {});
   }, [classId]);
 
   useEffect(() => {
@@ -354,8 +360,40 @@ const ClassDetail = () => {
         </div>
       </Card>
 
-      <Card className="classes-section" title="Check-in sessions">
-        <EmptyState icon="🔊" title="No check-ins yet" text="Starting a check-in from this page is coming next. Past sessions and attendance will appear here." />
+      <Card className="classes-section" title="Check-in sessions"
+        subtitle="Start a check-in on the phone you will leave at the front of the room."
+        actions={
+          <Button onClick={() => navigate(`/teacher/classes/${classId}/live`)} disabled={courseClass.archived || (!sessions.openSession && courseClass.activeStudentCount === 0)}>
+            {sessions.openSession ? "Open live check-in" : "Start check-in"}
+          </Button>
+        }
+      >
+        {courseClass.activeStudentCount === 0 && !sessions.openSession && <p className="ui-muted">Add students to the roster before taking attendance.</p>}
+        {sessions.sessions.length === 0 ? (
+          <EmptyState icon="🔊" title="No check-ins yet" text="Each check-in you run appears here with its present, review and absent counts." />
+        ) : (
+          <ul className="session-list">
+            {sessions.sessions.map((session) => (
+              <li key={session._id} className="session-row">
+                <span className="session-row__when">
+                  <strong>{new Date(session.startedAt).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</strong>
+                  <span>{new Date(session.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })} · {session.settings?.windowMin} min window</span>
+                </span>
+                <span className="session-row__stats">
+                  {session.status === "open" ? (
+                    <Badge variant="info" dot>Open now</Badge>
+                  ) : (
+                    <>
+                      <Badge variant="success">{session.stats?.present ?? 0} present</Badge>
+                      <Badge variant="warning">{session.stats?.review ?? 0} review</Badge>
+                      <Badge variant="neutral">{session.stats?.absent ?? 0} absent</Badge>
+                    </>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
     </AppShell>
   );
