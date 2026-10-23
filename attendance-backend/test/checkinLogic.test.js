@@ -67,7 +67,7 @@ test("relay: hearing the teacher makes a wave-1 student who relays wave 1", () =
   assert.equal(plan.playAt.length, 3);
   // Shared slot boundaries, at least the lead time ahead, one slot apart.
   plan.playAt.forEach((time) => assert.equal(time % SLOT_MS, 0));
-  assert.ok(plan.playAt[0] >= 1_000_000_300 + 1500);
+  assert.ok(plan.playAt[0] >= 1_000_000_300 + 2500);
   assert.equal(plan.playAt[1] - plan.playAt[0], SLOT_MS);
 });
 

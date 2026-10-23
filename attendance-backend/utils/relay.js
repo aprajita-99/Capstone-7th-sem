@@ -8,7 +8,7 @@
  */
 const SLOT_MS = 2000;
 const RELAY_REPEATS = 3;
-const LEAD_MS = 1500; // time for the response to arrive and the phone to schedule audio
+const LEAD_MS = 2500; // time for the response to reach the phone (via Vercel → Render) and audio to be scheduled
 
 const studentWave = (keyWave) => keyWave + 1;
 

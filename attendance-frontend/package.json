@@ -15,7 +15,7 @@
     "start:shared": "cross-env HOST=0.0.0.0 DANGEROUSLY_DISABLE_HOST_CHECK=true REACT_APP_API_URL=/api/v1 react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "test:acoustic": "node --test src/acoustic/fsk.node-tests.js src/acoustic/receiver.node-tests.js",
+    "test:acoustic": "node --test src/acoustic/fsk.node-tests.js src/acoustic/receiver.node-tests.js src/acoustic/slots.node-tests.js",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
