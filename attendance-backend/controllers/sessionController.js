@@ -10,6 +10,7 @@ const { currentKey, findKey } = require("../utils/keys");
 const { decide } = require("../utils/attendanceDecision");
 const { endOfDay } = require("../utils/clock");
 const { verifyDeviceProof } = require("../utils/deviceProof");
+const { relayPlan, studentWave } = require("../utils/relay");
 
 const PROFILES = ["high", "mid"];
 
@@ -72,9 +73,18 @@ const finalizeSession = async (session) => {
   }
 
   const stats = await countByStatus(closing._id);
-  closing.stats = stats;
+  closing.stats = { ...stats, byWave: await countByWave(closing._id) };
   await closing.save();
   return closing;
+};
+
+// Present students per wave: { "1": 12, "2": 5 } (wave 1 heard the teacher).
+const countByWave = async (sessionId) => {
+  const rows = await AttendanceRecord.aggregate([
+    { $match: { session: sessionId, status: "present", "acoustic.wave": { $ne: null } } },
+    { $group: { _id: "$acoustic.wave", count: { $sum: 1 } } },
+  ]);
+  return Object.fromEntries(rows.sort((left, right) => left._id - right._id).map((row) => [String(row._id), row.count]));
 };
 
 const closeIfExpired = async (session) => {
@@ -206,13 +216,14 @@ exports.getSession = catchAsyncError(async (req, res, next) => {
     Enrollment.find({ class: session.class, status: "active" }).select("email name identity"),
   ]);
   const names = new Map(roster.map((entry) => [entry.email, entry]));
-  const counts = await countByStatus(session._id);
+  const [counts, byWave] = await Promise.all([countByStatus(session._id), countByWave(session._id)]);
 
   res.status(200).json({
     success: true,
     session: publicSession(session),
     rosterSize: roster.length,
     counts,
+    byWave,
     records: records.map((record) => ({
       email: record.email,
       name: names.get(record.email)?.name || "",
@@ -311,6 +322,7 @@ exports.claimKey = catchAsyncError(async (req, res, next) => {
   }
 
   const now = new Date();
+  const wave = studentWave(issued.wave); // heard the teacher (key wave 0) → wave 1
   const decision = decide({ joined: true, heard: true, deviceVerified: true });
   const record = await AttendanceRecord.findOneAndUpdate(
     { session: session._id, email: req.user.email },
@@ -319,7 +331,7 @@ exports.claimKey = catchAsyncError(async (req, res, next) => {
         student: req.user._id,
         status: decision.status,
         reasons: decision.reasons,
-        acoustic: { heard: true, wave: issued.wave, heardAt: now },
+        acoustic: { heard: true, wave, heardAt: now },
         device: { fingerprint: req.user.deviceBinding?.fingerprint, verified: true },
       },
       $setOnInsert: { session: session._id, class: session.class, email: req.user.email, joinedAt: now },
@@ -334,7 +346,15 @@ exports.claimKey = catchAsyncError(async (req, res, next) => {
     expiresAt: new Date(now.getTime() + evidenceTtlMs()),
   });
 
-  res.status(200).json({ success: true, status: record.status, wave: issued.wave });
+  // Cascade: a newly present phone relays the next wave's key once, at shared slots.
+  const plan = relayPlan({ keyWave: issued.wave, maxWaves: session.settings.maxWaves || 5, now: now.getTime() });
+  let relay = null;
+  if (plan) {
+    const relayKey = await currentKey(session, plan.wave, now);
+    relay = { wave: plan.wave, value: relayKey.value, profile: session.settings.profile, playAt: plan.playAt };
+  }
+
+  res.status(200).json({ success: true, status: record.status, wave, relay });
 });
 
 exports.getMyRecord = catchAsyncError(async (req, res, next) => {

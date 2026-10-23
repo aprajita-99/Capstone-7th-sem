@@ -23,6 +23,7 @@ const attendanceSessionSchema = new mongoose.Schema(
       present: { type: Number, default: 0 },
       review: { type: Number, default: 0 },
       absent: { type: Number, default: 0 },
+      byWave: { type: mongoose.Schema.Types.Mixed, default: {} }, // present students per wave
     },
   },
   { timestamps: true }

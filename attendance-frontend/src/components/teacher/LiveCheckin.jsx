@@ -302,7 +302,21 @@ const LiveCheckin = () => {
             </div>
           </Card>
 
-          <Card title="Students" subtitle="Updates every 2 seconds.">
+          <Card title="Students" subtitle="Updates every 2 seconds. Wave 1 heard this phone; later waves heard a classmate's relay.">
+            {live?.byWave && Object.keys(live.byWave).length > 0 && (
+              <div className="wave-bars" aria-label="Present students by wave">
+                {Object.entries(live.byWave).map(([wave, count]) => {
+                  const most = Math.max(...Object.values(live.byWave));
+                  return (
+                    <div key={wave} className="wave-bar">
+                      <span className="wave-bar__label">Wave {wave}</span>
+                      <span className="wave-bar__track"><span style={{ width: `${(count / most) * 100}%` }} /></span>
+                      <strong>{count}</strong>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {!live || live.records.length === 0 ? (
               <EmptyState icon="👂" title="Nobody yet" text="Names appear here as students join and their phones hear the key." />
             ) : (
@@ -313,7 +327,7 @@ const LiveCheckin = () => {
                     <li key={record.email} className="checkin-name">
                       <span className="checkin-name__who">
                         <strong>{record.name || record.email.split("@")[0]}</strong>
-                        <span>{record.email}{record.reasons?.includes("not_heard") ? " · not heard" : ""}</span>
+                        <span>{record.email}{record.wave ? ` · wave ${record.wave}` : ""}{record.reasons?.includes("not_heard") ? " · not heard" : ""}</span>
                       </span>
                       <Badge variant={badge.variant}>{badge.label}</Badge>
                     </li>

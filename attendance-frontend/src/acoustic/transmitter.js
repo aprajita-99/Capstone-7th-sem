@@ -55,6 +55,30 @@ export const createTransmitter = (context) => {
       scheduleAhead();
       timer = window.setInterval(scheduleAhead, TICK_MS);
     },
+    // One-shot repeats at given AudioContext times (relay slots); resolves when
+    // the last one has played. Times already in the past are skipped.
+    playAt: (times) =>
+      new Promise((resolve) => {
+        const future = times.filter((time) => time > context.currentTime);
+        if (!buffer || future.length === 0) {
+          resolve(0);
+          return;
+        }
+        let remaining = future.length;
+        future.forEach((time) => {
+          const source = context.createBufferSource();
+          source.buffer = buffer;
+          source.connect(gain);
+          source.onended = () => {
+            scheduled.delete(source);
+            source.disconnect();
+            remaining -= 1;
+            if (remaining === 0) resolve(future.length);
+          };
+          source.start(time);
+          scheduled.add(source);
+        });
+      }),
     stop: () => {
       window.clearInterval(timer);
       timer = null;

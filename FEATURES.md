@@ -30,7 +30,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **4** | Band profiles (high 18.00–19.76 kHz, mid 16.50–18.26 kHz), streaming receiver with **repeat combining**, transmitter, wake lock, `/acoustic-lab/link` | **Shipped** (19/19 codec tests; first phone runs logged) |
 | **4** | Phone-to-phone measurements at 1 m / 6 m / far corner → band decision | **Planned** (owner) |
 | **5** | Check-in sessions: teacher speaker check + live page playing the rotating key, student Join → listen → signed claim → present; joined-but-unheard → review; auto-close; class session history | **Built** (25/25 backend tests, 33/33 live API checks; phone test pending) |
-| **6** | Cascade relay (students re-play the next key to reach the back of the room) | **Planned** |
+| **6** | Cascade relay: a newly present phone plays the next wave's key 3× at shared 2 s server-clock slots; `/time` clock sync; per-wave counts on the live page | **Built** (27/27 backend tests, 11/11 relay + 33/33 check-in live API checks; multi-phone rehearsal pending) |
 | **7** | Face service (match + liveness) | **Planned** |
 | **8** | Student identity enrollment (ID card + live selfie + teacher verification) | **Planned** |
 | **9** | Face + liveness at check-in | **Planned** |
@@ -611,6 +611,9 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 - `LiveCheckin.jsx`: per-wave bars.
 
 **Rules & edge cases.** Each phone relays only once per session; a phone that hears several waves joins at the lowest; relay stops when a wave adds no new students or the session closes.
+- Wave numbers: a student who heard key wave *k* is a wave *k+1* student (heard the teacher → wave 1) and relays key wave *k+1*; students in wave `maxWaves` (default 5) do not relay.
+- Slots: `utils/relay.js` — 2 s slots on the server clock, first slot ≥ 1.5 s ahead, 3 repeats; phones subtract `AudioContext.outputLatency` so sound leaves the speaker on the boundary.
+- **Open item for the rehearsal:** the teacher's phone keeps looping K0 while students relay, so teacher frames and relay frames can overlap at a listener. Repeat combining + checksum reject mixed frames, but the rehearsal must measure it; if collisions hurt, give the teacher even slots and relays odd slots.
 
 **Done when.** Unit test: relay key issued for the correct wave, capped at `maxWaves`. Rehearsal with 5 then 15+ phones in the real room: % reached, waves needed, seconds per wave, smearing observations recorded in `progress.md`; tune `repeats`, gap and volume.
 
