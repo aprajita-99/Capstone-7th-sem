@@ -30,7 +30,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **4** | Band profiles (high 18.00–19.76 kHz, mid 16.50–18.26 kHz), streaming receiver with **repeat combining**, transmitter, wake lock, `/acoustic-lab/link` | **Shipped** (19/19 codec tests; first phone runs logged) |
 | **4** | Phone-to-phone measurements at 1 m / 6 m / far corner → band decision | **Planned** (owner) |
 | **5** | Check-in sessions: teacher speaker check + live page playing the rotating key, student Join → listen → signed claim → present; joined-but-unheard → review; auto-close; class session history | **Built** (25/25 backend tests, 33/33 live API checks; phone test pending) |
-| **6** | Cascade relay: a newly present phone plays the next wave's key 3× at shared 2 s server-clock slots; `/time` clock sync; per-wave counts on the live page | **Built** (27/27 backend tests, 11/11 relay + 33/33 check-in live API checks; multi-phone rehearsal pending) |
+| **6** | Cascade relay: a newly present phone plays the next wave's key 3× at shared 2 s server-clock slots; `/time` clock sync; per-wave counts on the live page | **Shipped** (relay verified on real phones 2026-10-23; full-class rehearsal still to come) |
 | **7** | Face service (match + liveness) | **Planned** |
 | **8** | Student identity enrollment (ID card + live selfie + teacher verification) | **Planned** |
 | **9** | Face + liveness at check-in | **Planned** |
