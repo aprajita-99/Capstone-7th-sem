@@ -1,0 +1,44 @@
+/* Teacher reviews page */
+
+.review-tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.review-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--slate-600);
+  cursor: pointer;
+}
+.review-tabs button.is-active { background: var(--indigo-50); border-color: var(--indigo-200); color: var(--indigo-700); }
+
+.enroll-review-list { display: flex; flex-direction: column; gap: 12px; }
+
+.enroll-review {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.enroll-review__images { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.enroll-review__images figure { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.enroll-review__images img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--slate-50); }
+.enroll-review__images figcaption { font-size: 12px; color: var(--text-faint); text-align: center; }
+
+.enroll-review__facts { display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; min-width: 0; }
+.enroll-review__facts > span { overflow-wrap: anywhere; }
+.enroll-review__badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.enroll-review__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.enroll-review__reject { display: flex; flex-direction: column; gap: 8px; }
+
+@media (max-width: 760px) {
+  .enroll-review { grid-template-columns: 1fr; }
+}

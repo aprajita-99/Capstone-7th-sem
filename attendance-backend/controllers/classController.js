@@ -5,6 +5,7 @@ const CourseClass = require("../models/classModels");
 const Enrollment = require("../models/enrollmentModels");
 const { Room } = require("../models/roomModels");
 const { MAX_ROSTER_SIZE, normaliseRosterEntry, parseRosterText } = require("../utils/roster");
+const { purgeOffRosterIdentities } = require("./enrollmentController");
 
 const getOwnedClass = async (classId, teacherId, next) => {
   if (!mongoose.isValidObjectId(classId)) {
@@ -179,6 +180,7 @@ exports.removeRosterStudent = catchAsyncError(async (req, res, next) => {
     { new: true }
   );
   if (!enrollment) return next(new ErrorHandler("Student not found on this roster", 404));
+  await purgeOffRosterIdentities([email]); // identity images are kept only while on a roster
 
   res.status(200).json({ success: true, message: "Student removed from the roster" });
 });
@@ -222,10 +224,12 @@ exports.replaceRoster = catchAsyncError(async (req, res, next) => {
     }))
   );
 
+  const removedEmails = await Enrollment.distinct("email", { class: courseClass._id, status: "active", email: { $nin: entries.map((entry) => entry.email) } });
   await Enrollment.updateMany(
     { class: courseClass._id, email: { $nin: entries.map((entry) => entry.email) } },
     { $set: { status: "inactive", rosterUpdatedAt: updatedAt } }
   );
+  await purgeOffRosterIdentities(removedEmails); // identity images are kept only while on a roster
 
   const activeStudentCount = await Enrollment.countDocuments({ class: courseClass._id, status: "active" });
   res.status(200).json({

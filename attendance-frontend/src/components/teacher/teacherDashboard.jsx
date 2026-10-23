@@ -34,19 +34,23 @@ const TeacherDashboard = () => {
                 }
                 setUser(userResponse.data.user);
 
-                const [classesResult, reviewsResult] = await Promise.allSettled([
+                const [classesResult, reviewsResult, enrollmentResult] = await Promise.allSettled([
                     axios.get(`${SERVER_URL}/classes`, requestConfig),
                     axios.get(`${SERVER_URL}/device-reviews`, requestConfig),
+                    axios.get(`${SERVER_URL}/enrollment-reviews`, requestConfig),
                 ]);
                 if (classesResult.status === "fulfilled") {
                     setClasses(classesResult.value.data.classes);
                 } else {
                     toast("Could not load your classes.", "error");
                 }
-                if (reviewsResult.status === "fulfilled") {
-                    setPendingReviews(reviewsResult.value.data.reviews.length);
-                } else {
-                    toast("Could not load device reviews.", "error");
+                const deviceCount = reviewsResult.status === "fulfilled" ? reviewsResult.value.data.reviews.length : 0;
+                const enrollmentCount = enrollmentResult.status === "fulfilled"
+                    ? enrollmentResult.value.data.reviews.length + (enrollmentResult.value.data.blocked || []).length
+                    : 0;
+                setPendingReviews(deviceCount + enrollmentCount);
+                if (reviewsResult.status === "rejected" || enrollmentResult.status === "rejected") {
+                    toast("Could not load all reviews.", "error");
                 }
             } catch (error) {
                 navigate("/login");
@@ -99,9 +103,9 @@ const TeacherDashboard = () => {
                 <StatCard
                     icon={<FaMobileAlt />}
                     tone={pendingReviews > 0 ? "amber" : "emerald"}
-                    label="Pending device reviews"
+                    label="Pending reviews"
                     value={pendingReviews}
-                    hint={pendingReviews > 0 ? "Waiting for your approval" : "All clear"}
+                    hint={pendingReviews > 0 ? "New phones + identity checks" : "All clear"}
                 />
             </div>
 

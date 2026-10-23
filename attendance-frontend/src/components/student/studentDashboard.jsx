@@ -44,6 +44,32 @@ const STATUS_VIEW = {
     },
 };
 
+const identitySubtitle = (identity) => {
+    if (identity.status === "verified") return "Verified — check-ins can confirm it's you.";
+    if (identity.status === "pending") return "Waiting for your teacher to review it.";
+    if (identity.attemptsLeft === 0) return "No attempts left — ask your teacher to reset it.";
+    if (identity.status === "rejected") return `Rejected${identity.rejectReason ? `: "${identity.rejectReason}"` : ""}. Please try again.`;
+    return "One-time check that links your face to your college ID.";
+};
+
+// Identity enrollment (Phase 8) status, with a Start / Try again button while attempts remain.
+const IdentityCard = ({ identity, onStart }) => {
+    const canStart = ["none", "rejected"].includes(identity.status) && identity.attemptsLeft > 0;
+    const badge = identity.status === "verified"
+        ? { variant: "success", label: "Verified" }
+        : identity.status === "pending" ? { variant: "warning", label: "In review" } : { variant: "danger", label: "Blocked" };
+    return (
+        <Card
+            className={`student-classes identity-card identity-card--${identity.status}`}
+            title="Identity check"
+            subtitle={identitySubtitle(identity)}
+            actions={canStart
+                ? <Button onClick={onStart}>{identity.status === "rejected" ? "Try again" : "Start"}</Button>
+                : <Badge variant={badge.variant} dot>{badge.label}</Badge>}
+        />
+    );
+};
+
 const StudentDashboard = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -51,6 +77,7 @@ const StudentDashboard = () => {
     const [user, setUser] = useState(null);
     const [deviceStatus, setDeviceStatus] = useState(location.state?.deviceStatus || "checking");
     const [classes, setClasses] = useState(null);
+    const [identity, setIdentity] = useState(null);
     const [openCheckins, setOpenCheckins] = useState([]);
 
     useEffect(() => {
@@ -62,6 +89,9 @@ const StudentDashboard = () => {
                     return;
                 }
                 setUser(response.data.user);
+                axios.get(`${SERVER_URL}/enrollment/status`, { withCredentials: true })
+                    .then((statusResponse) => setIdentity(statusResponse.data.enrollment))
+                    .catch(() => {});
                 const [bindingResponse, classesResponse] = await Promise.all([
                     axios.get(`${SERVER_URL}/device-bindings/status`, { withCredentials: true }),
                     axios.get(`${SERVER_URL}/me/classes`, { withCredentials: true }).catch(() => null),
@@ -177,6 +207,8 @@ const StudentDashboard = () => {
                     </ol>
                 </Card>
             </div>
+
+            {identity && <IdentityCard identity={identity} onStart={() => navigate("/student/enroll")} />}
 
             <Card className="student-classes" title="Your classes" subtitle="Classes whose roster includes your college email.">
                 {classes === null ? (

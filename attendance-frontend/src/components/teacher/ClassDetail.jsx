@@ -47,6 +47,28 @@ const previewRows = (rosterText, preview) => {
   });
 };
 
+const IDENTITY_BADGE = {
+  verified: { variant: "success", label: "Verified" },
+  pending: { variant: "warning", label: "In review" },
+  rejected: { variant: "danger", label: "Rejected" },
+  none: { variant: "neutral", label: "Not done" },
+  not_signed_in: { variant: "neutral", label: "Never signed in" },
+};
+
+// Identity enrollment status for one roster row, with the teacher's fixes.
+const IdentityCell = ({ info, maxAttempts, busy, onAction }) => {
+  if (!info) return <span className="ui-muted">—</span>;
+  const badge = IDENTITY_BADGE[info.status] || IDENTITY_BADGE.none;
+  const outOfAttempts = ["none", "rejected"].includes(info.status) && info.attempts >= maxAttempts;
+  return (
+    <span className="identity-cell">
+      <Badge variant={outOfAttempts ? "danger" : badge.variant}>{outOfAttempts ? "Out of attempts" : badge.label}</Badge>
+      {outOfAttempts && <Button size="sm" variant="soft" disabled={busy} onClick={() => onAction(info, "reset")}>Reset</Button>}
+      {info.status === "verified" && <Button size="sm" variant="ghost" disabled={busy} onClick={() => onAction(info, "force")}>Redo</Button>}
+    </span>
+  );
+};
+
 const ClassDetail = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
@@ -56,6 +78,7 @@ const ClassDetail = () => {
   const [courseClass, setCourseClass] = useState(null);
   const [roster, setRoster] = useState([]);
   const [sessions, setSessions] = useState({ openSession: null, sessions: [] });
+  const [identity, setIdentity] = useState({ statuses: {}, maxAttempts: 3 });
   const [rooms, setRooms] = useState([]);
   const [busy, setBusy] = useState(false);
 
@@ -79,6 +102,10 @@ const ClassDetail = () => {
     axios
       .get(`${SERVER_URL}/classes/${classId}/sessions`, requestConfig)
       .then((response) => setSessions({ openSession: response.data.openSession, sessions: response.data.sessions }))
+      .catch(() => {});
+    axios
+      .get(`${SERVER_URL}/classes/${classId}/enrollment-status`, requestConfig)
+      .then((response) => setIdentity({ statuses: response.data.statuses, maxAttempts: response.data.maxAttempts }))
       .catch(() => {});
   }, [classId]);
 
@@ -165,6 +192,20 @@ const ClassDetail = () => {
       toast(`${entry.email} removed.`, "success");
     } catch (requestError) {
       toast(errorMessage(requestError, "Could not remove this student."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const identityAction = async (info, action) => {
+    if (action === "force" && !window.confirm("Clear this student's identity check? Their ID and face photos are deleted and they must enroll again.")) return;
+    setBusy(true);
+    try {
+      await axios.post(`${SERVER_URL}/enrollment-reviews/${info.userId}/${action === "force" ? "force-reenroll" : "reset-attempts"}`, {}, requestConfig);
+      await loadClass();
+      toast(action === "force" ? "The student must enroll again." : "The student can try again.", "success");
+    } catch (requestError) {
+      toast(errorMessage(requestError, "That did not work."), "error");
     } finally {
       setBusy(false);
     }
@@ -290,7 +331,7 @@ const ClassDetail = () => {
           <div className="roster-table-wrap">
             <table className="roster-table">
               <thead>
-                <tr><th>Roll</th><th>Name</th><th>Email</th><th>Batch</th><th aria-label="Actions" /></tr>
+                <tr><th>Roll</th><th>Name</th><th>Email</th><th>Batch</th><th>Identity</th><th aria-label="Actions" /></tr>
               </thead>
               <tbody>
                 {visibleRoster.map((entry) => (
@@ -299,6 +340,7 @@ const ClassDetail = () => {
                     <td>{entry.name || <span className="ui-muted">—</span>}</td>
                     <td className="roster-table__email">{entry.email}</td>
                     <td>{entry.identity?.batch ? `${entry.identity.batch} ${entry.identity.programmeBranch || ""}` : "—"}</td>
+                    <td><IdentityCell info={identity.statuses[entry.email]} maxAttempts={identity.maxAttempts} busy={busy} onAction={identityAction} /></td>
                     <td className="roster-table__actions">
                       <Button size="sm" variant="ghost" onClick={() => removeStudent(entry)} disabled={busy}>Remove</Button>
                     </td>

@@ -5,16 +5,16 @@ const sendToken = require("../utils/jwttoken");
 const User = require("../models/userModels");
 const Enrollment = require("../models/enrollmentModels");
 const DeviceBindingRequest = require("../models/deviceBindingRequestModels");
-const CourseClass = require("../models/classModels");
 const { fingerprintPublicKey } = require("../utils/deviceBinding");
 const { PURPOSES, issueChallenge, verifyDeviceProof } = require("../utils/deviceProof");
+const { reviewableStudentEmails, teacherCanReviewStudent } = require("../utils/teacherAccess");
+const AuditLog = require("../models/auditLogModels");
 const {
   WORKSPACE_DOMAIN,
   normaliseEmail,
   isProvisionedTeacher,
   isTestStudent,
   isWorkspaceAccount,
-  testStudentEmails,
 } = require("../utils/signInPolicy");
 
 const getGoogleClient = () => {
@@ -153,7 +153,9 @@ exports.claimDeviceBinding = catchAsyncError(async (req, res, next) => {
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
 
-  res.status(202).json({ success: true, status: "review", requestId: request._id });
+  // A verified student can approve the new phone with a quick face check (Phase 8).
+  const faceVerifyAvailable = req.user.enrollment?.status === "verified" && Boolean(req.user.enrollment?.referenceFaceMedia);
+  res.status(202).json({ success: true, status: "review", requestId: request._id, faceVerifyAvailable });
 });
 
 exports.getDeviceBindingStatus = catchAsyncError(async (req, res) => {
@@ -164,22 +166,9 @@ exports.getDeviceBindingStatus = catchAsyncError(async (req, res) => {
   });
 });
 
-const teacherCanReviewStudent = async (teacherId, studentId) => {
-  const student = await User.findById(studentId).select("email");
-  if (!student) return false;
-  // Test accounts are not on any roster; any teacher may review them so the
-  // device queue stays usable during testing.
-  if (isTestStudent(student.email)) return true;
-  const classes = await CourseClass.find({ teacher: teacherId }).select("_id");
-  if (classes.length === 0) return false;
-  return Enrollment.exists({ class: { $in: classes.map((courseClass) => courseClass._id) }, email: student.email, status: "active" });
-};
-
 exports.listDeviceReviews = catchAsyncError(async (req, res) => {
-  const classes = await CourseClass.find({ teacher: req.user._id }).select("_id");
-  const enrolledEmails = await Enrollment.distinct("email", { class: { $in: classes.map((courseClass) => courseClass._id) }, status: "active" });
-  // Test accounts never appear on a roster; show their pending device changes too.
-  const visibleEmails = [...new Set([...enrolledEmails.map(normaliseEmail), ...testStudentEmails()])];
+  // Students on this teacher's rosters, plus test accounts (never on a roster).
+  const visibleEmails = await reviewableStudentEmails(req.user._id);
   const students = await User.find({ email: { $in: visibleEmails }, role: "student" }).select("_id");
   const reviews = await DeviceBindingRequest.find({ student: { $in: students.map((student) => student._id) }, status: "pending" })
     .populate("student", "name email")
@@ -199,6 +188,15 @@ exports.decideDeviceReview = catchAsyncError(async (req, res, next) => {
     return next(new ErrorHandler("Device review not found", 404));
   }
 
+  await applyDeviceDecision(review, decision, req.user._id);
+  res.status(200).json({ success: true, status: decision });
+});
+
+/**
+ * Approve or reject a pending device request. reviewerId is null when the
+ * system approves it (new phone matched the student's reference face).
+ */
+const applyDeviceDecision = async (review, decision, reviewerId) => {
   if (decision === "approved") {
     const student = await User.findById(review.student);
     student.deviceBinding = {
@@ -212,7 +210,7 @@ exports.decideDeviceReview = catchAsyncError(async (req, res, next) => {
   }
 
   review.status = decision;
-  review.reviewedBy = req.user._id;
+  review.reviewedBy = reviewerId || undefined;
   review.reviewedAt = new Date();
   await review.save();
 
@@ -220,9 +218,10 @@ exports.decideDeviceReview = catchAsyncError(async (req, res, next) => {
     // Only one device can be bound; close the student's other open requests.
     await DeviceBindingRequest.updateMany(
       { student: review.student, status: "pending", _id: { $ne: review._id } },
-      { $set: { status: "superseded", reviewedBy: req.user._id, reviewedAt: new Date() } }
+      { $set: { status: "superseded", reviewedBy: reviewerId || undefined, reviewedAt: new Date() } }
     );
   }
+  await AuditLog.create({ actor: reviewerId || undefined, action: reviewerId ? `device_${decision}` : "device_auto_approved_by_face", target: { type: "DeviceBindingRequest", id: review._id } });
+};
 
-  res.status(200).json({ success: true, status: decision });
-});
+exports.applyDeviceDecision = applyDeviceDecision;

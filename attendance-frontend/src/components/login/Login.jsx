@@ -5,6 +5,7 @@ import img1 from "../../assets/logo.png";
 import SERVER_URL from "../../config/api";
 import GoogleSignInButton from "./GoogleSignInButton";
 import { getOrCreateDevicePublicKey, publicKeyPayload, signDeviceChallenge } from "../../utils/deviceKey";
+import { enrollmentPostponed } from "../../utils/enrollPrompt";
 import Brand from "../../ui/Brand";
 import { Spinner } from "../../ui/Spinner";
 
@@ -41,6 +42,22 @@ const Login = () => {
                 const bindingData = await bindingResponse.json();
                 if (!bindingResponse.ok) throw new Error(bindingData.message || "Could not bind this browser to your attendance account.");
                 deviceStatus = bindingData.status;
+
+                // New phone of a verified student: offer a quick face check instead of waiting for a teacher.
+                if (bindingData.status === "review" && bindingData.faceVerifyAvailable) {
+                    navigate("/student/verify-device", { state: { requestId: bindingData.requestId } });
+                    return;
+                }
+                // First sign-in (or unfinished): open the identity check unless the student chose "Later".
+                if (bindingData.status === "approved" && !enrollmentPostponed()) {
+                    const statusResponse = await fetch(`${SERVER_URL}/enrollment/status`, { credentials: "include" });
+                    const statusData = statusResponse.ok ? await statusResponse.json() : null;
+                    const enrollment = statusData?.enrollment;
+                    if (enrollment && ["none", "rejected"].includes(enrollment.status) && enrollment.attemptsLeft > 0) {
+                        navigate("/student/enroll");
+                        return;
+                    }
+                }
             }
 
             navigate(data.user.role === "teacher" ? "/teacher-dashboard" : "/student-dashboard", { state: { deviceStatus } });

@@ -12,7 +12,11 @@ const {
   CreateFaceLivenessSessionCommand,
   GetFaceLivenessSessionResultsCommand,
   CompareFacesCommand,
+  DetectFacesCommand,
+  DetectTextCommand,
 } = require("@aws-sdk/client-rekognition");
+
+const UNUSABLE_IMAGE_ERRORS = ["InvalidParameterException", "InvalidImageFormatException", "ImageTooLargeException"];
 
 let client = null;
 
@@ -81,15 +85,39 @@ const compareFaces = async (sourceImage, targetImage) => {
     return { similarity, decision: classifyMatch(similarity), faceFound: true };
   } catch (error) {
     // No detectable face, or not a usable image: treat as "no match" (the caller sends it to review).
-    if (["InvalidParameterException", "InvalidImageFormatException"].includes(error.name)) {
+    if (UNUSABLE_IMAGE_ERRORS.includes(error.name)) {
       return { similarity: 0, decision: "no_match", faceFound: false };
     }
     throw error;
   }
 };
 
+// Number of faces in an image (0 for an unusable image).
+const detectFaces = async (image) => {
+  try {
+    const output = await getClient().send(new DetectFacesCommand({ Image: { Bytes: image } }));
+    return (output.FaceDetails || []).length;
+  } catch (error) {
+    if (UNUSABLE_IMAGE_ERRORS.includes(error.name)) return 0;
+    throw error;
+  }
+};
+
+// Text lines found in an image (empty for an unusable image).
+const detectText = async (image) => {
+  try {
+    const output = await getClient().send(new DetectTextCommand({ Image: { Bytes: image } }));
+    return (output.TextDetections || []).filter((item) => item.Type === "LINE").map((item) => item.DetectedText);
+  } catch (error) {
+    if (UNUSABLE_IMAGE_ERRORS.includes(error.name)) return [];
+    throw error;
+  }
+};
+
 module.exports = {
   isConfigured,
+  detectFaces,
+  detectText,
   thresholds,
   classifyLiveness,
   classifyMatch,
