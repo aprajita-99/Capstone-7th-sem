@@ -60,6 +60,9 @@ app.use("/api/v1", meRoute);
 const sessionRoute = require('./routes/sessionRoute');
 app.use("/api/v1", sessionRoute);
 
+const faceRoute = require('./routes/faceRoute');
+app.use("/api/v1", faceRoute);
+
 const errorMiddleware = require('./middleware/error');
 app.use(errorMiddleware);
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import './ui/ui.css';
 import { ToastProvider } from './ui/Toast';
@@ -13,6 +13,10 @@ import LiveCheckin from './components/teacher/LiveCheckin';
 import CheckIn from './components/student/CheckIn';
 import AcousticLab from './components/acousticLab/AcousticLab';
 import LinkTest from './components/acousticLab/LinkTest';
+import { PageLoader } from './ui/Spinner';
+
+// The AWS liveness component is large; load it only on pages that use it.
+const FaceTest = lazy(() => import('./components/face/FaceTest'));
 
 function App() {
   return (
@@ -27,6 +31,7 @@ function App() {
           <Route path='/student/check-in/:sessionId' element={<CheckIn />} />
           <Route path='/acoustic-lab' element={<AcousticLab />} />
           <Route path='/acoustic-lab/link' element={<LinkTest />} />
+          <Route path='/face-test' element={<Suspense fallback={<PageLoader label="Loading face check…" />}><FaceTest /></Suspense>} />
           <Route path={'/student-dashboard'} element={<StudentDashboard />} />
           <Route path={'/teacher-dashboard'} element={<TeacherDashboard />} />
           <Route path='*' element={<NotFound />} />

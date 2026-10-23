@@ -31,7 +31,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **4** | Phone-to-phone measurements at 1 m / 6 m / far corner → band decision | **Planned** (owner) |
 | **5** | Check-in sessions: teacher speaker check + live page playing the rotating key, student Join → listen → signed claim → present; joined-but-unheard → review; auto-close; class session history | **Built** (25/25 backend tests, 33/33 live API checks; phone test pending) |
 | **6** | Cascade relay: a newly present phone plays the next wave's key 3× at shared 2 s server-clock slots; `/time` clock sync; per-wave counts on the live page | **Shipped** (relay verified on real phones 2026-10-23; full-class rehearsal still to come) |
-| **7** | Face service via **AWS Rekognition** (Face Liveness + CompareFaces, Mumbai region) | **Planned** |
+| **7** | Face service via **AWS Rekognition** (Face Liveness + CompareFaces, Mumbai region): `faceClient`, user-bound single-use `facesessions`, shared `FaceCheck` component, `/face-test` page | **Built** (34/34 backend tests, real-AWS endpoint checks; phone liveness test pending) |
 | **8** | Student identity enrollment (ID card + live selfie + teacher verification) | **Planned** |
 | **9** | Face + liveness at check-in | **Planned** |
 | **10** | Reviews, overrides, same-day queries, daily lock, data retention | **Planned** |
@@ -296,6 +296,7 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | Devices | `POST /device/challenge` · `POST /device-bindings/claim` · `GET /device-bindings/status` · `GET /device-reviews` · `POST /device-reviews/:reviewId` | 3 |
 | Sessions (teacher) | `POST /classes/:classId/sessions` · `GET /classes/:classId/sessions` · `GET /sessions/:sessionId` · `GET /sessions/:sessionId/beacon` · `POST /sessions/:sessionId/close` · `PATCH /sessions/:sessionId/headcount` · `GET /sessions/:sessionId/spot-check` | 5 (+10) |
 | Sessions (student) | `GET /sessions/active` · `POST /sessions/:sessionId/join` · `POST /sessions/:sessionId/claims` · `GET /sessions/:sessionId/me` | 5 (+6) |
+| Face (any signed-in user) | `POST /face/liveness-session` (`purpose: "test"` in Phase 7) · `POST /face/test-result` | 7 |
 | Enrollment (student) | `GET /enrollment/status` · `POST /enrollment/id-card` · `POST /face/liveness-session` · `POST /enrollment/selfie` | 8 |
 | Enrollment (teacher) | `GET /enrollment-reviews` · `POST /enrollment-reviews/:userId` | 8 |
 | Face at check-in | `POST /sessions/:sessionId/face` | 9 |
@@ -315,6 +316,7 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | `/acoustic-lab` | Public | Sound lab | Shipped (fix in 4) |
 | `/acoustic-lab/link` | Public | Phone-to-phone link test | 4 |
 | `/privacy` | Public | Privacy & data notice | 13 |
+| `/face-test` | Signed in | AWS liveness self-test + compare two checks | 7 |
 | `/student-dashboard` | Student | Status cards + open check-ins | Shipped (extended 5, 8) |
 | `/student/enroll` | Student | ID card + selfie wizard | 8 |
 | `/student/check-in/:sessionId` | Student | Listen → relay → face → result | 5 (+6, 9) |
@@ -645,6 +647,8 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | `compareFaces(sourceBuffer, targetBuffer)` | → `{similarity, faceFound}` |
 
 Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOLD` (default 80) → live; `similarity ≥ MATCH_THRESHOLD` (default 90) → match; `REVIEW_THRESHOLD ≤ similarity < MATCH_THRESHOLD` (default 75) → unsure → teacher review; below → no match (still review, never auto-reject).
+
+**Built (2026-10-23).** `models/faceSessionModels.js` (`facesessions`: user, purpose `test|enroll|checkin`, AWS session id, 5-min TTL, single use, live frame kept until expiry); `controllers/faceController.js` + `routes/faceRoute.js`: `POST /face/liveness-session` and `POST /face/test-result` (`compareWith` = a previous test session → CompareFaces); `/health` reports `face: true|false`. Frontend: `src/face/amplify.js`, `components/face/FaceCheck.jsx` (shared), `components/face/FaceTest.jsx` at `/face-test`, lazy-loaded (liveness chunk ≈ 313 kB gz, main bundle +1.2 kB).
 
 **Backend work.** `@aws-sdk/client-rekognition`; `utils/faceClient.js` (timeouts, one retry); `GET /health` reports whether the face service is configured; liveness session ids are bound to the user + purpose server-side so a session cannot be reused by someone else.
 
