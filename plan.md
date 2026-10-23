@@ -134,7 +134,7 @@ Each layer is built only after the previous gate passes.
 | Key forwarded by text message | Remote student obtains a key | Short key lifetime and the ID round |
 | GPS spoofing | Fake location | GPS is a weak extra check only |
 | Screen locks / tab backgrounded | Audio pauses | Wake Lock, foreground tab |
-| Student outside near an open door | Might hear tones | ID round, strict threshold, teacher review |
+| Student outside near a door (**confirmed 2026-10-23 even with the door closed**, phone close to it) | Gets the key and can be marked present | Neighbour verification (ID round) with a strict threshold — proposed to move right after the cascade; cascade so the teacher plays quieter; teacher phone away from the door; weak-signal flag; headcount + teacher review |
 | Younger students hearing the signal | Annoyance | Highest working band at low volume, short frames |
 | Free hosting sleeps or limits connections | Check-in fails mid-class | Check free-tier limits before Layer 2 |
 | Accomplice physically in the room | Gets through | Out of scope for now; made visible to teacher, not impossible |
