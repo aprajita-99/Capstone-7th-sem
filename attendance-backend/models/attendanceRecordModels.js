@@ -8,7 +8,8 @@ const attendanceRecordSchema = new mongoose.Schema(
     class: { type: mongoose.Schema.Types.ObjectId, ref: "CourseClass", required: true },
     student: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     email: { type: String, required: true, lowercase: true, trim: true },
-    status: { type: String, enum: ["joined", "present", "review", "absent"], required: true },
+    // heard = key heard, face check still to come (Phase 9)
+    status: { type: String, enum: ["joined", "heard", "present", "review", "absent"], required: true },
     reasons: [String],
     joinedAt: Date,
     acoustic: {
@@ -19,6 +20,23 @@ const attendanceRecordSchema = new mongoose.Schema(
     device: {
       fingerprint: String,
       verified: { type: Boolean, default: false },
+    },
+    // Face + liveness at check-in (Phase 9)
+    face: {
+      status: { type: String, enum: ["passed", "unsure", "mismatch", "not_live", "missing"] },
+      similarity: Number,
+      liveness: Number,
+      attempts: { type: Number, default: 0 },
+      checkedAt: Date,
+    },
+    relayedAt: Date,
+    // Teacher's same-day decision on a review case
+    decision: {
+      status: { type: String, enum: ["present", "absent"] },
+      from: String,
+      by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      at: Date,
+      note: String,
     },
   },
   { timestamps: true }

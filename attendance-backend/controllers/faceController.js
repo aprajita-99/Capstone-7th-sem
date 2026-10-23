@@ -6,11 +6,12 @@ const faceClient = require("../utils/faceClient");
 
 const DeviceBindingRequest = require("../models/deviceBindingRequestModels");
 const { MAX_ATTEMPTS } = require("../utils/enrollment");
+const { checkinFaceState } = require("./sessionController");
 
 const FACE_SESSION_TTL_MS = 5 * 60 * 1000;
-// test: anyone signed in (Phase 7). enroll / rebind: students (Phase 8). checkin arrives in Phase 9.
-const PURPOSES_NOW = ["test", "enroll", "rebind"];
-const STUDENT_PURPOSES = ["enroll", "rebind"];
+// test: anyone signed in (Phase 7). enroll / rebind: students (Phase 8). checkin: students (Phase 9).
+const PURPOSES_NOW = ["test", "enroll", "rebind", "checkin"];
+const STUDENT_PURPOSES = ["enroll", "rebind", "checkin"];
 
 const requireConfigured = (next) => {
   if (faceClient.isConfigured()) return true;
@@ -38,6 +39,13 @@ exports.startLivenessSession = catchAsyncError(async (req, res, next) => {
     if (!deviceRequest) return next(new ErrorHandler("No pending phone change to verify", 404));
   }
 
+  let checkinSession;
+  if (purpose === "checkin") {
+    const state = await checkinFaceState(req.user, req.body.sessionId);
+    if (state.error) return next(state.error);
+    checkinSession = state.session;
+  }
+
   const id = new mongoose.Types.ObjectId();
   const { sessionId } = await faceClient.createLivenessSession(id.toString());
   await FaceSession.create({
@@ -45,6 +53,7 @@ exports.startLivenessSession = catchAsyncError(async (req, res, next) => {
     user: req.user._id,
     purpose,
     deviceRequest: deviceRequest?._id,
+    session: checkinSession?._id,
     awsSessionId: sessionId,
     expiresAt: new Date(Date.now() + FACE_SESSION_TTL_MS),
   });

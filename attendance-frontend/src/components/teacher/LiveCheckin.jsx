@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import fsk from "../../acoustic/fsk";
@@ -11,11 +11,12 @@ import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
-import EmptyState from "../../ui/EmptyState";
 import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { teacherLinks, useTeacherSession } from "./teacherSession";
+import CheckinStudents from "./CheckinStudents";
 import "./classes.css";
+import "./reviews.css";
 import "../checkin.css";
 
 const { FrameReceiver } = receiverModule;
@@ -25,33 +26,33 @@ const SPEAKER_CHECK_MS = 8000;
 const STRONG_MARGIN_DB = 20;
 const BEACON_POLL_MS = 3000;
 const LIVE_POLL_MS = 2000;
+const GRACE_POLL_MS = 3000;
 
 const formatClock = (ms) => {
   const total = Math.max(0, Math.round(ms / 1000));
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 };
 
-const STATUS_BADGE = {
-  present: { variant: "success", label: "Present" },
-  joined: { variant: "info", label: "Listening" },
-  review: { variant: "warning", label: "Review" },
-  absent: { variant: "neutral", label: "Absent" },
-};
-
 /**
  * Teacher's phone: speaker check → Start → plays the session key on loop at
- * full volume for the whole window (FEATURES.md §3.6) while names come in.
+ * full volume for the whole window (FEATURES.md §3.6) while students check in
+ * with sound + face. Also the read-only summary of a past check-in
+ * (/teacher/sessions/:sessionId), where review cases can still be decided the same day.
  */
 const LiveCheckin = () => {
-  const { classId } = useParams();
+  const params = useParams();
+  const navigate = useNavigate();
   const toast = useToast();
   const { user, logout } = useTeacherSession();
+  const summaryMode = Boolean(params.sessionId);
 
+  const [classId, setClassId] = useState(params.classId || null);
   const [courseClass, setCourseClass] = useState(null);
   const [defaults, setDefaults] = useState(null);
+  const [faceService, setFaceService] = useState(true);
   const [session, setSession] = useState(null);
   const [live, setLive] = useState(null);
-  const [phase, setPhase] = useState("loading"); // loading | precheck | ready | live | closed
+  const [phase, setPhase] = useState("loading"); // loading | precheck | live | closed
   const [speaker, setSpeaker] = useState(null); // { status: "running" | "strong" | "weak" | "silent", marginDb }
   const [playing, setPlaying] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -77,16 +78,41 @@ const LiveCheckin = () => {
     stopAudio();
   }, [stopAudio]);
 
-  // Initial load: class + open session (resume) or a fresh start.
+  const loadLive = useCallback(async (sessionId) => {
+    const response = await axios.get(`${SERVER_URL}/sessions/${sessionId}`, requestConfig);
+    setLive(response.data);
+    setSession(response.data.session);
+    if (response.data.class) setCourseClass((existing) => existing || response.data.class);
+    if (response.data.session.status !== "open") {
+      await stopAudio();
+      setPhase("closed");
+    }
+    return response.data;
+  }, [stopAudio]);
+
+  // Initial load: live page (class → open session or precheck) or a past check-in summary.
   useEffect(() => {
     if (!user) return;
+    if (summaryMode) {
+      loadLive(params.sessionId)
+        .then((data) => {
+          setClassId(String(data.session.class));
+          if (data.session.status === "open") navigate(`/teacher/classes/${data.session.class}/live`, { replace: true });
+        })
+        .catch((requestError) => {
+          toast(errorMessage(requestError, "Could not load this check-in."), "error");
+          navigate("/teacher/classes");
+        });
+      return;
+    }
     Promise.all([
-      axios.get(`${SERVER_URL}/classes/${classId}`, requestConfig),
-      axios.get(`${SERVER_URL}/classes/${classId}/sessions`, requestConfig),
+      axios.get(`${SERVER_URL}/classes/${params.classId}`, requestConfig),
+      axios.get(`${SERVER_URL}/classes/${params.classId}/sessions`, requestConfig),
     ])
       .then(([classResponse, sessionsResponse]) => {
         setCourseClass(classResponse.data.courseClass);
         setDefaults(sessionsResponse.data.defaults);
+        setFaceService(sessionsResponse.data.faceService !== false);
         if (sessionsResponse.data.openSession) {
           setSession(sessionsResponse.data.openSession);
           setPhase("live");
@@ -98,30 +124,23 @@ const LiveCheckin = () => {
         toast(errorMessage(requestError, "Could not load this class."), "error");
         setPhase("precheck");
       });
-  }, [user, classId, toast]);
+  }, [user, summaryMode, params.classId, params.sessionId, loadLive, navigate, toast]);
 
-  const loadLive = useCallback(async (sessionId) => {
-    const response = await axios.get(`${SERVER_URL}/sessions/${sessionId}`, requestConfig);
-    setLive(response.data);
-    setSession(response.data.session);
-    if (response.data.session.status !== "open") {
-      await stopAudio();
-      setPhase("closed");
-    }
-    return response.data;
-  }, [stopAudio]);
-
-  // Live polling of counts / names whenever a session is shown.
+  // Polling: every 2 s while live, every 3 s during the 2-minute face grace after closing.
+  const graceEndsAt = session?.faceGraceEndsAt ? new Date(session.faceGraceEndsAt).getTime() : null;
+  const inGrace = phase === "closed" && graceEndsAt !== null && now < graceEndsAt;
   useEffect(() => {
     if (!session?._id || phase === "precheck" || phase === "loading") return undefined;
     loadLive(session._id).catch(() => {});
-    if (phase !== "live") return undefined;
-    const timer = window.setInterval(() => {
-      setNow(Date.now());
-      loadLive(session._id).catch(() => {});
-    }, LIVE_POLL_MS);
+    if (phase !== "live" && !inGrace) return undefined;
+    const timer = window.setInterval(() => loadLive(session._id).catch(() => {}), phase === "live" ? LIVE_POLL_MS : GRACE_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [session?._id, phase, loadLive]);
+  }, [session?._id, phase, inGrace, loadLive]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const runSpeakerCheck = async () => {
     setSpeaker({ status: "running" });
@@ -207,7 +226,7 @@ const LiveCheckin = () => {
   };
 
   const closeCheckin = async () => {
-    if (!window.confirm("Close this check-in? Students who joined but were not heard go to review; the rest of the roster is marked absent.")) return;
+    if (!window.confirm("Close this check-in? Students who joined but were not heard go to review; students still finishing their face check get 2 more minutes; the rest of the roster is marked absent.")) return;
     setBusy(true);
     try {
       await stopAudio();
@@ -222,19 +241,36 @@ const LiveCheckin = () => {
     }
   };
 
+  const decide = async (record, status, note) => {
+    setBusy(true);
+    try {
+      await axios.post(`${SERVER_URL}/records/${record._id}/decision`, { status, note }, requestConfig);
+      toast(`${record.name || record.email.split("@")[0]} marked ${status}.`, "success");
+      await loadLive(session._id);
+    } catch (requestError) {
+      toast(errorMessage(requestError, "Could not save the decision."), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (!user || phase === "loading") return <PageLoader label="Loading check-in…" />;
 
-  const counts = live?.counts || { joined: 0, present: 0, review: 0, absent: 0 };
+  const counts = live?.counts || { joined: 0, heard: 0, present: 0, review: 0, absent: 0 };
   const remainingMs = session ? new Date(session.closesAt).getTime() - now : 0;
+  const locked = session?.lockAt ? now > new Date(session.lockAt).getTime() : false;
   const title = courseClass ? `${courseClass.courseCode}${courseClass.section ? ` · ${courseClass.section}` : ""}` : "Check-in";
+  const startedLabel = session?.startedAt
+    ? new Date(session.startedAt).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    : "";
 
   return (
     <AppShell role="teacher" name={user.name || user.email} email={user.email} onLogout={logout} links={teacherLinks("classes")}>
-      <Link to={`/teacher/classes/${classId}`} className="class-back">← Back to class</Link>
+      {classId && <Link to={`/teacher/classes/${classId}`} className="class-back">← Back to class</Link>}
       <div className="ui-page-head">
         <div>
-          <h1 className="ui-page-head__title">Live check-in — {title}</h1>
-          <p className="ui-page-head__sub">{courseClass?.title}</p>
+          <h1 className="ui-page-head__title">{phase === "closed" ? "Check-in summary" : "Live check-in"} — {title}</h1>
+          <p className="ui-page-head__sub">{courseClass?.title}{startedLabel ? ` · ${startedLabel}` : ""}</p>
         </div>
       </div>
 
@@ -245,10 +281,11 @@ const LiveCheckin = () => {
             <h2 className="checkin-hero__title">Before you start</h2>
             <ol className="checkin-steps">
               <li><span className="checkin-steps__num">1</span><span><strong>Turn this phone’s media volume to maximum.</strong> The key is near-silent; volume decides how far it reaches.</span></li>
-              <li><span className="checkin-steps__num">2</span><span>Keep this page open with the screen on, phone face-up at the front of the room.</span></li>
+              <li><span className="checkin-steps__num">2</span><span>Keep this page open with the screen on, phone face-up — as far from the door as you can.</span></li>
               <li><span className="checkin-steps__num">3</span><span>Run the 8-second speaker check so you know this phone is loud enough.</span></li>
             </ol>
 
+            {!faceService && <Badge variant="danger" dot>Face checks are not available on the server — students will land in review</Badge>}
             {speaker?.status === "running" && <Badge variant="info" dot>Checking speaker… keep the phone still</Badge>}
             {speaker?.status === "strong" && <Badge variant="success" dot>Speaker strong ({speaker.marginDb.toFixed(0)} dB) — ready</Badge>}
             {speaker?.status === "weak" && <Badge variant="warning" dot>Speaker weak ({speaker.marginDb.toFixed(0)} dB) — raise volume, or use a phone with a louder speaker</Badge>}
@@ -263,25 +300,25 @@ const LiveCheckin = () => {
                 {speaker?.status === "strong" ? "Start check-in" : "Start anyway"}
               </Button>
             </div>
-            <p className="ui-muted">Window: {defaults?.windowMin || 6} minutes · band {fsk.profileRange(fsk.PROFILES[defaults?.profile] || fsk.PROFILES.mid)}</p>
+            <p className="ui-muted">Window: {defaults?.windowMin || 6} minutes · band {fsk.profileRange(fsk.PROFILES[defaults?.profile] || fsk.PROFILES.mid)} · sound + face check</p>
           </div>
         </Card>
       )}
 
       {(phase === "live" || phase === "closed") && session && (
-        <div className="checkin-grid">
-          <Card>
-            <div className="checkin-hero">
+        <>
+          <Card className="checkin-status">
+            <div className="checkin-status__main">
               {phase === "live" ? (
                 <>
                   <span className={`checkin-hero__icon ${playing ? "checkin-pulse" : ""}`}>🔊</span>
-                  <div className="checkin-timer">{formatClock(remainingMs)}</div>
-                  <p className="checkin-hero__text">
-                    {playing
-                      ? "Playing the key. Keep this phone face-up with the screen on until the timer ends."
-                      : "This check-in is open but this phone is not playing. Tap below to play the key."}
-                  </p>
-                  <div className="checkin-hero__actions">
+                  <div>
+                    <div className="checkin-timer">{formatClock(remainingMs)}</div>
+                    <p className="ui-muted">
+                      {playing ? "Playing the key — keep this phone face-up with the screen on." : "Open, but this phone is not playing the key."}
+                    </p>
+                  </div>
+                  <div className="checkin-status__actions">
                     {!playing && <Button onClick={resumePlaying} loading={busy}>Play key on this phone</Button>}
                     <Button variant="danger" onClick={closeCheckin} disabled={busy}>Close check-in</Button>
                   </div>
@@ -289,20 +326,26 @@ const LiveCheckin = () => {
               ) : (
                 <>
                   <span className="checkin-hero__icon checkin-hero__icon--success">✓</span>
-                  <h2 className="checkin-hero__title">Check-in closed</h2>
-                  <p className="checkin-hero__text">Students who joined but were not heard are in review. Everyone else on the roster without a check-in is absent.</p>
+                  <div>
+                    <h2 className="checkin-hero__title">Check-in closed</h2>
+                    <p className="ui-muted">
+                      {inGrace
+                        ? `Students who heard the key can finish their face check for ${formatClock(graceEndsAt - now)} more.`
+                        : locked
+                          ? "Locked — decisions were possible until midnight on the day of the check-in."
+                          : "Decide the review cases below before midnight."}
+                    </p>
+                  </div>
                 </>
               )}
             </div>
-            <div className="ui-grid ui-grid--stats">
-              <div className="ui-stat"><div><div className="ui-stat__value">{counts.present}</div><div className="ui-stat__label">Present</div></div></div>
-              <div className="ui-stat"><div><div className="ui-stat__value">{counts.joined}</div><div className="ui-stat__label">Listening</div></div></div>
-              <div className="ui-stat"><div><div className="ui-stat__value">{counts.review}</div><div className="ui-stat__label">Review</div></div></div>
-              <div className="ui-stat"><div><div className="ui-stat__value">{live?.rosterSize ?? "—"}</div><div className="ui-stat__label">On roster</div></div></div>
+            <div className="checkin-stats">
+              <div className="checkin-stat checkin-stat--present"><strong>{counts.present}</strong><span>Present</span></div>
+              <div className="checkin-stat checkin-stat--review"><strong>{counts.review}</strong><span>Review</span></div>
+              <div className="checkin-stat"><strong>{(counts.joined || 0) + (counts.heard || 0)}</strong><span>Listening</span></div>
+              <div className="checkin-stat"><strong>{counts.absent}</strong><span>Absent</span></div>
+              <div className="checkin-stat"><strong>{live?.rosterSize ?? "—"}</strong><span>On roster</span></div>
             </div>
-          </Card>
-
-          <Card title="Students" subtitle="Updates every 2 seconds. Wave 1 heard this phone; later waves heard a classmate's relay.">
             {live?.byWave && Object.keys(live.byWave).length > 0 && (
               <div className="wave-bars" aria-label="Present students by wave">
                 {Object.entries(live.byWave).map(([wave, count]) => {
@@ -317,26 +360,12 @@ const LiveCheckin = () => {
                 })}
               </div>
             )}
-            {!live || live.records.length === 0 ? (
-              <EmptyState icon="👂" title="Nobody yet" text="Names appear here as students join and their phones hear the key." />
-            ) : (
-              <ul className="checkin-names">
-                {live.records.map((record) => {
-                  const badge = STATUS_BADGE[record.status] || STATUS_BADGE.absent;
-                  return (
-                    <li key={record.email} className="checkin-name">
-                      <span className="checkin-name__who">
-                        <strong>{record.name || record.email.split("@")[0]}</strong>
-                        <span>{record.email}{record.wave ? ` · wave ${record.wave}` : ""}{record.reasons?.includes("not_heard") ? " · not heard" : ""}</span>
-                      </span>
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
           </Card>
-        </div>
+
+          <Card className="classes-section" title="Students" subtitle={phase === "live" ? "Updates every 2 seconds. Tap a student for their frames and timeline." : "Tap a student for their frames and timeline."}>
+            <CheckinStudents records={live?.records || []} locked={locked} busy={busy} onDecide={decide} />
+          </Card>
+        </>
       )}
     </AppShell>
   );

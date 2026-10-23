@@ -32,6 +32,7 @@ function App() {
           <Route path='/teacher/classes' element={<ClassManagement />} />
           <Route path='/teacher/classes/:classId' element={<ClassDetail />} />
           <Route path='/teacher/classes/:classId/live' element={<LiveCheckin />} />
+          <Route path='/teacher/sessions/:sessionId' element={<LiveCheckin />} />
           <Route path='/student/check-in/:sessionId' element={<CheckIn />} />
           <Route path='/acoustic-lab' element={<AcousticLab />} />
           <Route path='/acoustic-lab/link' element={<LinkTest />} />

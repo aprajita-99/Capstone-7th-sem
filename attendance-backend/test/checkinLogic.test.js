@@ -79,3 +79,28 @@ test("relay: phones in the same wave get the same slots; the cascade stops at ma
   assert.equal(relayPlan({ keyWave: 4, maxWaves: 5 }), null, "wave 5 students do not relay");
   assert.equal(relayPlan({ keyWave: 0, maxWaves: 1 }), null);
 });
+
+const { faceStatusFrom } = require("../utils/attendanceDecision");
+
+test("decision with the face check (Phase 9, FEATURES.md §3.7)", () => {
+  const heard = { joined: true, heard: true, deviceVerified: true, faceRequired: true };
+  assert.deepEqual(decide({ ...heard }), { status: "heard", reasons: [] }, "face not done yet");
+  assert.deepEqual(decide({ ...heard, face: { status: "passed" } }), { status: "present", reasons: [] });
+  assert.deepEqual(decide({ ...heard, face: { status: "mismatch" } }), { status: "review", reasons: ["face_mismatch"] }, "no retry on mismatch");
+  assert.deepEqual(decide({ ...heard, face: { status: "unsure" } }), { status: "heard", reasons: ["face_unsure"] }, "retry left");
+  assert.deepEqual(decide({ ...heard, face: { status: "unsure" }, faceFinal: true }), { status: "review", reasons: ["face_unsure"] });
+  assert.deepEqual(decide({ ...heard, face: { status: "not_live" }, faceFinal: true }), { status: "review", reasons: ["face_not_live"] });
+  assert.deepEqual(decide({ ...heard, faceFinal: true }), { status: "review", reasons: ["face_missing"] }, "grace over without a face check");
+  assert.deepEqual(decide({ joined: true, heard: false, faceRequired: true }), { status: "review", reasons: ["not_heard"] });
+  assert.deepEqual(decide({ faceRequired: true }), { status: "absent", reasons: ["not_joined"] });
+  // Sound-only sessions keep Phase 5 behaviour.
+  assert.deepEqual(decide({ joined: true, heard: true, deviceVerified: true }), { status: "present", reasons: [] });
+});
+
+test("face status from AWS results", () => {
+  assert.equal(faceStatusFrom("live", "match"), "passed");
+  assert.equal(faceStatusFrom("live", "unsure"), "unsure");
+  assert.equal(faceStatusFrom("live", "no_match"), "mismatch");
+  assert.equal(faceStatusFrom("not_live", "match"), "not_live");
+  assert.equal(faceStatusFrom("failed", "match"), "not_live");
+});

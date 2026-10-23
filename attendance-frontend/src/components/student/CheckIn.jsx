@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
@@ -13,9 +13,12 @@ import { signDeviceChallenge } from "../../utils/deviceKey";
 import AppShell from "../../ui/AppShell";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
-import { PageLoader } from "../../ui/Spinner";
+import { PageLoader, Spinner } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import "../checkin.css";
+
+// The AWS liveness component is large: load it only when the face step starts.
+const FaceCheck = lazy(() => import("../face/FaceCheck"));
 
 const { FrameReceiver } = receiverModule;
 const { upcomingSlots } = slotsModule;
@@ -25,25 +28,38 @@ const STATUS_POLL_MS = 5000;
 const HINT_AFTER_MS = 60 * 1000;
 const RELAY_TIMEOUT_MS = 12 * 1000;
 
-const VIEW = {
-  ready: { icon: "🎧", title: "Ready to check in", text: "Tap Join, allow the microphone, and keep this page open near the front of the room." },
-  listening: { icon: "👂", title: "Listening for the key…", text: "Keep the phone out of your pocket with the screen on. This usually takes a few seconds." },
-  submitting: { icon: "🔐", title: "Key heard — confirming…", text: "Your phone is signing the key so the server knows it came from you." },
-  relaying: { icon: "📣", tone: "success", title: "Present ✓ — helping classmates…", text: "Your phone is passing the key on to students further back (about 8 seconds). Keep this page open and the phone face-up." },
-  present: { icon: "✓", tone: "success", title: "You’re marked present", text: "Done. You can close this page." },
-  review: { icon: "⌛", tone: "warning", title: "In review", text: "Your phone joined but did not hear the key. Your teacher will review it today." },
-  absent: { icon: "✕", tone: "danger", title: "Marked absent", text: "This check-in has closed and you were not checked in." },
-  closed: { icon: "⏹", tone: "warning", title: "Check-in closed", text: "This check-in is no longer open." },
-  device: { icon: "📱", tone: "danger", title: "This phone isn’t approved", text: "Check-ins only count from your approved phone. If you changed phones, ask your teacher to approve this one." },
-  error: { icon: "⚠", tone: "danger", title: "Something went wrong", text: "" },
+const STEPS = ["Hear key", "Face check", "Help classmates", "Done"];
+const STEP_OF = {
+  ready: 0, listening: 0, submitting: 0,
+  "face-intro": 1, face: 1, "face-checking": 1, "face-retry": 1,
+  relaying: 2,
+  done: 3,
 };
 
-// Terminal screen for a /me response, or null while still open and not present.
-const finalState = (data) => {
-  const status = data.record?.status;
-  if (status === "present") return "present";
-  if (data.session.status !== "open") return status === "review" ? "review" : status === "absent" ? "absent" : "closed";
-  return null;
+const REASON_TEXT = {
+  not_heard: "your phone joined but did not hear the key",
+  face_mismatch: "the face in the check did not match your enrolled photo",
+  face_unsure: "the face match was not certain (often poor light)",
+  face_not_live: "the camera check did not look like a live person",
+  face_missing: "the face check was not completed in time",
+  not_joined: "you did not join this check-in",
+};
+const explain = (reasons = []) => reasons.map((reason) => REASON_TEXT[reason] || reason).join("; ");
+
+const formatClock = (ms) => {
+  const total = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+
+// Final screen for a /me response, or null while the student can still act.
+const settledState = (data) => {
+  const record = data.record;
+  if (record && ["present", "review", "absent"].includes(record.status)) return "done";
+  if (record?.status === "heard") {
+    const graceOver = data.session.status !== "open" && data.session.faceGraceEndsAt && Date.now() > new Date(data.session.faceGraceEndsAt).getTime();
+    return graceOver ? "done" : null;
+  }
+  return data.session.status !== "open" ? "done" : null;
 };
 
 const CheckIn = () => {
@@ -52,21 +68,21 @@ const CheckIn = () => {
   const toast = useToast();
 
   const [user, setUser] = useState(null);
-  const [info, setInfo] = useState(null); // { session, record }
+  const [info, setInfo] = useState(null); // /me response
   const [state, setState] = useState("loading");
   const [errorText, setErrorText] = useState("");
+  const [faceResult, setFaceResult] = useState(null);
+  const [relayed, setRelayed] = useState(false);
   const [level, setLevel] = useState(null);
   const [listeningSince, setListeningSince] = useState(null);
   const [now, setNow] = useState(Date.now());
 
-  const audioRef = useRef(null);
+  const audioRef = useRef({});
   const receiverRef = useRef(null);
   const levelRef = useRef(null);
   const timersRef = useRef([]);
   const triedKeysRef = useRef(new Set());
-  const claimingRef = useRef(false);
-  const relayingRef = useRef(false);
-  const [relayed, setRelayed] = useState(false);
+  const busyRef = useRef(false); // a claim / face submit / relay is running
   const clockRef = useRef({ offsetMs: 0 });
   const profileRef = useRef(fsk.PROFILES.mid);
 
@@ -75,59 +91,46 @@ const CheckIn = () => {
     timersRef.current = [];
   };
 
-  const stopListening = useCallback(async () => {
+  const stopMic = async () => {
+    receiverRef.current = null;
+    const mic = audioRef.current.mic;
+    audioRef.current.mic = null;
+    await mic?.stop();
+  };
+
+  const stopEverything = useCallback(async () => {
     timersRef.current.forEach((timer) => window.clearInterval(timer));
     timersRef.current = [];
     receiverRef.current = null;
     const audio = audioRef.current;
-    audioRef.current = null;
-    audio?.transmitter?.stop();
-    await audio?.wakeLock?.release();
-    await audio?.mic?.stop();
-    if (audio?.relayContext) await audio.relayContext.close().catch(() => {});
+    audioRef.current = {};
+    audio.transmitter?.stop();
+    await audio.wakeLock?.release();
+    await audio.mic?.stop();
+    if (audio.relayContext) await audio.relayContext.close().catch(() => {});
   }, []);
 
-  // Cascade (Phase 6): play the next wave's key once, at the server's shared slots.
-  const relayKey = async (relay) => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    relayingRef.current = true;
-    stopTimers(); // stop listening so this phone does not decode its own relay
-    setState("relaying");
-    try {
-      // Free the microphone first: Android can lower or reroute playback while it is open.
-      await audio.mic?.stop();
-      audio.mic = null;
-      const context = await createAudioContext();
-      audio.relayContext = context;
-      const transmitter = createTransmitter(context);
-      audio.transmitter = transmitter;
-      transmitter.setFrame({ value: relay.value, profile: fsk.PROFILES[relay.profile] || profileRef.current });
-
-      // Late plans move to the next shared slots instead of being skipped.
-      const offsetMs = clockRef.current.offsetMs;
-      const serverNow = Date.now() + offsetMs;
-      const slots = upcomingSlots(relay.playAt, serverNow, relay.slotMs || 2000, relay.playAt.length || 3);
-      const times = slots.map((serverMs) => serverToContextTime(context, serverMs, offsetMs));
-      const waitMs = Math.min(RELAY_TIMEOUT_MS, slots[slots.length - 1] - serverNow + 3000);
-      const played = await Promise.race([transmitter.playAt(times), new Promise((resolve) => window.setTimeout(() => resolve(0), waitMs))]);
-      setRelayed(played > 0);
-    } catch {
-      // Relaying is a bonus for classmates; this student is already present.
-    } finally {
-      relayingRef.current = false;
-    }
-  };
-
   useEffect(() => () => {
-    stopListening();
-  }, [stopListening]);
+    stopEverything();
+  }, [stopEverything]);
+
+  // Countdown ticker for the window / face grace.
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const loadStatus = useCallback(async () => {
     const response = await axios.get(`${SERVER_URL}/sessions/${sessionId}/me`, requestConfig);
     setInfo(response.data);
     return response.data;
   }, [sessionId]);
+
+  const finish = useCallback(async () => {
+    await stopEverything();
+    await loadStatus().catch(() => null);
+    setState("done");
+  }, [stopEverything, loadStatus]);
 
   useEffect(() => {
     axios
@@ -139,7 +142,10 @@ const CheckIn = () => {
         }
         setUser(response.data.user);
         const data = await loadStatus();
-        setState(finalState(data) || "ready");
+        if (settledState(data)) return setState("done");
+        if (data.session.faceRequired && !data.identityVerified) return setState("identity");
+        if (data.record?.status === "heard") return setState("face-intro"); // page reloaded after hearing
+        return setState("ready");
       })
       .catch((requestError) => {
         if (requestError.response?.status === 401) navigate("/login");
@@ -150,37 +156,113 @@ const CheckIn = () => {
       });
   }, [navigate, loadStatus]);
 
+  // ----- relay (help classmates) -----
+  const playRelay = async () => {
+    setState("relaying");
+    try {
+      const response = await axios.post(`${SERVER_URL}/sessions/${sessionId}/relay`, {}, requestConfig);
+      const relay = response.data.relay;
+      if (!relay) return;
+      await stopMic(); // Android can lower playback while the mic is open
+      const context = await createAudioContext();
+      audioRef.current.relayContext = context;
+      const transmitter = createTransmitter(context);
+      audioRef.current.transmitter = transmitter;
+      transmitter.setFrame({ value: relay.value, profile: fsk.PROFILES[relay.profile] || profileRef.current });
+      const offsetMs = clockRef.current.offsetMs;
+      const serverNow = Date.now() + offsetMs;
+      const slots = upcomingSlots(relay.playAt, serverNow, relay.slotMs || 2000, relay.playAt.length || 3);
+      const times = slots.map((serverMs) => serverToContextTime(context, serverMs, offsetMs));
+      const waitMs = Math.min(RELAY_TIMEOUT_MS, slots[slots.length - 1] - serverNow + 3000);
+      const played = await Promise.race([transmitter.playAt(times), new Promise((resolve) => window.setTimeout(() => resolve(0), waitMs))]);
+      setRelayed(played > 0);
+    } catch {
+      // Relaying only helps classmates; this student's record is already decided.
+    }
+  };
+
+  const afterFaceStep = async () => {
+    busyRef.current = true;
+    await playRelay();
+    busyRef.current = false;
+    await finish();
+  };
+
+  // ----- face step -----
+  const submitFace = async (livenessSessionId) => {
+    busyRef.current = true;
+    setState("face-checking");
+    try {
+      const proof = await signDeviceChallenge({ purpose: "face", payload: { livenessSessionId } });
+      const response = await axios.post(`${SERVER_URL}/sessions/${sessionId}/face`, { livenessSessionId, ...proof }, requestConfig);
+      setFaceResult(response.data);
+      busyRef.current = false;
+      if (response.data.face.retryAllowed) {
+        setState("face-retry");
+        return;
+      }
+      if (response.data.face.status === "passed") toast("Face confirmed — you're present.", "success");
+      await afterFaceStep();
+    } catch (requestError) {
+      busyRef.current = false;
+      const status = requestError.response?.status;
+      if (status === 401) {
+        await stopEverything();
+        setState("device");
+      } else if (status === 409) {
+        await finish();
+      } else {
+        setErrorText(requestError.response?.data?.message || requestError.message || "Could not submit the face check.");
+        setState("face-intro");
+      }
+    }
+  };
+
+  const skipFace = async () => {
+    busyRef.current = true;
+    try {
+      await axios.post(`${SERVER_URL}/sessions/${sessionId}/face/skip`, {}, requestConfig);
+    } catch {
+      // the grace timer settles it anyway
+    }
+    await afterFaceStep();
+  };
+
+  // ----- hearing the key -----
   const claim = async (key) => {
-    claimingRef.current = true;
+    busyRef.current = true;
     setState("submitting");
     try {
       const proof = await signDeviceChallenge({ purpose: "claim", payload: { sessionId, key } });
       const response = await axios.post(`${SERVER_URL}/sessions/${sessionId}/claims`, { key, ...proof }, requestConfig);
-      if (response.data.status === "present") {
-        if (response.data.relay) await relayKey(response.data.relay);
-        await stopListening();
-        setState("present");
-        toast("You’re marked present.", "success");
+      stopTimers();
+      await stopMic();
+      busyRef.current = false;
+      if (response.data.status === "heard") {
+        setState("face-intro");
         return;
       }
-      setState("listening");
+      // Sound-only check-in (or already decided): relay if offered, then done.
+      if (response.data.relay) await afterFaceStep();
+      else await finish();
     } catch (requestError) {
+      busyRef.current = false;
       const status = requestError.response?.status;
+      const code = requestError.response?.data?.code;
       if (status === 400) {
         setState("listening"); // not this session's key (e.g. a nearby class); keep listening
       } else if (status === 401) {
-        await stopListening();
+        await stopEverything();
         setState("device");
+      } else if (status === 403 && code === "not_enrolled") {
+        await stopEverything();
+        setState("identity");
       } else if (status === 409) {
-        await stopListening();
-        const data = await loadStatus().catch(() => null);
-        setState((data && finalState(data)) || "closed");
+        await finish();
       } else {
         triedKeysRef.current.delete(key); // network hiccup: allow this key to be retried
         setState("listening");
       }
-    } finally {
-      claimingRef.current = false;
     }
   };
 
@@ -188,111 +270,177 @@ const CheckIn = () => {
     setErrorText("");
     try {
       const joinResponse = await axios.post(`${SERVER_URL}/sessions/${sessionId}/join`, {}, requestConfig);
-      const profile = fsk.PROFILES[joinResponse.data.session.profile] || fsk.PROFILES.mid;
-      profileRef.current = profile;
+      profileRef.current = fsk.PROFILES[joinResponse.data.session.profile] || fsk.PROFILES.mid;
       // Server clock for relay timing; a failure only makes relays less aligned.
       clockRef.current = (await syncServerClock(async () => (await axios.get(`${SERVER_URL}/time`)).data.now).catch(() => null)) || { offsetMs: 0 };
+      audioRef.current.wakeLock = await keepScreenOn();
+      if (joinResponse.data.record.status === "heard") {
+        setState("face-intro");
+        return;
+      }
       const mic = await openMic({
         onChunk: (chunk) => {
           receiverRef.current?.push(chunk);
           levelRef.current = levelDb(chunk);
         },
       });
-      const wakeLock = await keepScreenOn();
-      audioRef.current = { mic, wakeLock };
-      receiverRef.current = new FrameReceiver({ sampleRate: mic.sampleRate, profile });
+      audioRef.current.mic = mic;
+      receiverRef.current = new FrameReceiver({ sampleRate: mic.sampleRate, profile: profileRef.current });
       setListeningSince(Date.now());
       setState("listening");
 
       timersRef.current.push(window.setInterval(() => {
-        setNow(Date.now());
         setLevel(levelRef.current);
         const frames = receiverRef.current?.scan() || [];
         const fresh = frames.find((frame) => !triedKeysRef.current.has(frame.value));
-        if (fresh && !claimingRef.current) {
+        if (fresh && !busyRef.current) {
           triedKeysRef.current.add(fresh.value);
           claim(fresh.value);
         }
       }, SCAN_MS));
 
       timersRef.current.push(window.setInterval(async () => {
-        if (claimingRef.current || relayingRef.current) return;
+        if (busyRef.current) return;
         const data = await loadStatus().catch(() => null);
-        if (claimingRef.current || relayingRef.current || !audioRef.current) return; // claim/relay started meanwhile
-        const done = data && finalState(data);
-        if (done) {
-          await stopListening();
-          setState(done);
-        }
+        if (busyRef.current || !receiverRef.current) return; // a claim started meanwhile
+        if (data && settledState(data)) await finish();
       }, STATUS_POLL_MS));
     } catch (joinError) {
-      await stopListening();
-      const message = joinError.response?.data?.message || joinError.message || "Could not start listening.";
-      if (joinError.response?.status === 409) {
-        setState("closed");
-      } else {
-        setErrorText(message);
+      await stopEverything();
+      const status = joinError.response?.status;
+      if (status === 403 && joinError.response?.data?.code === "not_enrolled") setState("identity");
+      else if (status === 409) await finish();
+      else {
+        setErrorText(joinError.response?.data?.message || joinError.message || "Could not start listening.");
         setState("error");
       }
     }
   };
 
   const handleLogout = useCallback(async () => {
-    await stopListening();
+    await stopEverything();
     try {
       await axios.get(`${SERVER_URL}/logout`, requestConfig);
     } catch (error) {
       // best-effort
     }
     navigate("/");
-  }, [navigate, stopListening]);
+  }, [navigate, stopEverything]);
 
   if (state === "loading" || !user) return <PageLoader label="Loading check-in…" />;
 
-  const view = VIEW[state] || VIEW.error;
-  const sessionClass = info?.session?.class;
-  const closesInMs = info?.session ? new Date(info.session.closesAt).getTime() - now : 0;
-  const unheardTooLong = state === "listening" && listeningSince && now - listeningSince > HINT_AFTER_MS;
+  const session = info?.session;
+  const record = info?.record;
+  const sessionClass = session?.class;
+  const windowLeftMs = session ? new Date(session.closesAt).getTime() - now : 0;
+  const graceLeftMs = session?.faceGraceEndsAt ? new Date(session.faceGraceEndsAt).getTime() - now : null;
+  const faceDeadlineMs = session?.status === "open" ? windowLeftMs : graceLeftMs;
+  const stepIndex = STEP_OF[state] ?? 0;
+  const showTracker = !["identity", "device", "error"].includes(state);
   const levelPercent = level === null ? 0 : Math.min(100, Math.max(0, ((level + 90) / 90) * 100));
+  const unheardTooLong = state === "listening" && listeningSince && now - listeningSince > HINT_AFTER_MS;
+
+  const doneView = () => {
+    const status = record?.status;
+    if (status === "present") {
+      return {
+        icon: "✓", tone: "success", title: "You’re marked present",
+        text: record?.decision ? "Your teacher confirmed your attendance." : relayed ? "Done. Your phone also passed the key on to classmates further back." : "Done. You can close this page.",
+      };
+    }
+    if (status === "review" || status === "heard") {
+      return { icon: "⌛", tone: "warning", title: "In review", text: `Your teacher will check this today because ${explain(record.reasons) || "the check was not complete"}.` };
+    }
+    if (status === "absent") {
+      return { icon: "✕", tone: "danger", title: "Marked absent", text: record?.decision ? "Your teacher reviewed this check-in and marked you absent." : "This check-in has closed and you were not checked in." };
+    }
+    return { icon: "⏹", tone: "warning", title: "Check-in closed", text: "This check-in is no longer open." };
+  };
+
+  const VIEW = {
+    identity: { icon: "🪪", tone: "warning", title: "Finish your identity check first", text: "Check-ins confirm your face against your enrolled photo. It takes about two minutes, once." },
+    ready: { icon: "🎧", title: "Ready to check in", text: "Tap Join, allow the microphone and camera, and keep this page open with the screen on." },
+    listening: { icon: "👂", title: "Listening for the key…", text: "Keep the phone out of your pocket, face-up. This usually takes a few seconds." },
+    submitting: { icon: "🔐", title: "Key heard — confirming…", text: "Your phone is signing the key so the server knows it came from you." },
+    "face-intro": { icon: "🙂", title: "Key heard ✓ — now a quick face check", text: "Hold the phone at eye level in good light and follow the oval. It takes a few seconds." },
+    face: null,
+    "face-checking": { icon: "🔎", title: "Checking your face…", text: "Comparing with your enrolled photo." },
+    "face-retry": {
+      icon: "↻", tone: "warning", title: "Let’s try that once more",
+      text: faceResult?.face?.status === "not_live"
+        ? "The camera couldn’t confirm a live face. Use your real face in good light — not a photo or screen."
+        : "The match wasn’t certain. Face a light source, remove anything covering your face, and try again.",
+    },
+    relaying: { icon: "📣", tone: "success", title: "Helping classmates…", text: "Your phone is passing the key on to students further back (about 8 seconds). Keep this page open." },
+    done: doneView(),
+    device: { icon: "📱", tone: "danger", title: "This phone isn’t approved", text: "Check-ins only count from your approved phone. Sign in again to confirm this phone with your face, or ask your teacher." },
+    error: { icon: "⚠", tone: "danger", title: "Something went wrong", text: errorText },
+  };
+  const view = VIEW[state] || VIEW.error;
 
   return (
-    <AppShell
-      role="student"
-      name={user.name || user.email}
-      email={user.email}
-      onLogout={handleLogout}
-      links={[{ to: "/student-dashboard", label: "Dashboard" }]}
-    >
+    <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={handleLogout} links={[{ to: "/student-dashboard", label: "Dashboard" }]}>
       <Link to="/student-dashboard" className="ui-btn ui-btn--ghost ui-btn--sm">← Dashboard</Link>
+
+      {showTracker && (
+        <ol className="checkin-tracker" aria-label="Check-in progress">
+          {STEPS.map((label, index) => (
+            <li key={label} className={index < stepIndex || (state === "done" && index === 3) ? "is-done" : index === stepIndex ? "is-current" : ""}>
+              <span className="checkin-tracker__dot">{index < stepIndex || (state === "done" && index === 3) ? "✓" : index + 1}</span>
+              <span className="checkin-tracker__label">{label}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+
       <Card className="checkin-card">
-        <div className="checkin-hero">
-          <span className={`checkin-hero__icon ${view.tone ? `checkin-hero__icon--${view.tone}` : ""} ${state === "listening" ? "checkin-pulse" : ""}`}>{view.icon}</span>
-          {sessionClass && <p className="ui-muted">{sessionClass.courseCode}{sessionClass.section ? ` · ${sessionClass.section}` : ""} — {sessionClass.title}</p>}
-          <h1 className="checkin-hero__title">{view.title}</h1>
-          <p className="checkin-hero__text">
-            {state === "error" ? errorText : state === "present" && relayed ? "Done. Your phone also passed the key on to classmates further back." : view.text}
-          </p>
+        {sessionClass && <p className="ui-muted checkin-class">{sessionClass.courseCode}{sessionClass.section ? ` · ${sessionClass.section}` : ""} — {sessionClass.title}</p>}
 
-          {state === "listening" && (
-            <>
-              <div className="checkin-level" aria-label="Microphone level"><span style={{ width: `${levelPercent}%` }} /></div>
-              {closesInMs > 0 && <p className="ui-muted">Check-in closes in {Math.floor(closesInMs / 60000)}:{String(Math.floor((closesInMs % 60000) / 1000)).padStart(2, "0")}</p>}
-            </>
-          )}
-          {unheardTooLong && (
-            <p className="checkin-hero__text">
-              Not heard yet. Move a little closer to the front or to a classmate whose phone is out, and keep this page open — it keeps trying until the check-in closes.
-            </p>
-          )}
+        {state === "face" ? (
+          <Suspense fallback={<div className="checkin-hero"><Spinner /> <span className="ui-muted">Opening the camera check…</span></div>}>
+            <FaceCheck purpose="checkin" extra={{ sessionId }} onFinished={submitFace} onCancel={() => setState(faceResult ? "face-retry" : "face-intro")} />
+          </Suspense>
+        ) : (
+          <div className="checkin-hero">
+            <span className={`checkin-hero__icon ${view.tone ? `checkin-hero__icon--${view.tone}` : ""} ${["listening", "relaying"].includes(state) ? "checkin-pulse" : ""}`}>{view.icon}</span>
+            <h1 className="checkin-hero__title">{view.title}</h1>
+            <p className="checkin-hero__text">{view.text}</p>
 
-          <div className="checkin-hero__actions">
-            {state === "ready" && <Button size="lg" onClick={join}>Join check-in</Button>}
-            {state === "error" && <Button onClick={join}>Try again</Button>}
-            {["present", "review", "absent", "closed", "device"].includes(state) && (
-              <Button variant="secondary" onClick={() => navigate("/student-dashboard")}>Back to dashboard</Button>
+            {state === "listening" && (
+              <>
+                <div className="checkin-level" aria-label="Microphone level"><span style={{ width: `${levelPercent}%` }} /></div>
+                {windowLeftMs > 0 && <p className="ui-muted">Check-in closes in {formatClock(windowLeftMs)}</p>}
+              </>
             )}
+            {unheardTooLong && (
+              <p className="checkin-hero__text">Not heard yet. Move a little closer to the front or to a classmate whose phone is out, and keep this page open — it keeps trying until the check-in closes.</p>
+            )}
+            {["face-intro", "face-retry"].includes(state) && faceDeadlineMs !== null && faceDeadlineMs > 0 && (
+              <p className={`checkin-deadline ${session?.status !== "open" ? "checkin-deadline--grace" : ""}`}>
+                {session?.status === "open" ? `Finish within ${formatClock(faceDeadlineMs)}` : `Check-in closed — finish your face check within ${formatClock(faceDeadlineMs)}`}
+              </p>
+            )}
+            {state === "face-retry" && <p className="ui-muted">Attempt {faceResult?.face?.attempts} of {faceResult?.face?.maxAttempts} used.</p>}
+            {["submitting", "face-checking"].includes(state) && <Spinner />}
+
+            <div className="checkin-hero__actions">
+              {state === "identity" && <Button size="lg" onClick={() => navigate("/student/enroll")}>Complete identity check</Button>}
+              {state === "ready" && <Button size="lg" onClick={join}>Join check-in</Button>}
+              {state === "face-intro" && <Button size="lg" onClick={() => { setErrorText(""); setState("face"); }}>Start face check</Button>}
+              {state === "face-retry" && (
+                <>
+                  <Button size="lg" onClick={() => setState("face")}>Try again</Button>
+                  <Button variant="ghost" onClick={skipFace}>Skip — let my teacher review</Button>
+                </>
+              )}
+              {state === "error" && <Button onClick={() => window.location.reload()}>Reload</Button>}
+              {["done", "device", "identity"].includes(state) && (
+                <Button variant="secondary" onClick={() => navigate("/student-dashboard")}>Back to dashboard</Button>
+              )}
+            </div>
+            {errorText && state === "face-intro" && <p className="ui-field__error">{errorText}</p>}
           </div>
-        </div>
+        )}
       </Card>
     </AppShell>
   );

@@ -10,6 +10,11 @@ const {
   joinSession,
   claimKey,
   getMyRecord,
+  submitFace,
+  skipFace,
+  requestRelay,
+  decideRecord,
+  getEvidenceFrame,
 } = require("../controllers/sessionController");
 
 const router = express.Router();
@@ -26,5 +31,10 @@ router.post("/sessions/:sessionId/close", teacher, closeSession);
 router.post("/sessions/:sessionId/join", student, joinSession);
 router.post("/sessions/:sessionId/claims", student, claimKey);
 router.get("/sessions/:sessionId/me", student, getMyRecord);
+router.post("/sessions/:sessionId/face", student, submitFace);
+router.post("/sessions/:sessionId/face/skip", student, skipFace);
+router.post("/sessions/:sessionId/relay", student, requestRelay);
+router.post("/records/:recordId/decision", teacher, decideRecord);
+router.get("/evidence/:recordId/frame", isAuthenticated, getEvidenceFrame);
 
 module.exports = router;
