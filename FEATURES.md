@@ -1,7 +1,7 @@
 # Bio Attend — Features & implementation plan
 
 > **Product:** Bio Attend — classroom attendance that proves *who* is present (face + liveness) and *where* they are (near-ultrasonic sound heard inside the room).
-> **Surfaces:** one responsive website (React) used by teachers and students · one API (Express + MongoDB Atlas) · one small face service (Python).
+> **Surfaces:** one responsive website (React) used by teachers and students · one API (Express + MongoDB Atlas) · AWS Rekognition for face liveness + matching (hosted API).
 > **Audience:** anyone building the project. It says exactly what we build, in what order, and how each piece works — student side, teacher side, database, APIs, frontend, backend.
 > **Companion files:** `plan.md` (signal design + research decisions) · `progress.md` (build log + measurements) · `agent.md` (how to work: one slice at a time, test before moving on).
 > **Decisions locked (2026-10-18):** website only (no native app for now) · college Google sign-in · one bound device per student · ID card + live selfie at first sign-in · face + liveness + sound at every check-in · teacher reviews only unsure cases, same day.
@@ -31,7 +31,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **4** | Phone-to-phone measurements at 1 m / 6 m / far corner → band decision | **Planned** (owner) |
 | **5** | Check-in sessions: teacher speaker check + live page playing the rotating key, student Join → listen → signed claim → present; joined-but-unheard → review; auto-close; class session history | **Built** (25/25 backend tests, 33/33 live API checks; phone test pending) |
 | **6** | Cascade relay: a newly present phone plays the next wave's key 3× at shared 2 s server-clock slots; `/time` clock sync; per-wave counts on the live page | **Shipped** (relay verified on real phones 2026-10-23; full-class rehearsal still to come) |
-| **7** | Face service (match + liveness) | **Planned** |
+| **7** | Face service via **AWS Rekognition** (Face Liveness + CompareFaces, Mumbai region) | **Planned** |
 | **8** | Student identity enrollment (ID card + live selfie + teacher verification) | **Planned** |
 | **9** | Face + liveness at check-in | **Planned** |
 | **10** | Reviews, overrides, same-day queries, daily lock, data retention | **Planned** |
@@ -53,7 +53,7 @@ Every phase depends **only on phases above it**. Finish and test a phase before 
 | **4** | Acoustic engine | Play / hear key frames on real phones, choose band | Riskiest technical piece — prove it early |
 | **5** | Check-in sessions | Start → hear key → signed claim → present | The core loop (sound only) |
 | **6** | Cascade relay | Waves of phones re-play the next key | Covers a 20 m room |
-| **7** | Face service | Python service: match + liveness | Needed by 8 and 9 |
+| **7** | Face service | AWS Rekognition integration: liveness + match | Needed by 8 and 9 |
 | **8** | Identity enrollment | ID card + selfie at first sign-in | Reference face for every check-in |
 | **9** | Face at check-in | Random liveness challenge + match | Proves the right person holds the phone |
 | **10** | Reviews & lock | Unsure cases, overrides, queries, midnight lock, deletion | Makes it fair and compliant |
@@ -125,7 +125,7 @@ Bio Attend replaces roll call. During the last minutes of class the teacher taps
  │  • pages: Home, Login, dashboards, check-in, enrollment │
  │  • acoustic engine: fsk.js + transmitter + receiver     │
  │  • device key (WebCrypto ECDSA P-256, IndexedDB)        │
- │  • camera + MediaPipe (guides liveness only)            │
+ │  • AWS FaceLivenessDetector (liveness video → AWS)      │
  └───────────────▲─────────────────────────────────────────┘
                  │ HTTPS JSON + multipart (cookie JWT)
  ┌───────────────┴─────────────────────────────────────────┐
@@ -135,9 +135,9 @@ Bio Attend replaces roll call. During the last minutes of class the teacher taps
  └──────┬──────────────────────────────┬───────────────────┘
         │ Mongoose                      │ HTTPS (service token)
  ┌──────┴───────────┐        ┌──────────┴──────────────────┐
- │ MongoDB Atlas    │        │ face-service (Python FastAPI)│
- │ users, classes,  │        │ /compare-id /verify          │
- │ sessions, records│        │ InsightFace + MediaPipe      │
+ │ MongoDB Atlas    │        │ AWS Rekognition (ap-south-1) │
+ │ users, classes,  │        │ Face Liveness · CompareFaces │
+ │ sessions, records│        │ (browser streams via Cognito)│
  │ media (binary)   │        └──────────────────────────────┘
  └──────────────────┘
 ```
@@ -278,7 +278,7 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | `attendancerecords` | One row per student per session (final result) | 5 (+9, 10) |
 | `checkinevidence` | IP, user agent, optional GPS, check-in frames — **TTL 24 h** | 5 (+9) |
 | `identitymedia` | ID card image + reference face image (binary, size-capped) | 8 |
-| `facechallenges` | Random liveness challenges (TTL) | 8 |
+| `facesessions` | AWS liveness sessions bound to a student + purpose (TTL, single use) | 7–9 |
 | `auditlogs` | Overrides, approvals, rejections | 10 |
 | `neighbourreports` | Which IDs each phone heard in the ID round | 12 |
 
@@ -296,7 +296,7 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | Devices | `POST /device/challenge` · `POST /device-bindings/claim` · `GET /device-bindings/status` · `GET /device-reviews` · `POST /device-reviews/:reviewId` | 3 |
 | Sessions (teacher) | `POST /classes/:classId/sessions` · `GET /classes/:classId/sessions` · `GET /sessions/:sessionId` · `GET /sessions/:sessionId/beacon` · `POST /sessions/:sessionId/close` · `PATCH /sessions/:sessionId/headcount` · `GET /sessions/:sessionId/spot-check` | 5 (+10) |
 | Sessions (student) | `GET /sessions/active` · `POST /sessions/:sessionId/join` · `POST /sessions/:sessionId/claims` · `GET /sessions/:sessionId/me` | 5 (+6) |
-| Enrollment (student) | `GET /enrollment/status` · `POST /enrollment/id-card` · `POST /face/challenge` · `POST /enrollment/selfie` | 8 |
+| Enrollment (student) | `GET /enrollment/status` · `POST /enrollment/id-card` · `POST /face/liveness-session` · `POST /enrollment/selfie` | 8 |
 | Enrollment (teacher) | `GET /enrollment-reviews` · `POST /enrollment-reviews/:userId` | 8 |
 | Face at check-in | `POST /sessions/:sessionId/face` | 9 |
 | Reviews & queries | `GET /reviews` · `POST /records/:recordId/decision` · `POST /records/:recordId/query` | 10 |
@@ -305,7 +305,7 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | Neighbour round | `GET /sessions/:sessionId/id-round` · `POST /sessions/:sessionId/neighbour-reports` | 12 |
 | Consent | `GET /consent/current` · `POST /me/consent` | 13 |
 
-Face service (internal, token-protected): `POST /compare-id` · `POST /verify` · `GET /health`.
+Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSession`, `GetFaceLivenessSessionResults`, `CompareFaces`); the browser streams liveness video to AWS with Cognito guest credentials.
 
 ### 4.3 Screens map
 
@@ -334,10 +334,10 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 | `CLIENT_URLS`, `NODE_ENV` | backend | Allowed origins; `PRODUCTION` = secure cookies, no tunnel wildcard | 0 |
 | `TIMEZONE` (default `Asia/Kolkata`) | backend | Day boundary for lock / same-day rules | 5 |
 | `CHECKIN_WINDOW_MIN` (6), `KEY_LIFETIME_SEC` (15), `MAX_WAVES` (5), `CHECKIN_PROFILE` (`mid`) | backend | Session defaults (band = mid until the band decision) | 5–6 |
-| `FACE_SERVICE_URL`, `FACE_SERVICE_TOKEN` | backend | Face service | 7 |
+| `AWS_REGION` (`ap-south-1`), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `LIVENESS_THRESHOLD` (80), `MATCH_THRESHOLD` (90), `REVIEW_THRESHOLD` (75) | backend | AWS Rekognition | 7 |
 | `EVIDENCE_TTL_HOURS` (24) | backend | Retention | 5 |
 | `REACT_APP_GOOGLE_CLIENT_ID`, `REACT_APP_API_URL`, `REACT_APP_GOOGLE_HOSTED_DOMAIN` | frontend | Existing | 1 |
-| `API_TOKEN`, `MATCH_THRESHOLD`, `REVIEW_THRESHOLD`, `MODEL_NAME` | face-service | Face service settings | 7 |
+| `REACT_APP_AWS_REGION`, `REACT_APP_AWS_IDENTITY_POOL_ID` | frontend | Cognito guest credentials for the liveness stream | 7 |
 
 ---
 
@@ -619,37 +619,42 @@ Face service (internal, token-protected): `POST /compare-id` · `POST /verify` �
 
 ---
 
-### Phase 7 — Face service
+### Phase 7 — Face service (AWS Rekognition)
 
-**Goal.** A small, private service that (a) compares a selfie with an ID-card photo, (b) verifies check-in frames: liveness challenge performed and face matches the reference.
+**Decision (owner, 2026-10-23):** use **Amazon Rekognition** as a hosted API instead of self-hosting a model — **Face Liveness** for anti-spoofing and **CompareFaces** for identity. No Python service to run. Region **`ap-south-1` (Mumbai)**, which supports Face Liveness.
+
+**Goal.** The backend can (a) run a liveness session and get a verified live frame, (b) compare two faces (selfie ↔ ID card, check-in frame ↔ reference face).
 
 **Depends on.** Phase 0 (hosting) only.
 
 **What users get.** Nothing directly; used by Phases 8 and 9.
 
-**New folder `face-service/`** (Python 3.11, FastAPI, Uvicorn, Dockerfile).
-
 | Piece | Choice |
 | --- | --- |
-| Face detection + embedding | **InsightFace** (`buffalo_s` / ArcFace, CPU, ONNX) — 512-d embeddings, cosine similarity |
-| Liveness (active) | **MediaPipe Face Landmarker** on the uploaded frames: head yaw for `turn_left/right`, eye-aspect-ratio for `blink`, mouth for `smile` |
-| Anti-spoof (passive, optional) | MiniFASNet (Silent-Face) score as an extra signal |
-| Auth | `Authorization: Bearer ${API_TOKEN}`; never exposed to browsers |
-| Hosting | Hugging Face Spaces (Docker, free CPU) or Render (Docker; check memory) |
+| Liveness | Rekognition **Face Liveness**: backend `CreateFaceLivenessSession` → browser runs AWS's `FaceLivenessDetector` (React, `@aws-amplify/ui-react-liveness`) which streams a short selfie video straight to AWS → backend `GetFaceLivenessSessionResults` → `Confidence` (0–100) + `ReferenceImage` bytes |
+| Face matching | Rekognition **`CompareFaces`** (similarity 0–100) on the liveness reference image vs the stored face |
+| Browser credentials | **Cognito Identity Pool** with guest access; guest role may only call `rekognition:StartFaceLivenessSession` |
+| Backend credentials | IAM user with `CreateFaceLivenessSession`, `GetFaceLivenessSessionResults`, `CompareFaces`, `DetectFaces` only (no S3 — the reference image comes back as bytes) |
 
-**API (internal).**
+**API (backend wrapper, `utils/faceClient.js`).**
 
-| Method & path | Request → Response |
+| Function | Does |
 | --- | --- |
-| `GET /health` | → `{ok, model}` |
-| `POST /compare-id` | multipart `id_card`, `selfies[]` → `{face_found_id, face_found_selfie, score, decision: match|unsure|no_match}` |
-| `POST /verify` | multipart `reference`, `frames[]` + JSON `challenge:[{step, frameIndex}]` → `{faces_ok, liveness:{passed, steps:[{step, ok, value}]}, match:{score, decision}, spoof_score?}` |
+| `createLivenessSession()` | → `{sessionId}` (client token = our own challenge id, single use) |
+| `getLivenessResult(sessionId)` | → `{status, confidence, referenceImage (Buffer)}`; `status !== "SUCCEEDED"` → failed |
+| `compareFaces(sourceBuffer, targetBuffer)` | → `{similarity, faceFound}` |
 
-Decisions use two thresholds: `score ≥ MATCH_THRESHOLD` → match; `REVIEW_THRESHOLD ≤ score < MATCH_THRESHOLD` → unsure; below → no_match. More than one face or no face → `faces_ok:false`.
+Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOLD` (default 80) → live; `similarity ≥ MATCH_THRESHOLD` (default 90) → match; `REVIEW_THRESHOLD ≤ similarity < MATCH_THRESHOLD` (default 75) → unsure → teacher review; below → no match (still review, never auto-reject).
 
-**Backend work.** `utils/faceClient.js` (`compareId`, `verify`, timeout 15 s, retries 1); `GET /health` of the API reports face-service reachability.
+**Backend work.** `@aws-sdk/client-rekognition`; `utils/faceClient.js` (timeouts, one retry); `GET /health` reports whether the face service is configured; liveness session ids are bound to the user + purpose server-side so a session cannot be reused by someone else.
 
-**Done when.** Service unit tests on a small labelled set (same person / different person / printed photo / screen replay); thresholds chosen and written down; backend `faceClient` mocked in Node tests.
+**Frontend work.** `@aws-amplify/ui-react-liveness` + `aws-amplify` configured with the identity pool; a shared `FaceCheck` component (start session via backend → `FaceLivenessDetector` → tell backend it finished) used by Phases 8 and 9.
+
+**Privacy.** Student face video/frames are processed by AWS (Mumbai region); the consent notice (Phase 13) must say so.
+
+**Cost.** Free tier: 1,000 images/month for CompareFaces for 12 months; new AWS accounts get up to $200 credits; Face Liveness is billed per check (see the AWS pricing page). Set a small AWS Budget alert.
+
+**Done when.** `faceClient` unit tests with a mocked Rekognition client; a manual liveness session on a phone returns a confidence score; CompareFaces gives a high score for the same person and a low one for a different person; a photo/screen held to the camera fails liveness.
 
 ---
 
@@ -666,7 +671,7 @@ Decisions use two thresholds: `score ≥ MATCH_THRESHOLD` → match; `REVIEW_THR
 **Database.**
 - `users.enrollment`: `status (none|pending|verified|rejected)`, `idCardMedia` (ref), `referenceFaceMedia` (ref), `score`, `decidedBy`, `decidedAt`, `rejectReason`, `attempts`.
 - **New `identitymedia`:** `user`, `kind (id_card|reference_face)`, `contentType`, `data (Buffer)`, `size`, `createdAt`. Max sizes from §4.1.
-- **New `facechallenges`:** `user`, `purpose (enroll|checkin)`, `session?`, `steps[]` (2 random from `turn_left, turn_right, blink, smile`), `expiresAt` (TTL 90 s), `usedAt`.
+- **New `facesessions`:** `user`, `purpose (enroll|checkin)`, `session?` (check-in), `awsSessionId`, `expiresAt` (TTL 5 min), `usedAt` — binds each AWS liveness session to one student and one purpose, single use.
 
 **API.**
 
@@ -674,22 +679,22 @@ Decisions use two thresholds: `score ≥ MATCH_THRESHOLD` → match; `REVIEW_THR
 | --- | --- | --- |
 | `GET /enrollment/status` | Student | → `{status, rejectReason?}` |
 | `POST /enrollment/id-card` | Student | multipart `image` (JPEG/PNG ≤ 600 KB after client compression) → `{ok}` |
-| `POST /face/challenge` | Student | `{purpose:"enroll"}` → `{challengeId, steps}` |
-| `POST /enrollment/selfie` | Student | multipart `frames[]` (3–5) + `challengeId` + device signature → `{status}` |
+| `POST /face/liveness-session` | Student | `{purpose:"enroll"}` → `{livenessSessionId}` (backend calls `CreateFaceLivenessSession`) |
+| `POST /enrollment/selfie` | Student | `{livenessSessionId}` + device signature → `{status}` (backend reads the liveness result and compares the reference frame with the ID card) |
 | `GET /enrollment-reviews` | Teacher | → students of own classes with `pending` |
 | `POST /enrollment-reviews/:userId` | Teacher | `{decision: approved|rejected, reason?}` → `{status}` |
 | `GET /media/:mediaId` | Teacher of that student, or the student | → image |
 
-**Backend work.** `controllers/enrollmentController.js`, `routes/enrollmentRoute.js`, `multer` (memory storage, size limits, image MIME check); flow: store ID card → on selfie: check challenge (owner, unused, fresh) → `faceClient.compareId(idCard, frames)` + `faceClient.verify(frames[0] as temp reference, frames, steps)` for liveness → `match` + liveness passed → `verified`, store best frame as `reference_face`; `unsure` or liveness doubtful → `pending`; `no_match` → `pending` with reason (teacher decides; never auto-reject). `auditlogs` entry on teacher decision.
+**Backend work.** `controllers/enrollmentController.js`, `routes/enrollmentRoute.js`, `multer` (memory storage, size limits, image MIME check); flow: store ID card → on selfie: check the face session (owner, purpose, unused, fresh) → `faceClient.getLivenessResult` → live (`confidence ≥ LIVENESS_THRESHOLD`) → `faceClient.compareFaces(idCard, referenceImage)` → match → `verified`, store the liveness reference image as `reference_face`; unsure match or doubtful liveness → `pending`; no match → `pending` with reason (teacher decides; never auto-reject). `auditlogs` entry on teacher decision.
 
 **Frontend work.**
-- `components/student/Enroll.jsx` (`/student/enroll`): consent text → ID card capture (camera or file, auto-crop/compress to ≤ 600 KB) → selfie step with live camera, **MediaPipe Face Landmarker** (`@mediapipe/tasks-vision`) drawing prompts and auto-capturing one frame per step → upload → result.
+- `components/student/Enroll.jsx` (`/student/enroll`): consent text → ID card capture (camera or file, compress to ≤ 600 KB) → live selfie with the shared `FaceCheck` (AWS `FaceLivenessDetector`) → result.
 - Student dashboard: "Identity" status card (none / pending / verified / rejected → retry).
 - `components/teacher/Reviews.jsx` (`/teacher/reviews`): tabs **Devices** (moves the existing queue here) · **Enrollments**.
 
 **Rules & edge cases.** Max 3 self-attempts, then teacher must reset; re-enrollment (new phone, appearance change) goes to review; only the student and their teachers can view images; nothing is shared with other students.
 
-**Done when.** Unit tests: challenge ownership/expiry/single use, access control on `/media`, decision mapping from service results (mocked). Manual: verified path, unsure path → teacher approves, printed-photo attempt fails liveness.
+**Done when.** Unit tests: face-session ownership/expiry/single use, access control on `/media`, decision mapping from (mocked) Rekognition results. Manual: verified path, unsure path → teacher approves, printed-photo attempt fails liveness.
 
 ---
 
@@ -700,25 +705,25 @@ Decisions use two thresholds: `score ≥ MATCH_THRESHOLD` → match; `REVIEW_THR
 **Depends on.** Phases 5, 7, 8.
 
 **What users get.**
-- *Student:* after "heard ✅": camera opens → 2 random prompts → "Present ✅" (≈ 5 s).
+- *Student:* after "heard ✅" (and relaying): AWS liveness check (short guided selfie video, a few seconds) → "Present ✅".
 - *Teacher:* live page shows a thumbnail per student (check-in frame vs reference) and review reasons.
 
 **Database.**
 - `attendancesessions.settings.faceRequired = true` (default from now on; can be turned off per session for tests).
-- `attendancerecords.face`: `status (pending|passed|unsure|failed|skipped)`, `score`, `liveness{passed, steps[]}`, `checkedAt`.
-- `checkinevidence.frames[]`: JPEG buffers (≤ 60 KB each) — deleted by TTL.
+- `attendancerecords.face`: `status (pending|passed|unsure|failed|skipped)`, `similarity`, `livenessConfidence`, `checkedAt`.
+- `checkinevidence.frames[]`: the liveness reference frame (JPEG, ≤ 60 KB) — deleted by TTL.
 
 **API.**
 
 | Method & path | Who | Request → Response |
 | --- | --- | --- |
-| `POST /face/challenge` | Student | `{purpose:"checkin", sessionId}` → `{challengeId, steps}` (only after a successful claim) |
-| `POST /sessions/:sessionId/face` | Student | multipart `frames[]` + `challengeId` + device signature → `{face:{status}, record:{status, reasons}}` |
+| `POST /face/liveness-session` | Student | `{purpose:"checkin", sessionId}` → `{livenessSessionId}` (only after a successful claim) |
+| `POST /sessions/:sessionId/face` | Student | `{livenessSessionId}` + device signature → `{face:{status}, record:{status, reasons}}` |
 | `GET /evidence/:recordId/frames/:index` | Teacher (owner) | → image (until TTL deletion) |
 
-**Backend work.** Session controller: on face upload → verify challenge + device proof → `faceClient.verify(referenceFace, frames, steps)` → set `record.face` → recompute status with `attendanceDecision` (adds `face`, `enrollment`, `faceRequired`) → store frames in evidence.
+**Backend work.** Session controller: on face result → verify face session + device proof → `faceClient.getLivenessResult` → `faceClient.compareFaces(referenceFace, referenceImage)` → set `record.face` → recompute status with `attendanceDecision` (adds `face`, `enrollment`, `faceRequired`) → store the frame in evidence.
 
-**Frontend work.** `CheckIn.jsx`: new `face` state after `submitting`/relay; reuse the selfie capture component from Phase 8. `LiveCheckin.jsx`: thumbnails + reason badges.
+**Frontend work.** `CheckIn.jsx`: new `face` state after `submitting`/relay; reuse the shared `FaceCheck` component from Phase 7/8. `LiveCheckin.jsx`: thumbnails + reason badges.
 
 **Rules & edge cases.** Face step must start within the session window; poor light → `unsure` → review (never silent absent); a student without verified enrollment can still check in by sound but lands in `review (not_enrolled)`.
 
@@ -834,7 +839,7 @@ Decisions use two thresholds: `score ≥ MATCH_THRESHOLD` → match; `REVIEW_THR
 
 **Work.**
 - `/privacy` page: what is collected (Google profile, device public key, ID card, reference face, check-in frames, IP, optional GPS), why, how long (frames/IP/GPS 24 h; ID + reference face for the term), who can see it, how to opt out (manual check by teacher), how to raise a query. Required under India's DPDP Act 2023.
-- Monitoring: request logging, error alerts (Render logs), face-service health on the API `/health`.
+- Monitoring: request logging, error alerts (Render logs), AWS face service configured/reachable on the API `/health`, AWS Budget alert.
 - Pilot runbook: warm-up (open site 2 min early), teacher phone placement, volume, what to do if the sound fails (fall back to roll call), data collection sheet.
 - Remove `TEST_STUDENT_EMAILS` and `REACT_APP_GOOGLE_HOSTED_DOMAIN=` override before the pilot.
 - Metrics: coverage (% joined), true present / false reject / false accept vs roll call, time to finish, review count, audibility complaints, iOS count.
@@ -864,7 +869,7 @@ Decisions use two thresholds: `score ≥ MATCH_THRESHOLD` → match; `REVIEW_THR
 | Fake GPS | GPS is not the proof | — |
 | Absent student signs in on friend's phone | New device → review; face mismatch | 3, 9 |
 | Friend brings the absent student's phone | Face mismatch | 9 |
-| Photo / video held to the camera | Random liveness challenge, server-checked | 9 |
+| Photo / video held to the camera | AWS Face Liveness (anti-spoofing), result read server-side | 9 |
 | Wrong face enrolled | Selfie must match the college ID card; teacher reviews unsure | 8 |
 | Friend inside forwards key to an outside phone | Outside phone not heard by neighbours | 12 |
 | Friend's phone runs two identities | Face check per identity; headcount + spot-check | 9, 10 |
@@ -876,7 +881,7 @@ Decisions use two thresholds: `score ≥ MATCH_THRESHOLD` → match; `REVIEW_THR
 | --- | --- | --- |
 | Unit (Node `node:test`) | Policies, roster, device proof, keys, decision table, reviews, reports | `npm test` in `attendance-backend` |
 | Codec (Node) | Encode / decode, noise, echo, profiles, receiver | `npm run test:acoustic` |
-| Face service (pytest) | Match / no-match / spoof samples, thresholds | `pytest` in `face-service` |
+| Face service | `faceClient` with a mocked Rekognition client; manual liveness + match checks on phones | `npm test` + manual |
 | Manual device tests | Lab, link test, rehearsals | Results in `progress.md` measurements log |
 | End-to-end | Teacher + 2–3 phones on hosted URL after phases 5, 6, 9, 10 | Checklist in each phase's *Done when* |
 

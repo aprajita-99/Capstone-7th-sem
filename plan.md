@@ -153,3 +153,7 @@ Each layer is built only after the previous gate passes.
 - iOS and other browsers.
 - Native mobile app (Layer 5).
 - Any extra room hardware.
+
+## 12. Face verification provider (decided 2026-10-23)
+
+Amazon Rekognition in `ap-south-1` (Mumbai): **Face Liveness** for anti-spoofing and **CompareFaces** for selfie ↔ ID card and check-in ↔ reference face. Hosted API, so no model is self-hosted. Student face video is processed by AWS; the consent notice must say so. Details in `FEATURES.md` Phase 7.
