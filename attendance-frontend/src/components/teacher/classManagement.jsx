@@ -25,21 +25,18 @@ const ClassManagement = () => {
   const { user, logout } = useTeacherSession();
   const [classes, setClasses] = useState(null);
   const [rooms, setRooms] = useState([]);
-  const [reviews, setReviews] = useState([]);
   const [showArchived, setShowArchived] = useState(false);
   const [formData, setFormData] = useState(blankClass);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [classesResponse, roomsResponse, reviewsResponse] = await Promise.all([
+    const [classesResponse, roomsResponse] = await Promise.all([
       axios.get(`${SERVER_URL}/classes${showArchived ? "?archived=1" : ""}`, requestConfig),
       axios.get(`${SERVER_URL}/rooms`, requestConfig),
-      axios.get(`${SERVER_URL}/device-reviews`, requestConfig),
     ]);
     setClasses(classesResponse.data.classes);
     setRooms(roomsResponse.data.rooms);
-    setReviews(reviewsResponse.data.reviews);
   }, [showArchived]);
 
   useEffect(() => {
@@ -57,19 +54,6 @@ const ClassManagement = () => {
       navigate(`/teacher/classes/${response.data.courseClass._id}`);
     } catch (requestError) {
       setFormError(errorMessage(requestError, "Could not create the class."));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const decideReview = async (reviewId, decision) => {
-    setSaving(true);
-    try {
-      await axios.post(`${SERVER_URL}/device-reviews/${reviewId}`, { decision }, requestConfig);
-      toast(decision === "approved" ? "Device approved." : "Device rejected.", "success");
-      await loadData();
-    } catch (requestError) {
-      toast(errorMessage(requestError, "Could not update this device review."), "error");
     } finally {
       setSaving(false);
     }
@@ -170,28 +154,8 @@ const ClassManagement = () => {
         </Card>
       </div>
 
-      <Card className="classes-section" title="New-device review queue"
-        subtitle="Students who signed in from a different phone. Approve only if you know the change is genuine."
-        actions={<Badge variant={reviews.length ? "warning" : "success"}>{reviews.length} pending</Badge>}
-      >
-        {reviews.length === 0 ? (
-          <p className="ui-muted">No students are waiting for a device change review.</p>
-        ) : (
-          <ul className="review-list">
-            {reviews.map((review) => (
-              <li key={review._id} className="review-row">
-                <span className="review-row__who">
-                  <strong>{review.student?.name || "Student"}</strong>
-                  <span>{review.student?.email}</span>
-                </span>
-                <span className="review-row__actions">
-                  <Button size="sm" variant="soft" onClick={() => decideReview(review._id, "approved")} disabled={saving}>Approve</Button>
-                  <Button size="sm" variant="ghost" onClick={() => decideReview(review._id, "rejected")} disabled={saving}>Reject</Button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <Card className="classes-section" title="Reviews" subtitle="New-phone requests and identity checks now live on the Reviews page.">
+        <Button variant="soft" onClick={() => navigate("/teacher/reviews")}>Open reviews</Button>
       </Card>
     </AppShell>
   );

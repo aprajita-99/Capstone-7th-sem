@@ -7,6 +7,7 @@ import { useToast } from "../../ui/Toast";
 export const teacherLinks = (active) => [
   { to: "/teacher-dashboard", label: "Dashboard", active: active === "dashboard" },
   { to: "/teacher/classes", label: "Classes & rosters", active: active === "classes" },
+  { to: "/teacher/reviews", label: "Reviews", active: active === "reviews" },
   { to: "/acoustic-lab", label: "Phone audio test" },
 ];
 

@@ -180,3 +180,5 @@
   .import-row { grid-template-columns: 36px 1fr; }
   .import-row__status { grid-column: 2; text-align: left; }
 }
+
+.identity-cell { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }

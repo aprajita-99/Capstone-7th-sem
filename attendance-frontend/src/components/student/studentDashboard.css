@@ -106,3 +106,11 @@
 .student-class__code { font-size: 12px; font-weight: 600; color: var(--indigo-600); }
 .student-class__title { font-size: 14.5px; font-weight: 600; }
 .student-class__meta { font-size: 12.5px; color: var(--text-faint); }
+
+/* Identity check card */
+.identity-card { border-left: 4px solid var(--slate-300); }
+.identity-card .ui-card__header { margin-bottom: 0; }
+.identity-card--verified { border-left-color: var(--success); }
+.identity-card--pending { border-left-color: var(--warning); }
+.identity-card--none,
+.identity-card--rejected { border-left-color: var(--indigo-500); }

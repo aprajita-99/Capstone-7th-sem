@@ -6,8 +6,9 @@ const mongoose = require("mongoose");
 const faceSessionSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    purpose: { type: String, enum: ["test", "enroll", "checkin"], required: true },
+    purpose: { type: String, enum: ["test", "enroll", "rebind", "checkin"], required: true },
     session: { type: mongoose.Schema.Types.ObjectId, ref: "AttendanceSession" }, // check-in only
+    deviceRequest: { type: mongoose.Schema.Types.ObjectId, ref: "DeviceBindingRequest" }, // rebind only
     awsSessionId: { type: String, required: true, unique: true },
     expiresAt: { type: Date, required: true },
     usedAt: Date,

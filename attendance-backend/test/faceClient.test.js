@@ -107,3 +107,21 @@ test("an unusable image is reported as no face, not as an error", async () => {
   }));
   assert.equal((await faceClient.compareFaces(Buffer.from("a"), Buffer.from("b"))).faceFound, false);
 });
+
+test("detectFaces counts faces and detectText returns lines; unusable images give empty results", async () => {
+  faceClient.setClientForTests(fakeClient({
+    DetectFacesCommand: () => ({ FaceDetails: [{}, {}] }),
+    DetectTextCommand: () => ({ TextDetections: [{ Type: "LINE", DetectedText: "NIT JAMSHEDPUR" }, { Type: "WORD", DetectedText: "NIT" }, { Type: "LINE", DetectedText: "2023UGCS111" }] }),
+  }));
+  assert.equal(await faceClient.detectFaces(Buffer.from("x")), 2);
+  assert.deepEqual(await faceClient.detectText(Buffer.from("x")), ["NIT JAMSHEDPUR", "2023UGCS111"]);
+
+  const bad = () => {
+    const error = new Error("bad image");
+    error.name = "InvalidImageFormatException";
+    throw error;
+  };
+  faceClient.setClientForTests(fakeClient({ DetectFacesCommand: bad, DetectTextCommand: bad }));
+  assert.equal(await faceClient.detectFaces(Buffer.from("x")), 0);
+  assert.deepEqual(await faceClient.detectText(Buffer.from("x")), []);
+});

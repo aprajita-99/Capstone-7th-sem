@@ -41,7 +41,11 @@ app.use(
 );
 
 app.use(cookieParser());
-app.use(express.json());
+// Default 100 kB JSON limit everywhere except the ID-card upload, which parses
+// its own body with a 1 MB limit (routes/enrollmentRoute.js).
+const jsonBody = express.json();
+const LARGE_BODY_PATHS = new Set(["/api/v1/enrollment/id-card"]);
+app.use((req, res, next) => (LARGE_BODY_PATHS.has(req.path) ? next() : jsonBody(req, res, next)));
 
 app.set('trust proxy', true); // Add this in your main Express config
 
@@ -62,6 +66,9 @@ app.use("/api/v1", sessionRoute);
 
 const faceRoute = require('./routes/faceRoute');
 app.use("/api/v1", faceRoute);
+
+const enrollmentRoute = require('./routes/enrollmentRoute');
+app.use("/api/v1", enrollmentRoute);
 
 const errorMiddleware = require('./middleware/error');
 app.use(errorMiddleware);

@@ -34,6 +34,25 @@ const userSchema = new mongoose.Schema({
         approvedAt: Date,
         lastSeenAt: Date,
     },
+    // Identity enrollment (Phase 8): ID card + live selfie → reference face.
+    enrollment: {
+        status: { type: String, enum: ["none", "pending", "verified", "rejected"], default: "none" },
+        attempts: { type: Number, default: 0 },
+        idCardMedia: { type: mongoose.Schema.Types.ObjectId, ref: "IdentityMedia" },
+        selfieMedia: { type: mongoose.Schema.Types.ObjectId, ref: "IdentityMedia" }, // live frame awaiting review
+        referenceFaceMedia: { type: mongoose.Schema.Types.ObjectId, ref: "IdentityMedia" },
+        scores: { liveness: Number, similarity: Number },
+        idCheck: { faces: Number, hasText: Boolean, rollMatch: { type: Boolean, default: null } },
+        reasons: [String],
+        rejectReason: String,
+        decidedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        decidedAt: Date,
+        verifiedAt: Date,
+    },
+    consent: {
+        version: String,
+        acceptedAt: Date,
+    },
 });
 
 // ✅ Generate JWT token

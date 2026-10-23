@@ -32,7 +32,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **5** | Check-in sessions: teacher speaker check + live page playing the rotating key, student Join → listen → signed claim → present; joined-but-unheard → review; auto-close; class session history | **Built** (25/25 backend tests, 33/33 live API checks; phone test pending) |
 | **6** | Cascade relay: a newly present phone plays the next wave's key 3× at shared 2 s server-clock slots; `/time` clock sync; per-wave counts on the live page | **Shipped** (relay verified on real phones 2026-10-23; full-class rehearsal still to come) |
 | **7** | Face service via **AWS Rekognition** (Face Liveness + CompareFaces, Mumbai region): `faceClient`, user-bound single-use `facesessions`, shared `FaceCheck` component, `/face-test` page | **Shipped** (liveness + compare verified on a phone 2026-10-23) |
-| **8** | Student identity enrollment (ID card + live selfie + teacher verification) | **Planned** |
+| **8** | Identity enrollment: consent → ID card (face + text + roll OCR) → live selfie → auto-verify or teacher review; Reviews page; new phone approved by face | **Built** (39 backend tests, 40 end-to-end checks with fake AWS; phone test pending) |
 | **9** | Face + liveness at check-in | **Planned** |
 | **10** | Reviews, overrides, same-day queries, daily lock, data retention | **Planned** |
 | **11** | Attendance records, reports, CSV export, student history | **Planned** |
@@ -297,8 +297,8 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | Sessions (teacher) | `POST /classes/:classId/sessions` · `GET /classes/:classId/sessions` · `GET /sessions/:sessionId` · `GET /sessions/:sessionId/beacon` · `POST /sessions/:sessionId/close` · `PATCH /sessions/:sessionId/headcount` · `GET /sessions/:sessionId/spot-check` | 5 (+10) |
 | Sessions (student) | `GET /sessions/active` · `POST /sessions/:sessionId/join` · `POST /sessions/:sessionId/claims` · `GET /sessions/:sessionId/me` | 5 (+6) |
 | Face (any signed-in user) | `POST /face/liveness-session` (`purpose: "test"` in Phase 7) · `POST /face/test-result` | 7 |
-| Enrollment (student) | `GET /enrollment/status` · `POST /enrollment/id-card` · `POST /face/liveness-session` · `POST /enrollment/selfie` | 8 |
-| Enrollment (teacher) | `GET /enrollment-reviews` · `POST /enrollment-reviews/:userId` | 8 |
+| Enrollment (student) | `GET /enrollment/status` · `POST /enrollment/consent` · `POST /enrollment/id-card` · `POST /face/liveness-session` · `POST /enrollment/selfie` · `POST /device-bindings/face-verify` | 8 |
+| Enrollment (teacher) | `GET /enrollment-reviews` · `POST /enrollment-reviews/:userId` · `POST /enrollment-reviews/:userId/reset-attempts` · `POST /enrollment-reviews/:userId/force-reenroll` · `GET /classes/:classId/enrollment-status` | 8 |
 | Face at check-in | `POST /sessions/:sessionId/face` | 9 |
 | Reviews & queries | `GET /reviews` · `POST /records/:recordId/decision` · `POST /records/:recordId/query` | 10 |
 | Media (teacher) | `GET /media/:mediaId` · `GET /evidence/:recordId/frames/:index` | 8 (+9) |
@@ -318,14 +318,15 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | `/privacy` | Public | Privacy & data notice | 13 |
 | `/face-test` | Signed in | AWS liveness self-test + compare two checks | 7 |
 | `/student-dashboard` | Student | Status cards + open check-ins | Shipped (extended 5, 8) |
-| `/student/enroll` | Student | ID card + selfie wizard | 8 |
+| `/student/enroll` | Student | Consent + ID card + live selfie wizard | 8 |
+| `/student/verify-device` | Student | New phone: approve with a face check | 8 |
 | `/student/check-in/:sessionId` | Student | Listen → relay → face → result | 5 (+6, 9) |
 | `/student/attendance` | Student | History, %, queries | 10–11 |
 | `/teacher-dashboard` | Teacher | Stats, recent classes | Shipped (extended 11) |
 | `/teacher/classes` | Teacher | Classes, rooms, rosters | Shipped (restyle 2) |
 | `/teacher/classes/:classId` | Teacher | Class detail: roster, sessions, attendance | 2 (+11) |
 | `/teacher/classes/:classId/live` | Teacher | Live check-in: speaker check, playing key, counts, names (later: headcount, spot-check, thumbnails) | 5 (+6, 9, 10) |
-| `/teacher/reviews` | Teacher | Devices · enrollments · attendance reviews | 3 (+8, 10) |
+| `/teacher/reviews` | Teacher | Identity checks · new phones (attendance reviews in Phase 10) | 8 (+10) |
 
 ### 4.4 Configuration
 
@@ -664,41 +665,61 @@ Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOL
 
 ### Phase 8 — Student identity enrollment (ID card + live selfie)
 
-**Goal.** Every student has a **verified reference face** linked to their college ID before they can be marked present by face.
+**Goal.** Every student has a **verified reference face** linked to their college ID before face checks are used at check-in.
 
 **Depends on.** Phases 1, 3, 7.
 
+**Owner decisions (2026-10-23).**
+
+| Topic | Decision |
+| --- | --- |
+| When | Once per account, prompted after sign-in (wizard opens automatically, **"Later" allowed** for the browser session; dashboard card until done). Per-check-in face matching is Phase 9 |
+| ID capture | Camera or gallery upload, compressed in the browser to ≤ 600 KB JPEG |
+| ID sanity | Exactly **one face** (DetectFaces) and **readable text** (DetectText), otherwise "take a clearer photo" — **no attempt used** |
+| Roll-number OCR | DetectText must contain the login id (e.g. `2023UGCS111`); mismatch → teacher review. Skipped for test Gmails |
+| Reference face | The **live enrollment selfie** (AWS liveness reference frame) |
+| Auto-verify | Live + similarity ≥ `MATCH_THRESHOLD` with the ID photo + roll found → verified; otherwise teacher review; not live → failed attempt |
+| Attempts | 3, then teacher reset |
+| Reviewer | Any teacher of the student's classes (test students: any teacher) |
+| Teacher tools | Approve / reject (reason required), reset attempts, force re-enrollment, per-class identity status |
+| Device | Enrollment selfie must be **signed by the bound phone** (device proof purpose `face`) |
+| New phone of a verified student | Live face on the new phone vs the reference face → match **auto-approves** the phone (signed by the new phone's key); otherwise teacher device review |
+| Consent | Required checkbox; version `2026-10-v1` + time stored on the user |
+| Retention | Images kept while the student is on any active roster; deleted when removed from all rosters or on force re-enrollment |
+
 **What users get.**
-- *Student:* first sign-in leads to a 3-step wizard: **Consent → ID card → Live selfie** → "Verified" or "Waiting for teacher".
-- *Teacher:* **Reviews → Enrollments** tab: ID card + selfie side by side, roster name/roll, score → Approve / Reject (with reason).
+- *Student:* wizard **Consent → ID card → Live selfie → result** (Verified / Waiting for teacher / Try again with attempts left); dashboard **Identity check** card; new phone → **Verify with my face** page.
+- *Teacher:* **Reviews** page (`/teacher/reviews`) with **Identity checks** (ID card ↔ live selfie side by side, roll/OCR result, scores, Approve / Reject + reason, Reset attempts, Force re-enroll, "Out of attempts" list) and **New phones** (moved from Classes & rosters); roster **Identity** column with Reset / Redo; dashboard "Pending reviews" counts both.
 
 **Database.**
-- `users.enrollment`: `status (none|pending|verified|rejected)`, `idCardMedia` (ref), `referenceFaceMedia` (ref), `score`, `decidedBy`, `decidedAt`, `rejectReason`, `attempts`.
-- **New `identitymedia`:** `user`, `kind (id_card|reference_face)`, `contentType`, `data (Buffer)`, `size`, `createdAt`. Max sizes from §4.1.
-- **New `facesessions`:** `user`, `purpose (enroll|checkin)`, `session?` (check-in), `awsSessionId`, `expiresAt` (TTL 5 min), `usedAt` — binds each AWS liveness session to one student and one purpose, single use.
+- `users.enrollment`: `status (none|pending|verified|rejected)`, `attempts`, `idCardMedia`, `selfieMedia`, `referenceFaceMedia`, `scores{liveness, similarity}`, `idCheck{faces, hasText, rollMatch}`, `reasons[]`, `rejectReason`, `decidedBy`, `decidedAt`, `verifiedAt`; `users.consent{version, acceptedAt}`.
+- **New `identitymedia`:** `user`, `kind (id_card|selfie|reference_face)`, `contentType`, `data`, `size`.
+- **New `auditlogs`:** `actor` (empty = system), `action`, `target{type,id}`, `note`, `at`.
+- `facesessions` purposes `test|enroll|rebind|checkin`, `deviceRequest` (rebind).
 
 **API.**
 
 | Method & path | Who | Request → Response |
 | --- | --- | --- |
-| `GET /enrollment/status` | Student | → `{status, rejectReason?}` |
-| `POST /enrollment/id-card` | Student | multipart `image` (JPEG/PNG ≤ 600 KB after client compression) → `{ok}` |
-| `POST /face/liveness-session` | Student | `{purpose:"enroll"}` → `{livenessSessionId}` (backend calls `CreateFaceLivenessSession`) |
-| `POST /enrollment/selfie` | Student | `{livenessSessionId}` + device signature → `{status}` (backend reads the liveness result and compares the reference frame with the ID card) |
-| `GET /enrollment-reviews` | Teacher | → students of own classes with `pending` |
-| `POST /enrollment-reviews/:userId` | Teacher | `{decision: approved|rejected, reason?}` → `{status}` |
-| `GET /media/:mediaId` | Teacher of that student, or the student | → image |
+| `GET /enrollment/status` | Student | → `{status, attempts, attemptsLeft, reasons, rejectReason, idCardUploaded, idCheck, consentRequired, consentVersion}` |
+| `POST /enrollment/consent` | Student | `{version}` |
+| `POST /enrollment/id-card` | Student | `{image: data URL}` (1 MB body limit on this route only) → `{rollMatch}`; 422 if no single face / no text |
+| `POST /face/liveness-session` | Student | `{purpose:"enroll"}` or `{purpose:"rebind", requestId}` → `{livenessSessionId}` |
+| `POST /enrollment/selfie` | Student | `{livenessSessionId, challengeId, signature}` → `{outcome: verified|pending|failed, enrollment}` |
+| `POST /device-bindings/face-verify` | Student (new phone) | `{requestId, livenessSessionId, challengeId, signature}` signed by the new phone → `{status: approved|review}` |
+| `GET /media/:mediaId` | Owner, or a teacher of their classes | image (`Cache-Control: private, no-store`) |
+| `GET /enrollment-reviews` | Teacher | `{reviews (pending), blocked (out of attempts)}` |
+| `POST /enrollment-reviews/:userId` | Teacher | `{decision: approved|rejected, reason}` |
+| `POST /enrollment-reviews/:userId/reset-attempts` · `…/force-reenroll` | Teacher | → updated row |
+| `GET /classes/:classId/enrollment-status` | Teacher (owner) | `{statuses: {email: {status, attempts, userId}}, maxAttempts}` |
 
-**Backend work.** `controllers/enrollmentController.js`, `routes/enrollmentRoute.js`, `multer` (memory storage, size limits, image MIME check); flow: store ID card → on selfie: check the face session (owner, purpose, unused, fresh) → `faceClient.getLivenessResult` → live (`confidence ≥ LIVENESS_THRESHOLD`) → `faceClient.compareFaces(idCard, referenceImage)` → match → `verified`, store the liveness reference image as `reference_face`; unsure match or doubtful liveness → `pending`; no match → `pending` with reason (teacher decides; never auto-reject). `auditlogs` entry on teacher decision.
+**Backend.** `controllers/enrollmentController.js`, `routes/enrollmentRoute.js`, `utils/enrollment.js` (pure rules), `utils/faceSessions.js` (single-use liveness sessions), `utils/teacherAccess.js` (shared reviewer rule), `faceClient.detectFaces/detectText`, `applyDeviceDecision` shared by teacher and face approval; retention hook in roster removal.
 
-**Frontend work.**
-- `components/student/Enroll.jsx` (`/student/enroll`): consent text → ID card capture (camera or file, compress to ≤ 600 KB) → live selfie with the shared `FaceCheck` (AWS `FaceLivenessDetector`) → result.
-- Student dashboard: "Identity" status card (none / pending / verified / rejected → retry).
-- `components/teacher/Reviews.jsx` (`/teacher/reviews`): tabs **Devices** (moves the existing queue here) · **Enrollments**.
+**Frontend.** `components/student/Enroll.jsx` (`/student/enroll`), `components/student/VerifyDevice.jsx` (`/student/verify-device`), both lazy-loaded with the AWS liveness chunk; `components/teacher/Reviews.jsx`; `utils/imageCompress.js`; `utils/enrollPrompt.js`; Login routes students to the wizard / new-phone check.
 
-**Rules & edge cases.** Max 3 self-attempts, then teacher must reset; re-enrollment (new phone, appearance change) goes to review; only the student and their teachers can view images; nothing is shared with other students.
+**AWS.** IAM user `bio-attend-backend` also needs `rekognition:DetectText`.
 
-**Done when.** Unit tests: face-session ownership/expiry/single use, access control on `/media`, decision mapping from (mocked) Rekognition results. Manual: verified path, unsure path → teacher approves, printed-photo attempt fails liveness.
+**Done when.** Unit tests for the decision table, roll OCR matching, image parsing, detectFaces/detectText; end-to-end checks with a fake Rekognition client; owner phone test (own ID → verified; another face → teacher review → approve; new phone → face check → approved).
 
 ---
 
