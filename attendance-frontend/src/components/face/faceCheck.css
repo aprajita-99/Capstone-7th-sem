@@ -1,0 +1,16 @@
+/* AWS FaceLivenessDetector wrapper + face test page */
+
+.face-check { width: 100%; max-width: 560px; margin: 0 auto; }
+.face-check--message { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 28px 12px; text-align: center; color: var(--text-soft); }
+.face-check__actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+.face-result { display: grid; grid-template-columns: 160px 1fr; gap: 18px; align-items: start; }
+.face-result img { width: 160px; height: 160px; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--border); }
+.face-result__facts { display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.face-result__facts strong { font-size: 22px; letter-spacing: -0.02em; }
+
+@media (max-width: 560px) {
+  .face-result { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+}
+
+.face-test__result { margin-top: 16px; }
