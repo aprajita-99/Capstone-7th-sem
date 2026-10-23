@@ -118,3 +118,11 @@
 .checkin-open-card__row + .checkin-open-card__row { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
 
 .checkin-card { margin-top: 12px; }
+
+/* Present students per cascade wave (teacher live page) */
+.wave-bars { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.wave-bar { display: grid; grid-template-columns: 56px 1fr 32px; gap: 10px; align-items: center; font-size: 13px; }
+.wave-bar__label { color: var(--text-soft); }
+.wave-bar__track { height: 10px; border-radius: 999px; background: var(--slate-100); overflow: hidden; }
+.wave-bar__track span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--indigo-400), var(--indigo-600)); }
+.wave-bar strong { text-align: right; }

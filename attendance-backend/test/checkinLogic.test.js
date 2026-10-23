@@ -57,3 +57,25 @@ test("roster: test-student Gmails are accepted only while listed in TEST_STUDENT
   assert.equal(entry.email, "tester@gmail.com");
   assert.ok(normaliseRosterEntry("someone.else@gmail.com").error);
 });
+
+const { relayPlan, studentWave, SLOT_MS } = require("../utils/relay");
+
+test("relay: hearing the teacher makes a wave-1 student who relays wave 1", () => {
+  assert.equal(studentWave(0), 1);
+  const plan = relayPlan({ keyWave: 0, maxWaves: 5, now: 1_000_000_300 });
+  assert.equal(plan.wave, 1);
+  assert.equal(plan.playAt.length, 3);
+  // Shared slot boundaries, at least the lead time ahead, one slot apart.
+  plan.playAt.forEach((time) => assert.equal(time % SLOT_MS, 0));
+  assert.ok(plan.playAt[0] >= 1_000_000_300 + 1500);
+  assert.equal(plan.playAt[1] - plan.playAt[0], SLOT_MS);
+});
+
+test("relay: phones in the same wave get the same slots; the cascade stops at maxWaves", () => {
+  const first = relayPlan({ keyWave: 1, maxWaves: 5, now: 1_000_000_100 });
+  const second = relayPlan({ keyWave: 1, maxWaves: 5, now: 1_000_000_400 });
+  assert.deepEqual(first.playAt, second.playAt);
+  assert.equal(relayPlan({ keyWave: 3, maxWaves: 5 }).wave, 4);
+  assert.equal(relayPlan({ keyWave: 4, maxWaves: 5 }), null, "wave 5 students do not relay");
+  assert.equal(relayPlan({ keyWave: 0, maxWaves: 1 }), null);
+});

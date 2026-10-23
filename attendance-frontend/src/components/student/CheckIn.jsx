@@ -5,6 +5,8 @@ import SERVER_URL from "../../config/api";
 import fsk from "../../acoustic/fsk";
 import receiverModule from "../../acoustic/receiver";
 import { levelDb, openMic } from "../../acoustic/mic";
+import { serverToContextTime, syncServerClock } from "../../acoustic/clock";
+import { createTransmitter } from "../../acoustic/transmitter";
 import { keepScreenOn } from "../../acoustic/wakeLock";
 import { signDeviceChallenge } from "../../utils/deviceKey";
 import AppShell from "../../ui/AppShell";
@@ -19,11 +21,13 @@ const requestConfig = { withCredentials: true };
 const SCAN_MS = 500;
 const STATUS_POLL_MS = 5000;
 const HINT_AFTER_MS = 60 * 1000;
+const RELAY_TIMEOUT_MS = 12 * 1000;
 
 const VIEW = {
   ready: { icon: "🎧", title: "Ready to check in", text: "Tap Join, allow the microphone, and keep this page open near the front of the room." },
   listening: { icon: "👂", title: "Listening for the key…", text: "Keep the phone out of your pocket with the screen on. This usually takes a few seconds." },
   submitting: { icon: "🔐", title: "Key heard — confirming…", text: "Your phone is signing the key so the server knows it came from you." },
+  relaying: { icon: "📣", tone: "success", title: "Present ✓ — helping classmates…", text: "Your phone is passing the key on to students further back. Keep the page open for a few seconds." },
   present: { icon: "✓", tone: "success", title: "You’re marked present", text: "Done. You can close this page." },
   review: { icon: "⌛", tone: "warning", title: "In review", text: "Your phone joined but did not hear the key. Your teacher will review it today." },
   absent: { icon: "✕", tone: "danger", title: "Marked absent", text: "This check-in has closed and you were not checked in." },
@@ -59,6 +63,13 @@ const CheckIn = () => {
   const timersRef = useRef([]);
   const triedKeysRef = useRef(new Set());
   const claimingRef = useRef(false);
+  const clockRef = useRef({ offsetMs: 0 });
+  const profileRef = useRef(fsk.PROFILES.mid);
+
+  const stopTimers = () => {
+    timersRef.current.forEach((timer) => window.clearInterval(timer));
+    timersRef.current = [];
+  };
 
   const stopListening = useCallback(async () => {
     timersRef.current.forEach((timer) => window.clearInterval(timer));
@@ -66,9 +77,27 @@ const CheckIn = () => {
     receiverRef.current = null;
     const audio = audioRef.current;
     audioRef.current = null;
+    audio?.transmitter?.stop();
     await audio?.wakeLock?.release();
     await audio?.mic?.stop();
   }, []);
+
+  // Cascade (Phase 6): play the next wave's key once, at the server's shared slots.
+  const relayKey = async (relay) => {
+    const audio = audioRef.current;
+    if (!audio?.mic) return;
+    stopTimers(); // stop listening so this phone does not decode its own relay
+    setState("relaying");
+    try {
+      const transmitter = createTransmitter(audio.mic.context);
+      audio.transmitter = transmitter;
+      transmitter.setFrame({ value: relay.value, profile: fsk.PROFILES[relay.profile] || profileRef.current });
+      const times = relay.playAt.map((serverMs) => serverToContextTime(audio.mic.context, serverMs, clockRef.current.offsetMs));
+      await Promise.race([transmitter.playAt(times), new Promise((resolve) => window.setTimeout(resolve, RELAY_TIMEOUT_MS))]);
+    } catch {
+      // Relaying is a bonus for classmates; this student is already present.
+    }
+  };
 
   useEffect(() => () => {
     stopListening();
@@ -108,6 +137,7 @@ const CheckIn = () => {
       const proof = await signDeviceChallenge({ purpose: "claim", payload: { sessionId, key } });
       const response = await axios.post(`${SERVER_URL}/sessions/${sessionId}/claims`, { key, ...proof }, requestConfig);
       if (response.data.status === "present") {
+        if (response.data.relay) await relayKey(response.data.relay);
         await stopListening();
         setState("present");
         toast("You’re marked present.", "success");
@@ -139,6 +169,9 @@ const CheckIn = () => {
     try {
       const joinResponse = await axios.post(`${SERVER_URL}/sessions/${sessionId}/join`, {}, requestConfig);
       const profile = fsk.PROFILES[joinResponse.data.session.profile] || fsk.PROFILES.mid;
+      profileRef.current = profile;
+      // Server clock for relay timing; a failure only makes relays less aligned.
+      clockRef.current = (await syncServerClock(async () => (await axios.get(`${SERVER_URL}/time`)).data.now).catch(() => null)) || { offsetMs: 0 };
       const mic = await openMic({
         onChunk: (chunk) => {
           receiverRef.current?.push(chunk);
