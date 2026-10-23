@@ -10,7 +10,7 @@ const { currentKey, findKey } = require("../utils/keys");
 const { decide } = require("../utils/attendanceDecision");
 const { endOfDay } = require("../utils/clock");
 const { verifyDeviceProof } = require("../utils/deviceProof");
-const { relayPlan, studentWave } = require("../utils/relay");
+const { SLOT_MS, relayPlan, studentWave } = require("../utils/relay");
 
 const PROFILES = ["high", "mid"];
 
@@ -347,11 +347,12 @@ exports.claimKey = catchAsyncError(async (req, res, next) => {
   });
 
   // Cascade: a newly present phone relays the next wave's key once, at shared slots.
-  const plan = relayPlan({ keyWave: issued.wave, maxWaves: session.settings.maxWaves || 5, now: now.getTime() });
+  // Planned after the writes so the database time does not eat the lead time.
+  const plan = relayPlan({ keyWave: issued.wave, maxWaves: session.settings.maxWaves || 5, now: Date.now() });
   let relay = null;
   if (plan) {
-    const relayKey = await currentKey(session, plan.wave, now);
-    relay = { wave: plan.wave, value: relayKey.value, profile: session.settings.profile, playAt: plan.playAt };
+    const relayKey = await currentKey(session, plan.wave);
+    relay = { wave: plan.wave, value: relayKey.value, profile: session.settings.profile, playAt: plan.playAt, slotMs: SLOT_MS };
   }
 
   res.status(200).json({ success: true, status: record.status, wave, relay });

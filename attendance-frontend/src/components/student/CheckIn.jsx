@@ -4,7 +4,8 @@ import axios from "axios";
 import SERVER_URL from "../../config/api";
 import fsk from "../../acoustic/fsk";
 import receiverModule from "../../acoustic/receiver";
-import { levelDb, openMic } from "../../acoustic/mic";
+import { createAudioContext, levelDb, openMic } from "../../acoustic/mic";
+import slotsModule from "../../acoustic/slots";
 import { serverToContextTime, syncServerClock } from "../../acoustic/clock";
 import { createTransmitter } from "../../acoustic/transmitter";
 import { keepScreenOn } from "../../acoustic/wakeLock";
@@ -17,6 +18,7 @@ import { useToast } from "../../ui/Toast";
 import "../checkin.css";
 
 const { FrameReceiver } = receiverModule;
+const { upcomingSlots } = slotsModule;
 const requestConfig = { withCredentials: true };
 const SCAN_MS = 500;
 const STATUS_POLL_MS = 5000;
@@ -27,7 +29,7 @@ const VIEW = {
   ready: { icon: "🎧", title: "Ready to check in", text: "Tap Join, allow the microphone, and keep this page open near the front of the room." },
   listening: { icon: "👂", title: "Listening for the key…", text: "Keep the phone out of your pocket with the screen on. This usually takes a few seconds." },
   submitting: { icon: "🔐", title: "Key heard — confirming…", text: "Your phone is signing the key so the server knows it came from you." },
-  relaying: { icon: "📣", tone: "success", title: "Present ✓ — helping classmates…", text: "Your phone is passing the key on to students further back. Keep the page open for a few seconds." },
+  relaying: { icon: "📣", tone: "success", title: "Present ✓ — helping classmates…", text: "Your phone is passing the key on to students further back (about 8 seconds). Keep this page open and the phone face-up." },
   present: { icon: "✓", tone: "success", title: "You’re marked present", text: "Done. You can close this page." },
   review: { icon: "⌛", tone: "warning", title: "In review", text: "Your phone joined but did not hear the key. Your teacher will review it today." },
   absent: { icon: "✕", tone: "danger", title: "Marked absent", text: "This check-in has closed and you were not checked in." },
@@ -63,6 +65,8 @@ const CheckIn = () => {
   const timersRef = useRef([]);
   const triedKeysRef = useRef(new Set());
   const claimingRef = useRef(false);
+  const relayingRef = useRef(false);
+  const [relayed, setRelayed] = useState(false);
   const clockRef = useRef({ offsetMs: 0 });
   const profileRef = useRef(fsk.PROFILES.mid);
 
@@ -80,22 +84,38 @@ const CheckIn = () => {
     audio?.transmitter?.stop();
     await audio?.wakeLock?.release();
     await audio?.mic?.stop();
+    if (audio?.relayContext) await audio.relayContext.close().catch(() => {});
   }, []);
 
   // Cascade (Phase 6): play the next wave's key once, at the server's shared slots.
   const relayKey = async (relay) => {
     const audio = audioRef.current;
-    if (!audio?.mic) return;
+    if (!audio) return;
+    relayingRef.current = true;
     stopTimers(); // stop listening so this phone does not decode its own relay
     setState("relaying");
     try {
-      const transmitter = createTransmitter(audio.mic.context);
+      // Free the microphone first: Android can lower or reroute playback while it is open.
+      await audio.mic?.stop();
+      audio.mic = null;
+      const context = await createAudioContext();
+      audio.relayContext = context;
+      const transmitter = createTransmitter(context);
       audio.transmitter = transmitter;
       transmitter.setFrame({ value: relay.value, profile: fsk.PROFILES[relay.profile] || profileRef.current });
-      const times = relay.playAt.map((serverMs) => serverToContextTime(audio.mic.context, serverMs, clockRef.current.offsetMs));
-      await Promise.race([transmitter.playAt(times), new Promise((resolve) => window.setTimeout(resolve, RELAY_TIMEOUT_MS))]);
+
+      // Late plans move to the next shared slots instead of being skipped.
+      const offsetMs = clockRef.current.offsetMs;
+      const serverNow = Date.now() + offsetMs;
+      const slots = upcomingSlots(relay.playAt, serverNow, relay.slotMs || 2000, relay.playAt.length || 3);
+      const times = slots.map((serverMs) => serverToContextTime(context, serverMs, offsetMs));
+      const waitMs = Math.min(RELAY_TIMEOUT_MS, slots[slots.length - 1] - serverNow + 3000);
+      const played = await Promise.race([transmitter.playAt(times), new Promise((resolve) => window.setTimeout(() => resolve(0), waitMs))]);
+      setRelayed(played > 0);
     } catch {
       // Relaying is a bonus for classmates; this student is already present.
+    } finally {
+      relayingRef.current = false;
     }
   };
 
@@ -196,7 +216,9 @@ const CheckIn = () => {
       }, SCAN_MS));
 
       timersRef.current.push(window.setInterval(async () => {
+        if (claimingRef.current || relayingRef.current) return;
         const data = await loadStatus().catch(() => null);
+        if (claimingRef.current || relayingRef.current || !audioRef.current) return; // claim/relay started meanwhile
         const done = data && finalState(data);
         if (done) {
           await stopListening();
@@ -247,7 +269,9 @@ const CheckIn = () => {
           <span className={`checkin-hero__icon ${view.tone ? `checkin-hero__icon--${view.tone}` : ""} ${state === "listening" ? "checkin-pulse" : ""}`}>{view.icon}</span>
           {sessionClass && <p className="ui-muted">{sessionClass.courseCode}{sessionClass.section ? ` · ${sessionClass.section}` : ""} — {sessionClass.title}</p>}
           <h1 className="checkin-hero__title">{view.title}</h1>
-          <p className="checkin-hero__text">{state === "error" ? errorText : view.text}</p>
+          <p className="checkin-hero__text">
+            {state === "error" ? errorText : state === "present" && relayed ? "Done. Your phone also passed the key on to classmates further back." : view.text}
+          </p>
 
           {state === "listening" && (
             <>
