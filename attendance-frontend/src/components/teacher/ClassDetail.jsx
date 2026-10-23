@@ -416,7 +416,8 @@ const ClassDetail = () => {
         ) : (
           <ul className="session-list">
             {sessions.sessions.map((session) => (
-              <li key={session._id} className="session-row">
+              <li key={session._id}>
+                <button type="button" className="session-row session-row--button" onClick={() => navigate(session.status === "open" ? `/teacher/classes/${classId}/live` : `/teacher/sessions/${session._id}`)}>
                 <span className="session-row__when">
                   <strong>{new Date(session.startedAt).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</strong>
                   <span>{new Date(session.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })} · {session.settings?.windowMin} min window</span>
@@ -432,6 +433,7 @@ const ClassDetail = () => {
                     </>
                   )}
                 </span>
+                </button>
               </li>
             ))}
           </ul>

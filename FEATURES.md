@@ -33,7 +33,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **6** | Cascade relay: a newly present phone plays the next wave's key 3× at shared 2 s server-clock slots; `/time` clock sync; per-wave counts on the live page | **Shipped** (relay verified on real phones 2026-10-23; full-class rehearsal still to come) |
 | **7** | Face service via **AWS Rekognition** (Face Liveness + CompareFaces, Mumbai region): `faceClient`, user-bound single-use `facesessions`, shared `FaceCheck` component, `/face-test` page | **Shipped** (liveness + compare verified on a phone 2026-10-23) |
 | **8** | Identity enrollment: consent → ID card (face + text + roll OCR) → live selfie → auto-verify or teacher review; Reviews page; new phone approved by face | **Shipped** (owner phone test passed 2026-10-23) |
-| **9** | Face + liveness at check-in | **Planned** |
+| **9** | Face + liveness at every check-in (hear → face → relay), 2 tries, 2-min grace, review cases decided same day from the live/summary page | **Built** (41 backend tests, 33 end-to-end checks; phone test pending) |
 | **10** | Reviews, overrides, same-day queries, daily lock, data retention | **Planned** |
 | **11** | Attendance records, reports, CSV export, student history | **Planned** |
 | **12** | Neighbour verification (ID round) | **Planned** |
@@ -221,11 +221,11 @@ Classes are held in a fixed set of 36 rooms on three floors. A room is just its 
 6. Same day: resolves the **Reviews** list.
 
 ### 3.4 Every class — student (≈30–60 seconds)
-1. Dashboard shows **"Check-in open for CS301"** → tap **Join** (browsers need a tap to use the mic).
+1. Dashboard shows **"Check-in open for CS301"** → tap **Join** (browsers need a tap to use the mic). Students without a verified identity are sent to the identity wizard first.
 2. **Listen:** phone hears the key → signs it with its device key → server checks key + device → *heard ✅*.
-3. **Relay:** phone plays the next key 2–3 times (helps phones further back), then stays silent.
-4. **Face:** camera opens → random challenge → 3–5 frames sent → server checks liveness + match.
-5. Result: **Present ✅**, or **In review ⚠️** (with reason), or **Not marked ❌** (with what to do).
+3. **Face:** AWS liveness check (a few seconds) → server compares with the enrolled face → passed, or one retry if unsure / not live.
+4. **Relay:** phone plays the next key 3 times (helps phones further back), then stays silent — even if the face check failed.
+5. Result: **Present ✅**, or **In review ⚠️** (with reason), or **Absent ❌**.
 
 ### 3.5 After class
 - Student may raise **one query per record** the same day ("my phone could not hear").
@@ -253,7 +253,8 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | ✓ | ✓ live + match | verified | **present** |
 | ✓ | unsure (low score / poor light) | verified | **review** (`face_unsure`) |
 | ✓ | ✗ no match / not live | verified | **review** (`face_failed`) — teacher sees frames |
-| ✓ | — | not verified | **review** (`not_enrolled`) |
+| ✓ | not done yet / retry left | verified | **heard** (in progress; becomes review `face_missing` 2 min after closing) |
+| — | — | not verified | **join blocked** (`not_enrolled`) — the student is sent to the identity wizard |
 | ✗ not heard, face ✓ | ✓ | verified | **review** (`not_heard`) — e.g. weak phone |
 | key from wrong session / expired / reused | any | any | claim **rejected** (no record change) |
 | signature invalid / device not bound | any | any | claim **rejected**; device change → device review |
@@ -299,7 +300,7 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | Face (any signed-in user) | `POST /face/liveness-session` (`purpose: "test"` in Phase 7) · `POST /face/test-result` | 7 |
 | Enrollment (student) | `GET /enrollment/status` · `POST /enrollment/consent` · `POST /enrollment/id-card` · `POST /face/liveness-session` · `POST /enrollment/selfie` · `POST /device-bindings/face-verify` | 8 |
 | Enrollment (teacher) | `GET /enrollment-reviews` · `POST /enrollment-reviews/:userId` · `POST /enrollment-reviews/:userId/reset-attempts` · `POST /enrollment-reviews/:userId/force-reenroll` · `GET /classes/:classId/enrollment-status` | 8 |
-| Face at check-in | `POST /sessions/:sessionId/face` | 9 |
+| Face at check-in | `POST /face/liveness-session` (`checkin`) · `POST /sessions/:sessionId/face` · `POST /sessions/:sessionId/face/skip` · `POST /sessions/:sessionId/relay` · `GET /evidence/:recordId/frame` · `POST /records/:recordId/decision` | 9 |
 | Reviews & queries | `GET /reviews` · `POST /records/:recordId/decision` · `POST /records/:recordId/query` | 10 |
 | Media (teacher) | `GET /media/:mediaId` · `GET /evidence/:recordId/frames/:index` | 8 (+9) |
 | Reports | `GET /classes/:classId/attendance` · `GET /classes/:classId/attendance.csv` · `GET /sessions/:sessionId/export.csv` · `GET /me/attendance` | 11 |
@@ -325,7 +326,8 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | `/teacher-dashboard` | Teacher | Stats, recent classes | Shipped (extended 11) |
 | `/teacher/classes` | Teacher | Classes, rooms, rosters | Shipped (restyle 2) |
 | `/teacher/classes/:classId` | Teacher | Class detail: roster, sessions, attendance | 2 (+11) |
-| `/teacher/classes/:classId/live` | Teacher | Live check-in: speaker check, playing key, counts, names (later: headcount, spot-check, thumbnails) | 5 (+6, 9, 10) |
+| `/teacher/classes/:classId/live` | Teacher | Live check-in: speaker check, playing key, stats + waves, tabs/search, review cards with frames + decisions | 5 (+6, 9, 10) |
+| `/teacher/sessions/:sessionId` | Teacher | Summary of a past check-in (same list; decisions until midnight) | 9 |
 | `/teacher/reviews` | Teacher | Identity checks · new phones (attendance reviews in Phase 10) | 8 (+10) |
 
 ### 4.4 Configuration
@@ -723,36 +725,53 @@ Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOL
 
 ---
 
-### Phase 9 — Face + liveness at check-in
+### Phase 9 — Face + liveness at every check-in
 
-**Goal.** After the sound step, a quick face check proves the enrolled student is the one holding the phone.
+**Goal.** After the sound step, a quick face check proves the enrolled student is the one holding the phone — at every check-in.
 
-**Depends on.** Phases 5, 7, 8.
+**Depends on.** Phases 5, 6, 7, 8.
+
+**Owner decisions (2026-10-24).**
+
+| Topic | Decision |
+| --- | --- |
+| Order | **Hear key → face check → relay** (relay times are requested fresh after the face step) |
+| Frequency | Every check-in; always on (`settings.faceRequired = true` for every new check-in) |
+| Not enrolled | **Blocked**: join returns 403 `not_enrolled`; the app sends the student to the identity wizard |
+| Face not completed | Up to **2 tries**; still not passed → review (`face_unsure` / `face_not_live` / `face_missing`); never silently absent |
+| Face mismatch | Review with the frame (`face_mismatch`), no retry |
+| Relay | The phone relays **even if its face check failed** (it did hear the key); once per student; only while the check-in is open |
+| Grace | Students who heard the key in time may finish the face step up to **2 minutes after closing** |
+| Teacher view | Tabs Present / Review / Listening / Absent + search; review cards show check-in frame vs enrolled face, reasons, similarity |
+| Decisions | Teacher marks review cases present / absent **from the live or summary page, same day** (until `lockAt`), audited — moved forward from Phase 10 |
 
 **What users get.**
-- *Student:* after "heard ✅" (and relaying): AWS liveness check (short guided selfie video, a few seconds) → "Present ✅".
-- *Teacher:* live page shows a thumbnail per student (check-in frame vs reference) and review reasons.
+- *Student:* 4-step tracker (Hear key → Face check → Help classmates → Done) with one large status card; face step uses the AWS liveness check; retry or "Skip — let my teacher review"; grace countdown if the window closed; final screen Present / In review (reason) / Absent.
+- *Teacher:* live page with a status header (timer, stats incl. waves), the student list with tabs + search, review cards with Mark present / Mark absent (+ note), and a side panel per student (frames + timeline). Past check-ins open as a summary at `/teacher/sessions/:sessionId` (decisions still possible that day).
 
 **Database.**
-- `attendancesessions.settings.faceRequired = true` (default from now on; can be turned off per session for tests).
-- `attendancerecords.face`: `status (pending|passed|unsure|failed|skipped)`, `similarity`, `livenessConfidence`, `checkedAt`.
-- `checkinevidence.frames[]`: the liveness reference frame (JPEG, ≤ 60 KB) — deleted by TTL.
+- `attendancerecords`: status adds **`heard`** (key heard, face pending); `face{status (passed|unsure|mismatch|not_live|missing), similarity, liveness, attempts, checkedAt}`; `relayedAt`; `decision{status, from, by, at, note}`.
+- `attendancesessions.settings.faceRequired` default `true`.
+- `checkinevidence.frame`: the liveness reference frame (JPEG), deleted with the evidence after 24 h.
 
 **API.**
 
 | Method & path | Who | Request → Response |
 | --- | --- | --- |
-| `POST /face/liveness-session` | Student | `{purpose:"checkin", sessionId}` → `{livenessSessionId}` (only after a successful claim) |
-| `POST /sessions/:sessionId/face` | Student | `{livenessSessionId}` + device signature → `{face:{status}, record:{status, reasons}}` |
-| `GET /evidence/:recordId/frames/:index` | Teacher (owner) | → image (until TTL deletion) |
+| `POST /sessions/:sessionId/join` | Student | 403 `{code:"not_enrolled"}` unless identity verified |
+| `POST /sessions/:sessionId/claims` | Student | heard key → `{status:"heard", faceRequired:true, relay:null}`; repeat → `{alreadyHeard:true}` |
+| `POST /face/liveness-session` | Student | `{purpose:"checkin", sessionId}` → `{livenessSessionId}` (record heard, < 2 attempts, window or grace) |
+| `POST /sessions/:sessionId/face` | Student | `{livenessSessionId, challengeId, signature}` → `{face:{status, retryAllowed, attempts}, record:{status, reasons}}` |
+| `POST /sessions/:sessionId/face/skip` | Student | settle a remaining retry → review |
+| `POST /sessions/:sessionId/relay` | Student | after the face step → `{relay}` once (null when closed / last wave / already relayed) |
+| `GET /evidence/:recordId/frame` | Class teacher or the student | check-in frame (private, no-store) |
+| `POST /records/:recordId/decision` | Teacher (owner) | `{status: present|absent, note?}` → only `review` records, only until `lockAt` (409 `locked` after) |
 
-**Backend work.** Session controller: on face result → verify face session + device proof → `faceClient.getLivenessResult` → `faceClient.compareFaces(referenceFace, referenceImage)` → set `record.face` → recompute status with `attendanceDecision` (adds `face`, `enrollment`, `faceRequired`) → store the frame in evidence.
+**Backend.** `utils/attendanceDecision.js` (`decide` with `faceRequired`, `face`, `faceFinal`; `faceStatusFrom`), `controllers/sessionController.js` (`checkinFaceState`, `submitFace`, `skipFace`, `requestRelay`, `decideRecord`, `getEvidenceFrame`, `finalizeFaceGrace` on reads + the 60 s sweep), `faceController` purpose `checkin`, error responses may carry a `code`.
 
-**Frontend work.** `CheckIn.jsx`: new `face` state after `submitting`/relay; reuse the shared `FaceCheck` component from Phase 7/8. `LiveCheckin.jsx`: thumbnails + reason badges.
+**Frontend.** `components/student/CheckIn.jsx` (rebuilt: tracker, face step with lazy `FaceCheck`, retry/skip, relay after face, grace countdown), `components/teacher/LiveCheckin.jsx` (rebuilt: status header, stats, live + summary modes), new `components/teacher/CheckinStudents.jsx` (tabs, search, review cards, side panel), `ClassDetail.jsx` past check-ins open their summary, student dashboard identity gate on "Check-in open".
 
-**Rules & edge cases.** Face step must start within the session window; poor light → `unsure` → review (never silent absent); a student without verified enrollment can still check in by sound but lands in `review (not_enrolled)`.
-
-**Done when.** Unit tests: decision table §3.7 fully covered. Manual: enrolled student → present; friend holding the student's phone → review (`face_failed`); photo on another phone → liveness fails.
+**Done when.** Unit tests cover the decision table (incl. Phase 5 compatibility); in-process end-to-end checks with a fake Rekognition client; Phase 5/6/8 regressions; owner phone test (own face → present; friend's face → review → teacher decides; camera covered twice → review; relay still reaches an out-of-range phone; unenrolled → wizard).
 
 ---
 

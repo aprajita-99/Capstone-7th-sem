@@ -79,6 +79,7 @@ const StudentDashboard = () => {
     const [classes, setClasses] = useState(null);
     const [identity, setIdentity] = useState(null);
     const [openCheckins, setOpenCheckins] = useState([]);
+    const [checkinIdentityOk, setCheckinIdentityOk] = useState(true);
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -114,7 +115,10 @@ const StudentDashboard = () => {
         const load = () =>
             axios
                 .get(`${SERVER_URL}/sessions/active`, { withCredentials: true })
-                .then((response) => setOpenCheckins(response.data.sessions))
+                .then((response) => {
+                    setOpenCheckins(response.data.sessions);
+                    setCheckinIdentityOk(response.data.identityVerified !== false);
+                })
                 .catch(() => {});
         load();
         const timer = window.setInterval(load, 10000);
@@ -169,8 +173,14 @@ const StudentDashboard = () => {
                             </span>
                             {checkin.myStatus === "present" ? (
                                 <Badge variant="success" dot>Present</Badge>
+                            ) : checkin.myStatus === "review" ? (
+                                <Badge variant="warning" dot>In review</Badge>
+                            ) : checkin.faceRequired && !checkinIdentityOk ? (
+                                <Button variant="soft" onClick={() => navigate("/student/enroll")}>Complete identity check to join</Button>
                             ) : (
-                                <Button onClick={() => navigate(`/student/check-in/${checkin._id}`)}>Join check-in</Button>
+                                <Button onClick={() => navigate(`/student/check-in/${checkin._id}`)}>
+                                    {checkin.myStatus === "heard" ? "Continue face check" : "Join check-in"}
+                                </Button>
                             )}
                         </div>
                     ))}

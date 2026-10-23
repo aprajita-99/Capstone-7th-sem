@@ -16,7 +16,7 @@ const attendanceSessionSchema = new mongoose.Schema(
       keyLifetimeSec: Number,
       maxWaves: Number,
       profile: { type: String, enum: ["high", "mid"] },
-      faceRequired: { type: Boolean, default: false },
+      faceRequired: { type: Boolean, default: true }, // every check-in includes the face check (Phase 9)
     },
     stats: {
       joined: { type: Number, default: 0 },
