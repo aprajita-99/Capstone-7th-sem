@@ -458,3 +458,50 @@
   .checkin-card--stage .checkin-hero__icon { width: 116px; height: 116px; font-size: 40px; margin: 32px 0 22px; }
   .checkin-card--stage .checkin-hero__title { font-size: 26px; }
 }
+
+/* ---------- Redesign round 3: teacher live bar (pinned while scrolling) ---------- */
+.live-bar {
+  position: sticky;
+  top: 72px;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--ink);
+  color: #fff;
+  box-shadow: var(--shadow-lg);
+}
+.live-bar__top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.live-bar__state { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--indigo-300); }
+.live-bar__dot { width: 9px; height: 9px; border-radius: 50%; background: var(--slate-500); }
+.live-bar__dot.is-on { background: var(--indigo-300); animation: live-bar-dot 1.4s ease-in-out infinite; }
+@keyframes live-bar-dot { 50% { opacity: 0.35; } }
+.live-bar__timer { font-family: var(--font-display); font-size: 38px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.live-bar__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.live-bar__stat { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 16px; background: #16224a; }
+.live-bar__stat strong { font-family: var(--font-display); font-size: 28px; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.live-bar__stat strong small { font-size: 15px; font-weight: 600; opacity: 0.8; }
+.live-bar__stat span { font-size: 12px; font-weight: 700; color: var(--slate-300); }
+.live-bar__stat--present { background: var(--indigo-600); }
+.live-bar__stat--present span { color: var(--indigo-100); }
+.live-bar__stat--review { background: var(--indigo-100); color: var(--ink); }
+.live-bar__stat--review span { color: var(--indigo-800); }
+.live-bar__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.live-bar__actions .ui-btn { flex: 1 1 140px; min-height: 48px; }
+.live-bar .ui-btn--secondary { background: transparent; border-color: #2a3a6e; color: #fff; }
+.live-bar .ui-btn--secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.live-bar__close.ui-btn--primary { background: #fff; color: var(--ink); }
+.live-bar__close.ui-btn--primary:hover:not(:disabled) { background: var(--indigo-100); color: var(--ink); }
+.live-bar__hint { font-size: 12.5px; color: var(--slate-300); }
+@media (max-width: 760px) {
+  .live-bar { top: 64px; margin: 0 -4px; padding: 14px; }
+  .live-bar__timer { font-size: 32px; }
+  .live-bar__stat strong { font-size: 24px; }
+  .live-bar__hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .live-bar__dot.is-on { animation: none; } }
+
+.room-check .checkin-tools { margin-bottom: 12px; }
+.room-check .wave-bars { margin: 12px 0 0; }

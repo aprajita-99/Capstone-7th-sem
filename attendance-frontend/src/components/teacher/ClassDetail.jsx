@@ -314,9 +314,9 @@ const ClassDetail = () => {
               </Button>
             )}
             <Button variant="secondary" onClick={startEditing} disabled={busy}>Edit class</Button>
-            <Button variant={courseClass.archived ? "soft" : "ghost"} onClick={toggleArchive} disabled={busy}>
-              {courseClass.archived ? "Restore class" : "Archive"}
-            </Button>
+            {courseClass.archived && (
+              <Button variant="soft" onClick={toggleArchive} disabled={busy}>Restore class</Button>
+            )}
           </>
         }
       >
@@ -353,6 +353,15 @@ const ClassDetail = () => {
               <Button variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
             </div>
           </form>
+          {!courseClass.archived && (
+            <div className="edit-archive">
+              <div>
+                <strong>Archive this class</strong>
+                <p className="ui-muted">Hidden from your class list and cannot start check-ins. Its attendance stays; you can restore it later.</p>
+              </div>
+              <Button variant="secondary" onClick={toggleArchive} disabled={busy}>Archive class</Button>
+            </div>
+          )}
         </Card>
       )}
 
@@ -399,11 +408,11 @@ const ClassDetail = () => {
               <tbody>
                 {visibleRoster.map((entry) => (
                   <tr key={entry._id}>
-                    <td>{entry.identity?.rollNumber || "—"}</td>
-                    <td>{entry.name || <span className="ui-muted">—</span>}</td>
-                    <td className="roster-table__email">{entry.email}</td>
-                    <td>{entry.identity?.batch ? `${entry.identity.batch} ${entry.identity.programmeBranch || ""}` : "—"}</td>
-                    <td><IdentityCell info={identity.statuses[entry.email]} maxAttempts={identity.maxAttempts} busy={busy} onAction={identityAction} /></td>
+                    <td className="roster-table__roll" data-label="Roll">{entry.identity?.rollNumber || "—"}</td>
+                    <td className="roster-table__name" data-label="Name">{entry.name || <span className="ui-muted">—</span>}</td>
+                    <td className="roster-table__email" data-label="Email">{entry.email}</td>
+                    <td className="roster-table__batch" data-label="Batch">{entry.identity?.batch ? `${entry.identity.batch} ${entry.identity.programmeBranch || ""}` : "—"}</td>
+                    <td className="roster-table__identity" data-label="Identity"><IdentityCell info={identity.statuses[entry.email]} maxAttempts={identity.maxAttempts} busy={busy} onAction={identityAction} /></td>
                     <td className="roster-table__actions">
                       <Button size="sm" variant="ghost" onClick={() => removeStudent(entry)} disabled={busy}>Remove</Button>
                     </td>
