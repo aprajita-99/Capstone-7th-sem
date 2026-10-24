@@ -48,8 +48,6 @@
 
 .checkin-timer { font-size: 34px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 
-.checkin-level { width: min(280px, 100%); height: 6px; border-radius: 999px; background: var(--slate-100); overflow: hidden; }
-.checkin-level span { display: block; height: 100%; background: var(--success); transition: width 0.2s linear; }
 
 .checkin-grid {
   display: grid;
@@ -127,42 +125,17 @@
 .wave-bar__track span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--indigo-400), var(--indigo-600)); }
 .wave-bar strong { text-align: right; }
 
-/* ---------- Phase 9: student step tracker ---------- */
-.checkin-tracker { list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 14px 0 4px; }
-.checkin-tracker li { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; position: relative; }
-.checkin-tracker li + li::before {
-  content: "";
-  position: absolute;
-  top: 14px;
-  right: 50%;
-  width: 100%;
-  height: 2px;
-  background: var(--slate-200);
-  z-index: 0;
-}
-.checkin-tracker li.is-done + li::before,
-.checkin-tracker li.is-current::before { background: var(--indigo-300); }
-.checkin-tracker__dot {
-  position: relative;
-  z-index: 1;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 12.5px;
-  font-weight: 700;
-  background: var(--slate-100);
-  color: var(--text-faint);
-  border: 2px solid var(--surface);
-}
-.checkin-tracker li.is-current .checkin-tracker__dot { background: var(--indigo-600); color: #fff; box-shadow: 0 0 0 4px var(--indigo-100); }
-.checkin-tracker li.is-done .checkin-tracker__dot { background: var(--success); color: #fff; }
-.checkin-tracker__label { font-size: 12px; font-weight: 600; color: var(--text-faint); line-height: 1.2; }
-.checkin-tracker li.is-current .checkin-tracker__label { color: var(--indigo-700); }
-.checkin-tracker li.is-done .checkin-tracker__label { color: var(--success-strong); }
+/* ---------- Student step tracker: four segments ---------- */
+.checkin-tracker { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 4px 0 18px; }
+.checkin-tracker li { display: flex; flex-direction: column; gap: 7px; }
+.checkin-tracker__bar { display: block; height: 6px; border-radius: 999px; background: var(--slate-200); }
+.checkin-tracker li.is-done .checkin-tracker__bar,
+.checkin-tracker li.is-current .checkin-tracker__bar { background: var(--indigo-600); }
+.checkin-tracker__label { font-size: 11.5px; font-weight: 600; color: var(--text-faint); line-height: 1.2; }
+.checkin-tracker li.is-current .checkin-tracker__label { color: var(--ink); font-weight: 700; }
+.checkin-tracker li.is-done .checkin-tracker__label { color: var(--indigo-700); }
 
-.checkin-class { text-align: center; margin-bottom: -6px; }
+.checkin-class { text-align: center; font-size: 13.5px; font-weight: 600; color: var(--text-soft); margin-bottom: 14px; }
 .checkin-deadline { font-size: 13.5px; font-weight: 600; color: var(--indigo-700); background: var(--indigo-50); padding: 6px 12px; border-radius: 999px; }
 .checkin-deadline--grace { color: var(--warning-strong); background: var(--warning-soft); }
 
@@ -421,3 +394,67 @@
 .recent-row__detail { font-size: 13px; color: var(--text-soft); line-height: 1.45; }
 .recent-row__action { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12.5px; }
 .recent-row__action .ui-btn { min-height: 40px; }
+
+/* ---------- Redesign round 2: focused check-in stage (dark) ---------- */
+.checkin-card--stage {
+  min-height: min(640px, calc(100vh - 220px));
+  display: flex;
+  flex-direction: column;
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+  border-radius: 28px;
+}
+.checkin-card--stage .checkin-class { color: var(--slate-300); }
+.checkin-card--stage .checkin-tracker__bar { background: #23315f; }
+.checkin-card--stage .checkin-tracker li.is-done .checkin-tracker__bar,
+.checkin-card--stage .checkin-tracker li.is-current .checkin-tracker__bar { background: var(--indigo-300); }
+.checkin-card--stage .checkin-tracker__label { color: var(--slate-400); }
+.checkin-card--stage .checkin-tracker li.is-current .checkin-tracker__label,
+.checkin-card--stage .checkin-tracker li.is-done .checkin-tracker__label { color: var(--indigo-200); }
+
+.checkin-card--stage .checkin-hero { flex: 1; justify-content: center; gap: 16px; padding: 12px 8px 20px; }
+.checkin-card--stage .checkin-hero__title { font-size: 30px; letter-spacing: -0.03em; line-height: 1.1; color: #fff; }
+.checkin-card--stage .checkin-hero__text { color: var(--slate-300); font-size: 15.5px; }
+.checkin-card--stage .ui-muted { color: var(--slate-300); }
+.checkin-card--stage .ui-field__error { color: #fff; }
+
+/* The big round target */
+.checkin-card--stage .checkin-hero__icon {
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  font-size: 46px;
+  color: var(--ink);
+  background: var(--indigo-300);
+  box-shadow: 0 0 0 22px rgba(157, 178, 255, 0.16), 0 0 0 44px rgba(157, 178, 255, 0.07);
+  margin: 40px 0 26px;
+}
+.checkin-card--stage .checkin-pulse::before,
+.checkin-card--stage .checkin-pulse::after { border-color: var(--indigo-300); }
+
+/* Buttons on the dark stage */
+.checkin-card--stage .ui-btn--ghost { color: var(--indigo-200); }
+.checkin-card--stage .ui-btn--ghost:hover:not(:disabled) { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.checkin-card--stage .checkin-hero__actions { width: min(360px, 100%); flex-direction: column; }
+.checkin-card--stage .checkin-hero__actions .ui-btn { width: 100%; }
+.checkin-card--stage .checkin-deadline { background: rgba(157, 178, 255, 0.16); color: var(--indigo-200); }
+.checkin-card--stage .checkin-deadline--grace { background: var(--indigo-300); color: var(--ink); }
+.checkin-card--stage .ui-spinner { color: var(--indigo-300); }
+
+/* Microphone level as bars */
+.checkin-meter { display: flex; align-items: flex-end; gap: 5px; height: 36px; }
+.checkin-meter span { width: 8px; border-radius: 999px; background: rgba(157, 178, 255, 0.22); transition: background-color 0.15s linear; }
+.checkin-meter span.is-on { background: var(--indigo-300); }
+
+/* Result / light states: bigger, calmer */
+.checkin-card:not(.checkin-card--stage) .checkin-hero__icon { width: 88px; height: 88px; border-radius: 50%; font-size: 38px; }
+.checkin-card:not(.checkin-card--stage) .checkin-hero__icon--success { background: var(--indigo-600); color: #fff; }
+.checkin-card:not(.checkin-card--stage) .checkin-hero__icon--danger { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 3px var(--ink); }
+.checkin-card:not(.checkin-card--stage) .checkin-hero__title { font-size: 26px; letter-spacing: -0.03em; }
+
+@media (max-width: 520px) {
+  .checkin-card--stage { border-radius: 24px; min-height: calc(100vh - 210px); }
+  .checkin-card--stage .checkin-hero__icon { width: 116px; height: 116px; font-size: 40px; margin: 32px 0 22px; }
+  .checkin-card--stage .checkin-hero__title { font-size: 26px; }
+}

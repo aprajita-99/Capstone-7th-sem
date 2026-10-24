@@ -34,6 +34,9 @@ const HINT_AFTER_MS = 60 * 1000;
 const RELAY_TIMEOUT_MS = 12 * 1000;
 
 const STEPS = ["Hear key", "Face check", "Help classmates", "Done"];
+// States shown on the dark, focused check-in stage (the AWS face camera and results stay on light cards).
+const STAGE_STATES = ["ready", "listening", "submitting", "face-intro", "face-checking", "face-retry", "relaying"];
+const LEVEL_BARS = [12, 20, 30, 24, 34, 18, 28, 14, 26, 32, 16, 22];
 const STEP_OF = {
   ready: 0, listening: 0, submitting: 0,
   "face-intro": 1, face: 1, "face-checking": 1, "face-retry": 1,
@@ -381,19 +384,22 @@ const CheckIn = () => {
     <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={handleLogout} links={studentLinks()}>
       <Link to="/student-dashboard" className="ui-page-head__back"><Icon name="back" />Dashboard</Link>
 
-      {showTracker && (
-        <ol className="checkin-tracker" aria-label="Check-in progress">
-          {STEPS.map((label, index) => (
-            <li key={label} className={index < stepIndex || (state === "done" && index === 3) ? "is-done" : index === stepIndex ? "is-current" : ""}>
-              <span className="checkin-tracker__dot">{index < stepIndex || (state === "done" && index === 3) ? <Icon name="check" size={14} /> : index + 1}</span>
-              <span className="checkin-tracker__label">{label}</span>
-            </li>
-          ))}
-        </ol>
-      )}
+      <Card className={`checkin-card ${STAGE_STATES.includes(state) ? "checkin-card--stage" : ""}`}>
+        {sessionClass && <p className="checkin-class">{sessionClass.courseCode}{sessionClass.section ? ` · ${sessionClass.section}` : ""} — {sessionClass.title}</p>}
 
-      <Card className="checkin-card">
-        {sessionClass && <p className="ui-muted checkin-class">{sessionClass.courseCode}{sessionClass.section ? ` · ${sessionClass.section}` : ""} — {sessionClass.title}</p>}
+        {showTracker && (
+          <ol className="checkin-tracker" aria-label="Check-in progress">
+            {STEPS.map((label, index) => {
+              const done = index < stepIndex || (state === "done" && index === 3);
+              return (
+                <li key={label} className={done ? "is-done" : index === stepIndex ? "is-current" : ""} aria-current={index === stepIndex && !done ? "step" : undefined}>
+                  <span className="checkin-tracker__bar" aria-hidden="true" />
+                  <span className="checkin-tracker__label">{label}</span>
+                </li>
+              );
+            })}
+          </ol>
+        )}
 
         {state === "face" ? (
           <Suspense fallback={<div className="checkin-hero"><Spinner /> <span className="ui-muted">Opening the camera check…</span></div>}>
@@ -407,7 +413,11 @@ const CheckIn = () => {
 
             {state === "listening" && (
               <>
-                <div className="checkin-level" aria-label="Microphone level"><span style={{ width: `${levelPercent}%` }} /></div>
+                <div className="checkin-meter" role="img" aria-label={`Microphone level ${Math.round(levelPercent)}%`}>
+                  {LEVEL_BARS.map((height, index) => (
+                    <span key={index} className={index < Math.round((levelPercent / 100) * LEVEL_BARS.length) ? "is-on" : ""} style={{ height }} />
+                  ))}
+                </div>
                 {windowLeftMs > 0 && <p className="ui-muted">Check-in closes in {formatClock(windowLeftMs)}</p>}
               </>
             )}
