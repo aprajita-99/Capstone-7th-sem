@@ -398,6 +398,7 @@
 /* ---------- Redesign round 2: focused check-in stage (dark) ---------- */
 .checkin-card--stage {
   min-height: min(640px, calc(100vh - 220px));
+  min-height: min(640px, calc(100dvh - 220px)); /* visible height where supported */
   display: flex;
   flex-direction: column;
   background: var(--ink);
@@ -454,8 +455,10 @@
 .checkin-card:not(.checkin-card--stage) .checkin-hero__title { font-size: 26px; letter-spacing: -0.03em; }
 
 @media (max-width: 520px) {
-  .checkin-card--stage { border-radius: 24px; min-height: calc(100vh - 210px); }
-  .checkin-card--stage .checkin-hero__icon { width: 116px; height: 116px; font-size: 40px; margin: 32px 0 22px; }
+  /* No forced height on phones: the card must end above the bottom tab bar so Join / Start stay tappable. */
+  .checkin-card--stage { border-radius: 24px; min-height: 0; }
+  .checkin-card--stage .checkin-hero { padding-bottom: 8px; }
+  .checkin-card--stage .checkin-hero__icon { width: 116px; height: 116px; font-size: 40px; margin: 26px 0 18px; }
   .checkin-card--stage .checkin-hero__title { font-size: 26px; }
 }
 
@@ -505,3 +508,8 @@
 
 .room-check .checkin-tools { margin-bottom: 12px; }
 .room-check .wave-bars { margin: 12px 0 0; }
+
+/* Phones and small tablets show the bottom tab bar: let the stage size to its content. */
+@media (max-width: 760px) {
+  .checkin-card--stage { min-height: 0; }
+}

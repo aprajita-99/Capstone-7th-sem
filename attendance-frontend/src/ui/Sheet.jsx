@@ -4,20 +4,25 @@ import Icon from "./Icon";
 // Bottom sheet on phones, centred dialog from 640 px. Closes on Escape or a backdrop tap.
 const Sheet = ({ title, subtitle, onClose, footer, children }) => {
   const panelRef = useRef(null);
+  // Latest onClose without re-running the mount effect: callers often pass a new
+  // function every render, and re-running it would pull focus out of inputs
+  // (closing the phone keyboard on every keystroke).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const onKey = (event) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    panelRef.current?.focus();
+    panelRef.current?.focus(); // once, when the sheet opens
     return () => {
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = previousOverflow;
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="ui-sheet" role="dialog" aria-modal="true" aria-label={title}>
