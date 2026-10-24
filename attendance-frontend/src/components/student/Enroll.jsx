@@ -144,6 +144,7 @@ const Enroll = () => {
   if (!user || step === "loading" || !status) return <PageLoader label="Loading identity check…" />;
 
   const stepIndex = { consent: 1, idcard: 2, "selfie-ready": 3, selfie: 3, submitting: 3, result: 4 }[step] || 1;
+  const verified = status.status === "verified";
 
   return (
     <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={logout} links={studentLinks()}>
@@ -153,9 +154,18 @@ const Enroll = () => {
         subtitle="One time only. It links your face to your college ID so check-ins can confirm it is really you."
       />
 
+      <ol className="ready-path" aria-label="Getting ready for check-ins">
+        <li className="is-done"><span className="ready-path__icon"><Icon name="phone" /></span><span><strong>Phone linked</strong><small>This phone is yours for check-ins</small></span></li>
+        <li className={verified ? "is-done" : "is-current"}><span className="ready-path__icon"><Icon name="idcard" /></span><span><strong>Identity check</strong><small>ID card + live selfie, about 2 minutes</small></span></li>
+        <li className={verified ? "is-done" : ""}><span className="ready-path__icon"><Icon name="check" /></span><span><strong>Ready for check-ins</strong><small>Join when your teacher starts one</small></span></li>
+      </ol>
+
       <ol className="enroll-steps" aria-label="Progress">
         {["Consent", "ID card", "Live selfie", "Done"].map((label, index) => (
-          <li key={label} className={index + 1 < stepIndex ? "is-done" : index + 1 === stepIndex ? "is-current" : ""}>{label}</li>
+          <li key={label} className={index + 1 < stepIndex ? "is-done" : index + 1 === stepIndex ? "is-current" : ""}>
+            <span className="enroll-steps__bar" aria-hidden="true" />
+            {label}
+          </li>
         ))}
       </ol>
 
@@ -165,20 +175,28 @@ const Enroll = () => {
         {step === "consent" && (
           <div className="enroll-body">
             <h2 className="enroll-title">Before you start</h2>
-            <ul className="enroll-notice">
-              <li><strong>What we collect:</strong> a photo of the front of your college ID card and a short live selfie video.</li>
-              <li><strong>Why:</strong> to confirm the person checking in is you. Your live face becomes your reference photo for check-ins.</li>
-              <li><strong>Who processes it:</strong> Amazon Web Services (Rekognition, Mumbai region) runs the face and liveness checks for us.</li>
-              <li><strong>Who can see it:</strong> only you and the teachers of your classes.</li>
-              <li><strong>How long:</strong> while you are on a class roster this term; it is deleted when you leave all rosters or a teacher resets it.</li>
-              <li><strong>If something looks wrong:</strong> ask your teacher; they review unclear cases by hand.</li>
+            <ul className="enroll-summary">
+              <li><span className="enroll-summary__icon"><Icon name="camera" /></span><span><strong>What we collect</strong>A photo of your college ID card and a short live selfie.</span></li>
+              <li><span className="enroll-summary__icon"><Icon name="shield" /></span><span><strong>Why</strong>To confirm the person checking in is you. Only you and your teachers can see it.</span></li>
+              <li><span className="enroll-summary__icon"><Icon name="clock" /></span><span><strong>How long</strong>While you are on a class roster this term.</span></li>
             </ul>
+            <details className="enroll-details">
+              <summary>Full details</summary>
+              <ul className="enroll-notice">
+                <li><strong>What we collect:</strong> a photo of the front of your college ID card and a short live selfie video.</li>
+                <li><strong>Why:</strong> to confirm the person checking in is you. Your live face becomes your reference photo for check-ins.</li>
+                <li><strong>Who processes it:</strong> Amazon Web Services (Rekognition, Mumbai region) runs the face and liveness checks for us.</li>
+                <li><strong>Who can see it:</strong> only you and the teachers of your classes.</li>
+                <li><strong>How long:</strong> while you are on a class roster this term; it is deleted when you leave all rosters or a teacher resets it.</li>
+                <li><strong>If something looks wrong:</strong> ask your teacher; they review unclear cases by hand.</li>
+              </ul>
+            </details>
             <label className="enroll-agree">
               <input type="checkbox" checked={agree} onChange={(event) => setAgree(event.target.checked)} />
               I have read this and agree.
             </label>
             <div className="enroll-actions">
-              <Button onClick={acceptConsent} disabled={!agree} loading={busy}>Continue</Button>
+              <Button size="lg" onClick={acceptConsent} disabled={!agree} loading={busy}>Continue</Button>
               <Button variant="ghost" onClick={later}>Later</Button>
             </div>
           </div>
@@ -187,17 +205,27 @@ const Enroll = () => {
         {step === "idcard" && (
           <div className="enroll-body">
             <h2 className="enroll-title">Photo of your college ID card</h2>
-            <p className="ui-muted">Front side, flat, good light, no glare. Your photo and roll number must be readable.</p>
-            {idPreview && <img className="enroll-id-preview" src={idPreview} alt="Your ID card" />}
+            <div className="id-frame">
+              {idPreview ? (
+                <img className="enroll-id-preview" src={idPreview} alt="Your ID card" />
+              ) : (
+                <span className="id-frame__placeholder"><Icon name="idcard" size={40} />Front of your ID card</span>
+              )}
+            </div>
+            <ul className="enroll-tips">
+              <li><Icon name="check" size={14} /> Flat, front side</li>
+              <li><Icon name="check" size={14} /> Good light, no glare</li>
+              <li><Icon name="check" size={14} /> Photo and roll number readable</li>
+            </ul>
             {busy ? (
               <p className="enroll-busy"><Spinner /> Checking the photo…</p>
             ) : (
               <div className="enroll-actions">
-                <label className="ui-btn ui-btn--primary">
-                  Take photo
+                <label className="ui-btn ui-btn--primary ui-btn--lg">
+                  <Icon name="camera" /> Take photo
                   <input type="file" accept="image/*" capture="environment" hidden onChange={handleIdFile} />
                 </label>
-                <label className="ui-btn ui-btn--secondary">
+                <label className="ui-btn ui-btn--secondary ui-btn--lg">
                   Choose from gallery
                   <input type="file" accept="image/jpeg,image/png,image/*" hidden onChange={handleIdFile} />
                 </label>
@@ -210,13 +238,18 @@ const Enroll = () => {
         {step === "selfie-ready" && (
           <div className="enroll-body">
             <h2 className="enroll-title">Live selfie</h2>
+            <ul className="enroll-tips">
+              <li><Icon name="check" size={14} /> Face a light source</li>
+              <li><Icon name="check" size={14} /> Hold the phone at eye level</li>
+              <li><Icon name="check" size={14} /> Follow the oval on screen</li>
+            </ul>
             <p className="ui-muted">
-              Face the camera in good light and follow the oval. Attempts left: <strong>{status.attemptsLeft}</strong> of {status.maxAttempts}.
+              Attempts left: <strong>{status.attemptsLeft}</strong> of {status.maxAttempts}.
             </p>
             {status.idCheck?.rollMatch === false && <Badge variant="warning" dot>Roll number not found on the card — a teacher will check it</Badge>}
             <div className="enroll-actions">
-              <Button onClick={() => setStep("selfie")}>Start live selfie</Button>
-              <Button variant="secondary" onClick={() => setStep("idcard")}>Retake ID photo</Button>
+              <Button size="lg" onClick={() => setStep("selfie")}><Icon name="face" /> Start live selfie</Button>
+              <Button variant="secondary" size="lg" onClick={() => setStep("idcard")}>Retake ID photo</Button>
               <Button variant="ghost" onClick={later}>Later</Button>
             </div>
           </div>
@@ -234,7 +267,7 @@ const Enroll = () => {
               <>
                 <span className="enroll-result__icon enroll-result__icon--ok"><Icon name="check" /></span>
                 <h2 className="enroll-title">Identity verified</h2>
-                <p className="ui-muted">Your live face is now your reference for check-ins.</p>
+                <p className="ui-muted">Your live face is now your reference for check-ins. You’re ready.</p>
               </>
             )}
             {status.status === "pending" && (
@@ -255,7 +288,7 @@ const Enroll = () => {
                 </p>
                 {status.attemptsLeft > 0 && (
                   <div className="enroll-actions">
-                    <Button onClick={() => setStep(status.idCardUploaded ? "selfie-ready" : "idcard")}>Try again</Button>
+                    <Button size="lg" onClick={() => setStep(status.idCardUploaded ? "selfie-ready" : "idcard")}>Try again</Button>
                   </div>
                 )}
               </>
