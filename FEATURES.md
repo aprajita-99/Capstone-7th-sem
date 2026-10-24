@@ -37,7 +37,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **10** | Reviews → Attendance tab (bulk present), present ↔ absent overrides, student queries, lock at 09:00 IST next morning, retention (evidence at lock, audit 180 days, ID card after verify), headcount + spot-check, evening digest email, scheduled jobs | **Shipped** (owner phone test passed 2026-10-24; digest email not yet seen) |
 | **11** | Class Attendance tab (% per student, phone list + desktop matrix, cell → record), class + per-check-in CSV (Excel-safe), dashboard cards (check-ins this week, below 75%), student `/student/attendance` (%, miss / attend-more line, queries, past classes) | **Shipped** (owner test passed 2026-10-25) |
 | **12** | Neighbour verification (ID round) | **On hold** (owner, 2026-10-25: needs real-classroom measurements to set the threshold; resume at the class rehearsal) |
-| **13** | Pilot readiness (consent, privacy notice, monitoring, runbook) → live class pilot | **Planned** |
+| **13** | Pilot readiness (consent, privacy notice, monitoring, runbook) → live class pilot | **On hold** (owner, 2026-10-25: until the owner says so; still required before a real class pilot) |
 | — | Native mobile app, iOS, multi-college | **Not in v1** |
 
 ### Build order — what we build next
@@ -924,6 +924,8 @@ Every report first settles the class's check-ins (close → face grace → lock)
 ---
 
 ### Phase 13 — Pilot readiness & launch
+
+**Status (2026-10-25).** On hold until the owner says so. Still required before any real class pilot (privacy notice + consent under the DPDP Act, test accounts removed).
 
 **Goal.** Run Bio Attend in a real class (70–120 students) in **shadow mode** next to a normal roll call, and measure it.
 
