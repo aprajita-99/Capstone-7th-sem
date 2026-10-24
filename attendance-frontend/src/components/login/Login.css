@@ -172,3 +172,6 @@
   .login-brand__wave { display: none; }
   .login-panel { padding: 32px 16px 48px; }
 }
+.login-card__roles { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--slate-50); font-size: 13px; line-height: 1.5; color: var(--text-soft); text-align: left; }
+.login-card__roles strong { color: var(--ink); }
+.login-card__roles a { font-weight: 600; }

@@ -198,3 +198,37 @@
   .cta-wrap { padding: 0 16px 56px; }
   .cta { padding: 44px 20px; }
 }
+
+/* How to sign in: students and teachers side by side */
+#sign-in { scroll-margin-top: 72px; }
+.signin__grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.signin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.signin-card:first-child { border: 2px solid var(--ink); }
+.signin-card__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  background: var(--ink);
+  color: var(--indigo-300);
+}
+.signin-card h3 { font-size: 22px; letter-spacing: -0.02em; }
+.signin-card__steps { display: flex; flex-direction: column; gap: 10px; padding-left: 20px; font-size: 14px; line-height: 1.55; color: var(--text-soft); flex: 1; }
+.signin-card__steps strong { color: var(--ink); }
+.signin-card__steps li::marker { font-weight: 700; color: var(--indigo-700); }
+.signin-card .ui-btn { align-self: flex-start; min-height: 48px; }
+@media (max-width: 520px) {
+  .signin-card { padding: 20px 18px; }
+  .signin-card .ui-btn { align-self: stretch; }
+}

@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import "./Login.css";
 import img1 from "../../assets/logo.png";
 import SERVER_URL from "../../config/api";
@@ -101,6 +101,10 @@ const Login = () => {
                     <img src={img1} alt="Bio Attend" className="login-card__logo" />
                     <h2>Welcome back</h2>
                     <p className="login-card__sub">Sign in with your college account to continue.</p>
+                    <p className="login-card__roles">
+                        <strong>Teachers and students use the same button</strong> — Bio Attend opens the right page for your account.
+                        Students: use your own phone. <Link to="/#sign-in">How to sign in</Link>
+                    </p>
 
                     <div className="google-login-block">
                         <GoogleSignInButton
