@@ -1,13 +1,12 @@
 import React, { useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./Login.css";
-import img1 from "../../assets/logo.png";
 import SERVER_URL from "../../config/api";
 import { clearSession } from "../../utils/session";
 import GoogleSignInButton from "./GoogleSignInButton";
 import { getOrCreateDevicePublicKey, publicKeyPayload, signDeviceChallenge } from "../../utils/deviceKey";
 import { enrollmentPostponed } from "../../utils/enrollPrompt";
-import Brand from "../../ui/Brand";
+import Brand, { BrandMark } from "../../ui/Brand";
 import { Spinner } from "../../ui/Spinner";
 
 const Login = () => {
@@ -98,7 +97,7 @@ const Login = () => {
 
             <main className="login-panel">
                 <div className="login-card">
-                    <img src={img1} alt="MarkMePresent" className="login-card__logo" />
+                    <span className="login-card__logo" role="img" aria-label="MarkMePresent"><BrandMark size={34} /></span>
                     <h2>Welcome back</h2>
                     <p className="login-card__sub">Sign in with your college account to continue.</p>
                     <p className="login-card__roles">
@@ -125,7 +124,7 @@ const Login = () => {
                         Need access? Ask your teacher to add your college email to the class roster.
                     </p>
                 </div>
-                <p className="login-foot">MarkMePresent · NIT Jamshedpur</p>
+                <p className="login-foot">MarkMePresent · NIT Jamshedpur · <Link to="/help">Help</Link> · <Link to="/privacy">Privacy</Link></p>
             </main>
         </div>
     );

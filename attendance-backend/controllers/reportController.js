@@ -5,7 +5,6 @@ const CourseClass = require("../models/classModels");
 const Enrollment = require("../models/enrollmentModels");
 const AttendanceSession = require("../models/attendanceSessionModels");
 const AttendanceRecord = require("../models/attendanceRecordModels");
-const { startOfWeek } = require("../utils/clock");
 const { canQuery, isLocked } = require("../utils/reviewRules");
 const report = require("../utils/attendanceReport");
 const { settleSession, settleSessions, studentDecision, studentQuery } = require("./sessionController");
@@ -132,20 +131,6 @@ exports.sessionCsv = catchAsyncError(async (req, res, next) => {
     ];
   });
   sendCsv(res, report.csvFileName(courseClass, "checkin", session.startedAt), [header, ...rows]);
-});
-
-// GET /reports/summary → dashboard cards (non-archived classes only).
-exports.teacherSummary = catchAsyncError(async (req, res) => {
-  const classes = await CourseClass.find({ teacher: req.user._id, archived: { $ne: true } });
-  const checkinsThisWeek = await AttendanceSession.countDocuments({ class: { $in: classes.map((courseClass) => courseClass._id) }, startedAt: { $gte: startOfWeek() } });
-  let count = 0;
-  let worst = null;
-  for (const courseClass of classes) {
-    const { matrix } = await classReport(courseClass);
-    count += matrix.summary.below;
-    if (matrix.summary.below > 0 && (!worst || matrix.summary.below > worst.below)) worst = { classId: courseClass._id, below: matrix.summary.below };
-  }
-  res.status(200).json({ success: true, minPercent: report.MIN_PERCENT, checkinsThisWeek, belowMin: { count, worstClassId: worst?.classId || null } });
 });
 
 // ---------- student ----------

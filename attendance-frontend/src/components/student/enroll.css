@@ -88,3 +88,4 @@
 .enroll-result__icon--wait { background: var(--indigo-100); color: var(--ink); }
 .enroll-result__icon--fail { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 3px var(--ink); }
 .enroll-result .ui-muted { max-width: 46ch; }
+.enroll-privacy-link { font-size: 13.5px; padding: 0 0 6px; }

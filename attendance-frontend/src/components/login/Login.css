@@ -132,7 +132,7 @@
   text-align: center;
 }
 
-.login-card__logo { height: 52px; width: auto; margin: 0 auto 18px; object-fit: contain; }
+.login-card__logo { width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 18px; display: grid; place-items: center; background: var(--ink); color: var(--indigo-300); }
 .login-card h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
 .login-card__sub { margin-top: 6px; font-size: 14px; color: var(--text-soft); }
 
@@ -177,3 +177,4 @@
 .login-card__roles { margin-top: 12px; padding: 10px 12px; border-radius: 12px; background: var(--slate-50); font-size: 13px; line-height: 1.5; color: var(--text-soft); text-align: left; }
 .login-card__roles strong { color: var(--ink); }
 .login-card__roles a { font-weight: 600; }
+.login-foot a { color: var(--slate-600); font-weight: 600; }

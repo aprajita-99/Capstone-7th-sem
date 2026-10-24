@@ -22,6 +22,8 @@ const FaceTest = lazy(() => import('./components/face/FaceTest'));
 const Enroll = lazy(() => import('./components/student/Enroll'));
 const VerifyDevice = lazy(() => import('./components/student/VerifyDevice'));
 const StudentAttendance = lazy(() => import('./components/student/StudentAttendance'));
+const Privacy = lazy(() => import('./components/info/Privacy'));
+const Help = lazy(() => import('./components/info/Help'));
 const withFaceLoader = (element) => <Suspense fallback={<PageLoader label="Loading face check…" />}>{element}</Suspense>;
 
 function App() {
@@ -32,6 +34,8 @@ function App() {
         <Routes>
           <Route path={'/'} element={<Home />} />
           <Route path={'/login'} element={<Login />} />
+          <Route path='/privacy' element={<Suspense fallback={<PageLoader label="Loading…" />}><Privacy /></Suspense>} />
+          <Route path='/help' element={<Suspense fallback={<PageLoader label="Loading…" />}><Help /></Suspense>} />
           <Route path='/teacher/classes' element={<ClassManagement />} />
           <Route path='/teacher/classes/:classId' element={<ClassDetail />} />
           <Route path='/teacher/classes/:classId/live' element={<LiveCheckin />} />

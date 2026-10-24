@@ -11,6 +11,7 @@ export const teacherLinks = (active, counts) => [
   { to: "/teacher/classes", label: "Classes & rosters", tabLabel: "Classes", icon: "classes", tab: true, active: active === "classes" },
   { to: "/teacher/reviews", label: "Reviews", icon: "check", tab: true, active: active === "reviews", count: counts?.total || 0 },
   { to: "/acoustic-lab", label: "Phone audio test" },
+  { to: "/help", label: "Help" },
 ];
 
 // Open review counts for the nav badge (best-effort; the page works without them).
