@@ -168,6 +168,8 @@
   .login-brand { padding: 32px 24px; gap: 24px; }
   .login-brand__content { margin: 0; }
   .login-brand__content h1 { font-size: 26px; }
+  /* Phones: keep the badge and headline only; the longer text stays on wide screens. */
+  .login-brand__content > p,
   .login-brand__points,
   .login-brand__wave { display: none; }
   .login-panel { padding: 32px 16px 48px; }
