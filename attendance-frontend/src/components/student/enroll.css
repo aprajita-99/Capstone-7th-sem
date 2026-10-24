@@ -1,40 +1,90 @@
-/* Identity enrollment wizard + new-phone face check */
+/* Identity enrollment wizard + new-phone face check (redesign round 4) */
 
-.enroll-steps { list-style: none; display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
-.enroll-steps li {
-  flex: 1;
-  min-width: 90px;
-  padding: 8px 10px;
-  border-radius: 999px;
-  background: var(--slate-100);
-  color: var(--text-faint);
-  font-size: 12.5px;
-  font-weight: 600;
-  text-align: center;
+/* Getting ready: phone → identity → ready */
+.ready-path { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.ready-path li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-soft);
 }
-.enroll-steps li.is-current { background: var(--indigo-50); color: var(--indigo-700); }
-.enroll-steps li.is-done { background: var(--success-soft); color: var(--success-strong); }
+.ready-path li strong { display: block; font-size: 13.5px; color: var(--ink); }
+.ready-path li small { display: block; font-size: 12px; line-height: 1.35; }
+.ready-path__icon { width: 36px; height: 36px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center; font-size: 17px; background: var(--slate-100); color: var(--slate-500); }
+.ready-path li.is-done .ready-path__icon { background: var(--indigo-600); color: #fff; }
+.ready-path li.is-current { border: 2px solid var(--ink); }
+.ready-path li.is-current .ready-path__icon { background: var(--ink); color: var(--indigo-300); }
+@media (max-width: 640px) {
+  .ready-path { grid-template-columns: 1fr; }
+  .ready-path li { padding: 10px 12px; }
+}
 
-.enroll-body { display: flex; flex-direction: column; gap: 12px; }
-.enroll-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
-.enroll-notice { display: flex; flex-direction: column; gap: 8px; padding-left: 18px; font-size: 14px; color: var(--text-soft); line-height: 1.5; }
-.enroll-agree { display: flex; gap: 8px; align-items: center; font-size: 14px; font-weight: 600; }
+/* Wizard steps as segments */
+.enroll-steps { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-bottom: 16px; }
+.enroll-steps li { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-faint); }
+.enroll-steps__bar { display: block; height: 6px; border-radius: 999px; background: var(--slate-200); }
+.enroll-steps li.is-done,
+.enroll-steps li.is-current { color: var(--ink); }
+.enroll-steps li.is-done .enroll-steps__bar,
+.enroll-steps li.is-current .enroll-steps__bar { background: var(--indigo-600); }
+.enroll-steps li.is-current { font-weight: 700; }
+
+.enroll-body { display: flex; flex-direction: column; gap: 14px; }
+.enroll-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+
+/* Consent: three-line summary, full notice behind "Full details" */
+.enroll-summary { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.enroll-summary li { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; color: var(--text-soft); line-height: 1.45; }
+.enroll-summary li strong { display: block; color: var(--ink); font-size: 14.5px; }
+.enroll-summary__icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: 13px; display: grid; place-items: center; font-size: 18px; background: var(--indigo-100); color: var(--ink); }
+.enroll-details { border-radius: var(--radius); background: var(--slate-50); padding: 10px 14px; }
+.enroll-details summary { cursor: pointer; font-weight: 600; font-size: 14px; min-height: 32px; display: flex; align-items: center; }
+.enroll-notice { display: flex; flex-direction: column; gap: 8px; padding: 6px 0 4px 18px; font-size: 13.5px; color: var(--text-soft); line-height: 1.5; }
+.enroll-agree { display: flex; gap: 10px; align-items: center; font-size: 14.5px; font-weight: 600; min-height: 44px; }
+.enroll-agree input { width: 20px; height: 20px; accent-color: var(--indigo-600); }
+
 .enroll-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .enroll-actions .ui-btn { cursor: pointer; }
+@media (max-width: 560px) {
+  .enroll-actions { flex-direction: column; align-items: stretch; }
+  .enroll-actions .ui-btn { width: 100%; }
+}
 .enroll-busy { display: flex; align-items: center; gap: 10px; color: var(--text-soft); padding: 18px 0; }
 .enroll-error { margin-bottom: 12px; }
-.enroll-id-preview { max-width: min(360px, 100%); border-radius: var(--radius); border: 1px solid var(--border); }
 
-.enroll-result { align-items: center; text-align: center; }
-.enroll-result__icon {
-  width: 64px;
-  height: 64px;
-  border-radius: 20px;
+/* ID card framing guide */
+.id-frame {
+  position: relative;
+  aspect-ratio: 1.586;
+  width: min(380px, 100%);
+  border-radius: 18px;
+  border: 2px dashed var(--slate-300);
+  background: var(--slate-50);
   display: grid;
   place-items: center;
-  font-size: 28px;
-  font-weight: 800;
+  overflow: hidden;
 }
-.enroll-result__icon--ok { background: var(--success-soft); color: var(--success); }
-.enroll-result__icon--wait { background: var(--warning-soft); color: var(--warning); }
-.enroll-result__icon--fail { background: var(--danger-soft); color: var(--danger); }
+.id-frame__placeholder { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; color: var(--slate-500); }
+.enroll-id-preview { width: 100%; height: 100%; object-fit: cover; }
+.enroll-tips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--text-soft); }
+.enroll-tips li { display: inline-flex; align-items: center; gap: 6px; }
+.enroll-tips .ui-icon { color: var(--indigo-600); }
+
+/* Results */
+.enroll-result { align-items: center; text-align: center; padding: 10px 0; }
+.enroll-result__icon {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 36px;
+}
+.enroll-result__icon--ok { background: var(--indigo-600); color: #fff; }
+.enroll-result__icon--wait { background: var(--indigo-100); color: var(--ink); }
+.enroll-result__icon--fail { background: #fff; color: var(--ink); box-shadow: inset 0 0 0 3px var(--ink); }
+.enroll-result .ui-muted { max-width: 46ch; }

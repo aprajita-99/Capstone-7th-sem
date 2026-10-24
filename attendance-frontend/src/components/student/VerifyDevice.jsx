@@ -74,10 +74,12 @@ const VerifyDevice = () => {
       {error && <p className="ui-field__error enroll-error">{error}</p>}
       <Card>
         {step === "intro" && (
-          <div className="enroll-body">
+          <div className="enroll-body enroll-result">
+            <span className="enroll-result__icon enroll-result__icon--wait"><Icon name="phone" /></span>
+            <h2 className="enroll-title">Is this your new phone?</h2>
             <p className="ui-muted">Your live face is compared with the reference face from your identity check. A match approves this phone straight away; your old phone stops working for check-ins.</p>
             <div className="enroll-actions">
-              <Button onClick={() => setStep("check")}>Verify with my face</Button>
+              <Button size="lg" onClick={() => setStep("check")}><Icon name="face" /> Verify with my face</Button>
               <Button variant="ghost" onClick={() => navigate("/student-dashboard")}>Wait for teacher instead</Button>
             </div>
           </div>
