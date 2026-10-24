@@ -48,4 +48,14 @@ const localDay = (date = new Date(), zone = timeZone()) => {
 };
 const localHour = (date = new Date(), zone = timeZone()) => localParts(date, zone).hour;
 
-module.exports = { DEFAULT_TIMEZONE, timeZone, endOfDay, lockTimeFor, localDay, localHour };
+const DAY_MS = 24 * 60 * 60 * 1000;
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Monday 00:00 local time of the week that contains `date` (Phase 11 dashboard).
+const startOfWeek = (date = new Date(), zone = timeZone()) => {
+  const startOfToday = new Date(endOfDay(new Date(date.getTime() - DAY_MS), zone).getTime() + 1);
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short" }).format(date);
+  return new Date(startOfToday.getTime() - WEEKDAYS.indexOf(weekday) * DAY_MS);
+};
+
+module.exports = { DEFAULT_TIMEZONE, timeZone, endOfDay, lockTimeFor, localDay, localHour, startOfWeek };

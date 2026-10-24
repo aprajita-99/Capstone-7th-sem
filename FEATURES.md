@@ -35,7 +35,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **8** | Identity enrollment: consent → ID card (face + text + roll OCR) → live selfie → auto-verify or teacher review; Reviews page; new phone approved by face | **Shipped** (owner phone test passed 2026-10-23) |
 | **9** | Face + liveness at every check-in (hear → face → relay), 2 tries, 2-min grace, review cases decided same day from the live/summary page | **Shipped** (owner phone test passed 2026-10-24) |
 | **10** | Reviews → Attendance tab (bulk present), present ↔ absent overrides, student queries, lock at 09:00 IST next morning, retention (evidence at lock, audit 180 days, ID card after verify), headcount + spot-check, evening digest email, scheduled jobs | **Shipped** (owner phone test passed 2026-10-24; digest email not yet seen) |
-| **11** | Attendance records, reports, CSV export, student history | **Planned** |
+| **11** | Class Attendance tab (% per student, phone list + desktop matrix, cell → record), class + per-check-in CSV (Excel-safe), dashboard cards (check-ins this week, below 75%), student `/student/attendance` (%, miss / attend-more line, queries, past classes) | **Built** (54/54 backend tests, 25/25 end-to-end checks; phone test pending) |
 | **12** | Neighbour verification (ID round) | **Planned** |
 | **13** | Pilot readiness (consent, privacy notice, monitoring, runbook) → live class pilot | **Planned** |
 | — | Native mobile app, iOS, multi-college | **Not in v1** |
@@ -308,7 +308,7 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | Reviews & queries | `GET /reviews?type=attendance` · `GET /reviews/counts` · `POST /records/:recordId/decision` (review, query, override) · `POST /records/bulk-decision` · `POST /records/:recordId/query` · `GET /me/recent-checkins` · `PATCH /sessions/:sessionId/headcount` · `GET /sessions/:sessionId/spot-check` | 10 |
 | Jobs | `POST /jobs/run` (header `x-jobs-secret`; GitHub Actions cron every 30 min) | 10 |
 | Media (teacher) | `GET /media/:mediaId` · `GET /evidence/:recordId/frames/:index` | 8 (+9) |
-| Reports | `GET /classes/:classId/attendance` · `GET /classes/:classId/attendance.csv` · `GET /sessions/:sessionId/export.csv` · `GET /me/attendance` | 11 |
+| Reports | `GET /classes/:classId/attendance` · `GET /classes/:classId/attendance.csv` · `GET /sessions/:sessionId/export.csv` · `GET /me/attendance` · `GET /reports/summary` | 11 |
 | Neighbour round | `GET /sessions/:sessionId/id-round` · `POST /sessions/:sessionId/neighbour-reports` | 12 |
 | Consent | `GET /consent/current` · `POST /me/consent` | 13 |
 
@@ -327,10 +327,10 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | `/student/enroll` | Student | Consent + ID card + live selfie wizard | 8 |
 | `/student/verify-device` | Student | New phone: approve with a face check | 8 |
 | `/student/check-in/:sessionId` | Student | Listen → relay → face → result | 5 (+6, 9) |
-| `/student/attendance` | Student | History, %, queries | 10–11 |
-| `/teacher-dashboard` | Teacher | Stats, recent classes | Shipped (extended 11) |
+| `/student/attendance` | Student | % per class, what it takes to stay at 75%, every check-in with its decision, queries, past classes | 11 |
+| `/teacher-dashboard` | Teacher | Stats (incl. pending reviews, check-ins this week, students below 75%), recent classes | Shipped (extended 10, 11) |
 | `/teacher/classes` | Teacher | Classes, rooms, rosters | Shipped (restyle 2) |
-| `/teacher/classes/:classId` | Teacher | Class detail: roster, sessions, attendance | 2 (+11) |
+| `/teacher/classes/:classId` | Teacher | Class detail with tabs: Attendance (grid, CSV) · Check-ins (per-check-in CSV) · Roster | 2 (+11) |
 | `/teacher/classes/:classId/live` | Teacher | Live check-in: speaker check, playing key, stats + waves, head count, spot-check sheet, tabs/search, review cards with frames + decisions, overrides in the side panel | 5 (+6, 9, 10) |
 | `/teacher/sessions/:sessionId` | Teacher | Summary of a past check-in (same list; decisions and overrides until the lock) | 9 (+10) |
 | `/teacher/reviews` | Teacher | Attendance (by check-in, bulk present) · identity checks · new phones; `?tab=` opens a tab | 8 (+10) |
@@ -847,24 +847,47 @@ Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOL
 
 **Depends on.** Phases 5, 10.
 
-**What users get.**
-- *Teacher:* class detail **Attendance** tab: matrix (students × sessions, ✓ / ✗ / ⚠), attendance % per student, low-attendance highlight; **Export CSV** per session and per class; dashboard stats (sessions this week, average attendance, open reviews).
-- *Student:* `/student/attendance`: per class %, list of sessions with status, query buttons (until the lock).
+**Owner decisions (2026-10-24).**
 
-**Database.** No new collections; add index `{class:1, student:1}` on `attendancerecords`.
+| Topic | Decision |
+| --- | --- |
+| % basis | `present / (present + absent)` over **closed and locked** check-ins; review / heard / joined are **pending (⚠)**, not counted until decided; open check-ins not counted. At the lock undecided reviews become absent (Phase 10) and then count |
+| Late joiners | Check-ins before a student was on the roster **count as absent** (computed in the report, nothing written) |
+| Threshold | **75% fixed**: below 75 red, 75–85 amber, 85+ green |
+| Removed students | Collapsed "Removed students (N)" section; CSV rows marked `removed`; a removed student's missing check-ins are not counted |
+| Class CSV | Wide: roll, name, email, removed, one column per check-in (P / A / R), present, counted, pending, percent |
+| Check-in CSV | roll, name, email, status, reasons (plain words), wave, face, similarity, heard at, decision, decided by, decided at, query — no IP, no images |
+| CSV format | UTF-8 with BOM, CRLF, IST dates (`24 Oct 2026 15:00`), `CS301-A-attendance-2026-10-24.csv`, formula-injection safe (`= + - @` prefixed with `'`) |
+| Teacher grid | Phone: one row per student (%, bar, last 10 check-ins as dots) → sheet with full history. ≥ 760 px: students × check-ins matrix, sticky name column. Tapping a cell opens that check-in's summary with the student's panel (`?student=`), Phase 10 rules apply |
+| Class page | Tabs **Attendance · Check-ins · Roster** (`?tab=`); Start / Open check-in moves to the page header |
+| Dashboard | Cards **Check-ins this week** (Mon–Sun IST) and **Students below 75%** (tap → worst class); archived classes ignored |
+| Student page | `/student/attendance`: per class %, bar with the 75% mark, "you can miss N more" / "attend the next N in a row", every check-in with status, plain reason, teacher decision and **Raise a query** while unlocked; **Past classes** (removed / archived) read-only |
+| Student dashboard | Recent check-ins card kept + "See all attendance →"; Your classes shows each class's % |
+| Dates | Whole history (one class = one term) |
+
+**What users get.**
+- *Teacher:* class **Attendance** tab (summary: counted check-ins, class average, below 75%, in review; search; sort lowest % / roll / name; Export CSV), **CSV** per check-in (Check-ins tab and the summary page), dashboard cards.
+- *Student:* `/student/attendance` (nav link "Attendance"), % badges on Your classes.
+
+**Database.** No changes (the `{class, email}` index on `attendancerecords` exists since Phase 5).
 
 **API.**
 
 | Method & path | Who | Request → Response |
 | --- | --- | --- |
-| `GET /classes/:classId/attendance` | Teacher (owner) | → `{sessions[], students[], cells[][]}` |
-| `GET /classes/:classId/attendance.csv` | Teacher (owner) | CSV: `email, name, roll, session dates…, percent` |
-| `GET /sessions/:sessionId/export.csv` | Teacher (owner) | CSV: `email, name, roll, status, wave, reasons, decidedBy` |
-| `GET /me/attendance` | Student | → `{classes:[{class, percent, sessions:[{date, status}]}]}` |
+| `GET /classes/:classId/attendance` | Teacher (owner; archived OK) | → `{class, minPercent, sessions[], openSession, students[{email, name, loginId, cells[{sessionId, recordId, status P/A/R/-, implicit}], present, absent, pending, counted, percent, band}], removed[], summary{counted, average, below, pending}}` |
+| `GET /classes/:classId/attendance.csv` | Teacher (owner) | wide CSV (attachment) |
+| `GET /sessions/:sessionId/export.csv` | Teacher (owner) | per-check-in CSV (attachment) |
+| `GET /reports/summary` | Teacher | → `{minPercent, checkinsThisWeek, belowMin{count, worstClassId}}` |
+| `GET /me/attendance` | Student | → `{minPercent, classes[{class, current, archived, summary, canMiss, needed, checkins[{sessionId, recordId, startedAt, sessionStatus, locked, lockAt, counted, status, reasons, decision, query, canQuery}]}]}` |
 
-**Backend / frontend.** `controllers/reportController.js` (Mongo aggregation); `ClassDetail.jsx` Attendance tab; `StudentAttendance.jsx`; teacher dashboard stat cards.
+Every report first settles the class's check-ins (close → face grace → lock), so numbers follow the lock rules.
 
-**Done when.** Unit test for percentage + CSV escaping; manual export opened in Excel.
+**Backend.** `utils/attendanceReport.js` (pure: `cellStatus`, `summarise`, `band`, `canMiss`, `neededFor`, `buildClassMatrix`, `csvCell`, `toCsv`, `formatIst`, `csvFileName`), `clock.startOfWeek`, `controllers/reportController.js`, `routes/reportRoute.js`; CORS exposes `Content-Disposition`.
+
+**Frontend.** `teacher/ClassAttendance.jsx` (lazy), `ClassDetail.jsx` tabs + per-check-in CSV, `LiveCheckin.jsx` Export CSV + `?student=`, `CheckinStudents.jsx` `initialStudent`, `teacherDashboard.jsx` cards (`StatCard` can be a button), `student/StudentAttendance.jsx` (lazy route), `student/studentLinks.js`, `utils/download.js`, `utils/useMediaQuery.js`.
+
+**Done when.** Unit tests for %, bands, miss / needed, late join, removed, CSV escaping + BOM, IST dates, week start (54/54); in-process end-to-end checks in a throwaway database (25/25); Phase 5/6/8/9/10 regressions; owner test: grid on phone + laptop, CSV opened in Excel, student page + query, dashboard cards.
 
 ---
 

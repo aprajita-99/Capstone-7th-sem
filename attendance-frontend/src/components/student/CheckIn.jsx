@@ -17,6 +17,7 @@ import { PageLoader, Spinner } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { untilLabel } from "../../utils/lockTime";
 import { decisionText, explain, queryReasonLabel } from "./attendanceText";
+import { studentLinks } from "./studentLinks";
 import "../checkin.css";
 
 // The AWS liveness component is large: load it only when the face step starts.
@@ -376,7 +377,7 @@ const CheckIn = () => {
   const view = VIEW[state] || VIEW.error;
 
   return (
-    <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={handleLogout} links={[{ to: "/student-dashboard", label: "Dashboard" }]}>
+    <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={handleLogout} links={studentLinks()}>
       <Link to="/student-dashboard" className="ui-btn ui-btn--ghost ui-btn--sm">← Dashboard</Link>
 
       {showTracker && (

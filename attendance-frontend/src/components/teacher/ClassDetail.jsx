@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import AppShell from "../../ui/AppShell";
@@ -8,13 +8,23 @@ import Button from "../../ui/Button";
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
 import Field from "../../ui/Field";
-import { PageLoader } from "../../ui/Spinner";
+import Spinner, { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
+import { downloadFile } from "../../utils/download";
 import { roomLabel } from "../../utils/rooms";
 import RoomPicker from "./RoomPicker";
 import { teacherLinks, useTeacherSession } from "./teacherSession";
 import "./classes.css";
+import "./reviews.css";
 import "../checkin.css";
+
+// The attendance grid loads only when its tab opens.
+const ClassAttendance = lazy(() => import("./ClassAttendance"));
+const CLASS_TABS = [
+  { id: "attendance", label: "Attendance" },
+  { id: "checkins", label: "Check-ins" },
+  { id: "roster", label: "Roster" },
+];
 
 const requestConfig = { withCredentials: true };
 const errorMessage = (requestError, fallback) => requestError.response?.data?.message || fallback;
@@ -74,10 +84,12 @@ const ClassDetail = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { user, logout, counts } = useTeacherSession();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = CLASS_TABS.some((item) => item.id === searchParams.get("tab")) ? searchParams.get("tab") : null;
 
   const [courseClass, setCourseClass] = useState(null);
   const [roster, setRoster] = useState([]);
-  const [sessions, setSessions] = useState({ openSession: null, sessions: [] });
+  const [sessions, setSessions] = useState({ openSession: null, sessions: [], loaded: false });
   const [identity, setIdentity] = useState({ statuses: {}, maxAttempts: 3 });
   const [rooms, setRooms] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -101,8 +113,8 @@ const ClassDetail = () => {
     setRoster(rosterResponse.data.enrollments);
     axios
       .get(`${SERVER_URL}/classes/${classId}/sessions`, requestConfig)
-      .then((response) => setSessions({ openSession: response.data.openSession, sessions: response.data.sessions }))
-      .catch(() => {});
+      .then((response) => setSessions({ openSession: response.data.openSession, sessions: response.data.sessions, loaded: true }))
+      .catch(() => setSessions((current) => ({ ...current, loaded: true })));
     axios
       .get(`${SERVER_URL}/classes/${classId}/enrollment-status`, requestConfig)
       .then((response) => setIdentity({ statuses: response.data.statuses, maxAttempts: response.data.maxAttempts }))
@@ -253,6 +265,19 @@ const ClassDetail = () => {
   const rows = preview ? previewRows(rosterText, preview) : [];
   const generalErrors = preview ? preview.errors.filter((entry) => !entry.row) : [];
 
+  // Attendance once the class has a finished check-in, otherwise Roster; ?tab= wins.
+  const hasFinished = sessions.sessions.some((session) => session.status !== "open");
+  const activeTab = requestedTab || (sessions.loaded ? (hasFinished ? "attendance" : "roster") : null);
+  const selectTab = (id) => setSearchParams({ tab: id }, { replace: true });
+
+  const exportSession = async (session) => {
+    try {
+      await downloadFile(`${SERVER_URL}/sessions/${session._id}/export.csv`, "checkin.csv");
+    } catch (requestError) {
+      toast("Could not download the CSV.", "error");
+    }
+  };
+
   return (
     <AppShell
       role="teacher"
@@ -278,7 +303,12 @@ const ClassDetail = () => {
             {courseClass.archived && <Badge variant="warning" dot>Archived</Badge>}
           </div>
         </div>
-        <div className="ui-page-head__actions">
+        <div className="ui-page-head__actions class-detail__actions">
+          {!courseClass.archived && (sessions.openSession || courseClass.activeStudentCount > 0) && (
+            <Button onClick={() => navigate(`/teacher/classes/${classId}/live`)}>
+              {sessions.openSession ? "Open live check-in" : "Start check-in"}
+            </Button>
+          )}
           <Button variant="secondary" onClick={startEditing} disabled={busy}>Edit class</Button>
           <Button variant={courseClass.archived ? "soft" : "ghost"} onClick={toggleArchive} disabled={busy}>
             {courseClass.archived ? "Restore class" : "Archive"}
@@ -313,6 +343,26 @@ const ClassDetail = () => {
         </Card>
       )}
 
+      <div className="review-tabs class-tabs" role="tablist" aria-label="Class sections">
+        {CLASS_TABS.map((item) => (
+          <button key={item.id} type="button" role="tab" aria-selected={activeTab === item.id} className={activeTab === item.id ? "is-active" : ""} onClick={() => selectTab(item.id)}>
+            {item.label}
+            {item.id === "checkins" && sessions.openSession && <Badge variant="info" dot>Live</Badge>}
+            {item.id === "roster" && <Badge variant="neutral">{courseClass.activeStudentCount}</Badge>}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === null && <div className="att-loading"><Spinner /></div>}
+
+      {activeTab === "attendance" && (
+        <Suspense fallback={<div className="att-loading"><Spinner /> <span className="ui-muted">Loading attendance…</span></div>}>
+          <ClassAttendance classId={classId} />
+        </Suspense>
+      )}
+
+      {activeTab === "roster" && (
+      <>
       <Card className="classes-section" title="Roster" subtitle="Only students on this list can sign in and check in to this class."
         actions={roster.length > 8 && (
           <input className="ui-input roster-filter" placeholder="Search name or email" value={filter} onChange={(event) => setFilter(event.target.value)} />
@@ -401,7 +451,10 @@ const ClassDetail = () => {
           )}
         </div>
       </Card>
+      </>
+      )}
 
+      {activeTab === "checkins" && (
       <Card className="classes-section" title="Check-in sessions"
         subtitle="Start a check-in on the phone you will leave at the front of the room."
         actions={
@@ -416,7 +469,7 @@ const ClassDetail = () => {
         ) : (
           <ul className="session-list">
             {sessions.sessions.map((session) => (
-              <li key={session._id}>
+              <li key={session._id} className="session-item">
                 <button type="button" className="session-row session-row--button" onClick={() => navigate(session.status === "open" ? `/teacher/classes/${classId}/live` : `/teacher/sessions/${session._id}`)}>
                 <span className="session-row__when">
                   <strong>{new Date(session.startedAt).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })}</strong>
@@ -434,11 +487,15 @@ const ClassDetail = () => {
                   )}
                 </span>
                 </button>
+                {session.status !== "open" && (
+                  <Button size="sm" variant="ghost" className="session-item__csv" onClick={() => exportSession(session)} aria-label="Download this check-in as CSV">CSV</Button>
+                )}
               </li>
             ))}
           </ul>
         )}
       </Card>
+      )}
     </AppShell>
   );
 };

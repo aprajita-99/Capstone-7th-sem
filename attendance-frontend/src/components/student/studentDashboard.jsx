@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import AppShell from "../../ui/AppShell";
@@ -12,6 +12,7 @@ import { useToast } from "../../ui/Toast";
 import { roomLabel } from "../../utils/rooms";
 import { shortWhen, untilLabel } from "../../utils/lockTime";
 import { decisionText, explain, queryReasonLabel } from "./attendanceText";
+import { studentLinks } from "./studentLinks";
 import "./studentDashboard.css";
 import "../checkin.css";
 
@@ -43,6 +44,7 @@ const RecentCheckins = ({ checkins, onQuery, onOpen }) => (
         className="student-classes recent-checkins"
         title="Recent check-ins"
         subtitle="If something went wrong, raise a query before the check-in locks at 09:00 the next morning."
+        actions={<Link to="/student/attendance" className="ui-btn ui-btn--ghost ui-btn--sm">See all attendance →</Link>}
     >
         <ul className="recent-list">
             {checkins.map((checkin) => {
@@ -139,6 +141,7 @@ const StudentDashboard = () => {
     const [openCheckins, setOpenCheckins] = useState([]);
     const [checkinIdentityOk, setCheckinIdentityOk] = useState(true);
     const [recent, setRecent] = useState([]);
+    const [percentByClass, setPercentByClass] = useState({});
     const [querying, setQuerying] = useState(null);
 
     const loadRecent = useCallback(
@@ -190,6 +193,15 @@ const StudentDashboard = () => {
         return () => window.clearInterval(timer);
     }, [user]);
 
+    // Attendance % per class for the "Your classes" list (Phase 11).
+    useEffect(() => {
+        if (!user) return;
+        axios
+            .get(`${SERVER_URL}/me/attendance`, { withCredentials: true })
+            .then((response) => setPercentByClass(Object.fromEntries(response.data.classes.map((item) => [String(item.class._id), item.summary]))))
+            .catch(() => {});
+    }, [user]);
+
     // Recent check-ins (decisions, queries), refreshed every 30 seconds.
     useEffect(() => {
         if (!user) return undefined;
@@ -228,10 +240,7 @@ const StudentDashboard = () => {
             name={name}
             email={user.email}
             onLogout={handleLogout}
-            links={[
-                { to: "/student-dashboard", label: "Dashboard", active: true },
-                { to: "/acoustic-lab", label: "Phone audio test" },
-            ]}
+            links={studentLinks("dashboard")}
         >
             <div className="ui-page-head">
                 <div>
@@ -303,7 +312,12 @@ const StudentDashboard = () => {
 
             {identity && <IdentityCard identity={identity} onStart={() => navigate("/student/enroll")} />}
 
-            <Card className="student-classes" title="Your classes" subtitle="Classes whose roster includes your college email.">
+            <Card
+                className="student-classes"
+                title="Your classes"
+                subtitle="Classes whose roster includes your college email."
+                actions={<Link to="/student/attendance" className="ui-btn ui-btn--ghost ui-btn--sm">Attendance →</Link>}
+            >
                 {classes === null ? (
                     <p className="ui-muted">Loading…</p>
                 ) : classes.length === 0 ? (
@@ -325,6 +339,11 @@ const StudentDashboard = () => {
                                     {roomLabel(courseClass.defaultRoom)}
                                     {courseClass.teacher?.name ? ` · ${courseClass.teacher.name}` : ""}
                                 </span>
+                                {percentByClass[String(courseClass._id)]?.percent != null && (
+                                    <Link to="/student/attendance" className={`student-class__pct student-class__pct--${percentByClass[String(courseClass._id)].band}`}>
+                                        {percentByClass[String(courseClass._id)].percent}% attendance
+                                    </Link>
+                                )}
                             </li>
                         ))}
                     </ul>

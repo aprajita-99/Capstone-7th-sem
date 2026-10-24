@@ -8,6 +8,16 @@ export const REASON_TEXT = {
   face_missing: "the face check was not completed in time",
   not_joined: "you did not join this check-in",
   student_query: "you raised a query",
+  not_on_roster: "this was before you were added to the class roster",
+};
+
+// Short labels for a student's own check-in list (Phase 11).
+export const STATUS_LABEL = {
+  present: { label: "Present", variant: "success" },
+  absent: { label: "Absent", variant: "danger" },
+  review: { label: "In review", variant: "warning" },
+  heard: { label: "Checking in", variant: "info" },
+  joined: { label: "Checking in", variant: "info" },
 };
 
 export const explain = (reasons = []) =>

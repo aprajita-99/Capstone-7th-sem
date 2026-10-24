@@ -36,6 +36,7 @@ app.use(
     },
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     allowedHeaders: ["Content-Type", "Authorization"],
+    exposedHeaders: ["Content-Disposition"], // CSV exports name their file (Phase 11)
     credentials: true, // Allow credentials (cookies, headers)
   })
 );
@@ -72,6 +73,9 @@ app.use("/api/v1", enrollmentRoute);
 
 const reviewRoute = require('./routes/reviewRoute');
 app.use("/api/v1", reviewRoute);
+
+const reportRoute = require('./routes/reportRoute');
+app.use("/api/v1", reportRoute);
 
 const jobsRoute = require('./routes/jobsRoute');
 app.use("/api/v1", jobsRoute);

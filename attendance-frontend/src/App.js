@@ -20,6 +20,7 @@ import { PageLoader } from './ui/Spinner';
 const FaceTest = lazy(() => import('./components/face/FaceTest'));
 const Enroll = lazy(() => import('./components/student/Enroll'));
 const VerifyDevice = lazy(() => import('./components/student/VerifyDevice'));
+const StudentAttendance = lazy(() => import('./components/student/StudentAttendance'));
 const withFaceLoader = (element) => <Suspense fallback={<PageLoader label="Loading face check…" />}>{element}</Suspense>;
 
 function App() {
@@ -40,6 +41,7 @@ function App() {
           <Route path='/student/enroll' element={withFaceLoader(<Enroll />)} />
           <Route path='/student/verify-device' element={withFaceLoader(<VerifyDevice />)} />
           <Route path='/teacher/reviews' element={<Reviews />} />
+          <Route path='/student/attendance' element={<Suspense fallback={<PageLoader label="Loading your attendance…" />}><StudentAttendance /></Suspense>} />
           <Route path={'/student-dashboard'} element={<StudentDashboard />} />
           <Route path={'/teacher-dashboard'} element={<TeacherDashboard />} />
           <Route path='*' element={<NotFound />} />
