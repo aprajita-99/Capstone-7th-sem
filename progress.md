@@ -196,3 +196,4 @@ cloudflared tunnel --url http://localhost:3000                          # new UR
 cd attendance-backend && npm test                                       # 10/10 (roster + device binding + sign-in policy)
 cd attendance-frontend && npm run test:acoustic                         # FSK codec, 12 tests
 ```
+| 2026-10-24 | Phase 9 verified on phones | Merged PR #12 and confirmed the deploy (Render face/relay routes live, new Vercel bundle); owner ran the phone test of the face check at check-in and confirmed it works end to end. **Phase 9 done.** Face similarity / liveness scores still not recorded — confirm the 80 / 90 / 75 pass marks during the class rehearsal | Owner phone test passed | Next: Phase 10 (reviews, queries, daily lock, retention) |
