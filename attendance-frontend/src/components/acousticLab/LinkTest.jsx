@@ -14,7 +14,7 @@ const { FrameReceiver } = receiverModule;
 const DEFAULT_KEY = "1234567";
 const GAP_MS = 300;
 const SCAN_MS = 500;
-// The codec's detection rule is 9 dB above the median tone (plan.md). A second
+// The codec's detection rule is 9 dB above the median tone. A second
 // receiver at 5 dB runs alongside purely as a measurement, to learn whether a
 // lower threshold would rescue weak rooms without letting wrong keys through.
 const EXPERIMENTAL_MARGIN_DB = 5;

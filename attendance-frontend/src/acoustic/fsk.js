@@ -1,12 +1,12 @@
 /**
- * FSK frame codec for the acoustic presence check-in (plan.md section 5).
+ * FSK frame codec for the acoustic presence check-in (FEATURES.md, Phase 4).
  *
  * Plain CommonJS on purpose: the same file runs in Node tests
  * (`npm run test:acoustic`) and is imported by the React app.
  *
- * Signal design (starting values from plan.md; tune only with measurements):
+ * Signal design (starting values from the original signal plan; tune only with measurements):
  * - 17 tones, 110 Hz apart. The band is a profile: "high" = 18.0-19.76 kHz
- *   (default, plan.md starting value), "mid" = 16.5-18.26 kHz (measured to be
+ *   (default, original starting value), "mid" = 16.5-18.26 kHz (measured to be
  *   stronger on budget phones). Tone count and frame layout never change.
  * - Tone 0 (18.0 kHz) is the start marker; tones 1..16 carry symbols.
  * - Frame: 2 marker symbols + 7 data symbols + 2 check symbols, 120 ms each (~1.32 s).
@@ -214,7 +214,7 @@ const singleTonePowerDb = (samples, start, windowSize, sampleRate, frequency) =>
 
 /**
  * Goertzel measurement of all 17 tones over one window.
- * Detection rule from plan.md: a tone counts only if ~9 dB above the median.
+ * Detection rule: a tone counts only if ~9 dB above the median.
  */
 const measureTones = (samples, start, windowSize, sampleRate, profile = DEFAULT_PROFILE) => {
   const db = new Array(TONE_COUNT);

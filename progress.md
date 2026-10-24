@@ -1,51 +1,41 @@
-# progress.md: Where we are
+# progress.md: where MarkMePresent stands
 
-Update this at the end of every session. If it disagrees with the real code, the code wins: fix this file and tell the owner.
+The build log. If it disagrees with the code, the code wins: fix this file. The plan and every phase's decisions live in `FEATURES.md`; setup and hosting in `docs/setup.md`.
 
-Last updated: 2026-10-17 (session 5: Phase 2 redesign done — Indigo kit + rebuilt Home/Login/dashboards/404; docs/ rewritten short & plain-English; READMEs updated GitHub-style)
+Last updated: 2026-10-25.
 
 ## Status
 
-- Current layer: **Layer 1, Physical layer** (web app sends and hears tones)
-- Current slice: **1.6 + 1.7 — FSK frame encoder + decoder: passed** (synthetic Node tests only; results below). **Phase 2 redesign done** (Indigo kit + Home/Login/dashboards). Next: **Phase 3 — class management + acoustic lab restyle** (then slice 1.8).
-- Last gate passed: none (Layer 1 gate = frames decode at 1 m, 6 m and the far corner on real phones)
-- Setup done: teacher sign-in (`2023ugcs059@nitjsr.ac.in`) verified in the browser on 2026-10-17; backend runs with plain `npm start` on any Node ≥22 (including the default Node 26). **Phase 1 legacy cleanup done and verified**; **Phase 2 design system + core screens done and verified** (see "Approved plan").
-- Next action: build **Phase 3** (class management + lab restyle + the three lab gap fixes). Owner side whenever convenient: review the redesigned UI in the browser, run the lab on the **M01**, and sign in once with each test Gmail — all independent of the next phase.
+| Area | State |
+| --- | --- |
+| Phases 0–11 (sign-in, classes, trusted device, sound engine, check-ins, relay, face service, identity enrollment, face at check-in, reviews / queries / lock / retention, reports) | **Shipped**, each phone- or owner-tested |
+| UI redesign (bold monochrome, bottom tab bar, student / teacher / onboarding screens) | **Shipped** (PRs #15–#21, #25–#26) |
+| Performance pass (batched settling, `/sessions/today`, cached login check, indexes) | **Shipped** (PR #22) |
+| Product name **MarkMePresent** (website text) | **Shipped** (PR #24); internal names, config and URLs unchanged |
+| Privacy notice (`/privacy`) and Help page (`/help`), new logo | **Shipped** (PR #27) |
+| Phase 12 — neighbour verification | **On hold** until a real classroom is available to set the threshold |
+| Phase 13 — pilot readiness | **Partly done** (privacy + help); the rest (removing test accounts, monitoring alerts, runbook, pilot) on hold |
 
-## Done: planning (no code)
+## Open items
 
-- [x] Requirements gathered and decisions confirmed (see `plan.md` section 3)
-- [x] Design written: signal, cascade, ID round, roster, identity, retention, hosting, risks
-- [x] Layered plan with gates
-- [x] Planning doc exists as a Claude doc ("Acoustic Presence Check-in: Plan") and is now mirrored in `plan.md`
-- [x] `plan.md`, `agent.md`, `progress.md`, `resume-prompt.md` created
+- **Full-class rehearsal** (not yet done): sound reach at 6 m / far corner, relay waves and timing, real face scores to confirm the 80 / 90 / 75 pass marks, and the closed-door case (a phone just outside a closed door heard the key on 2026-10-23).
+- **Band decision** (high vs mid at distance) still to be measured; the app uses the mid band.
+- **Teacher digest email** (20:00 IST) set up but not yet seen arriving.
+- **Before a real pilot:** empty `TEST_STUDENT_EMAILS` and the Google domain override, set an AWS budget alert (`docs/setup.md`), consider the Render region (Singapore, next to the Mumbai database) and a non-sleeping instance.
 
-## Already built (audit 2026-10-17: checked against the real code)
+## Test accounts
 
-Earlier sessions (git commits say "Iteration-1/2/3 ... via Codex Terra 5.6") built the items below **before** these progress notes existed. Statuses were checked file-by-file today. None of these items has been tested on a real phone or run end-to-end.
+| Account | Role |
+| --- | --- |
+| `2023ugcs111@nitjsr.ac.in` | Teacher (listed in `TEACHER_EMAILS`) |
+| `aprajitakumarithakur5555@gmail.com` | Test student (listed in `TEST_STUDENT_EMAILS`; development only) |
 
-| Item | Where it lives | What it does | Tested? |
-| --- | --- | --- | --- |
-| Acoustic capability lab (Layer 1) | `attendance-frontend/src/components/acousticLab/AcousticLab.jsx`, `attendance-frontend/public/tone-detector-worklet.js`, route `/acoustic-lab` (needs no sign-in; linked from both dashboards as "Test phone audio") | Mic + AudioContext setup; shows sample rate, applied mic settings (echo/noise/AGC), constraint support; plays 5 fixed tones 15.5–19.5 kHz from the phone speaker and measures them on the phone's own mic with a Goertzel AudioWorklet; shows ambient baseline and per-tone margin with 12/6 dB verdicts; stores nothing | **No** — never run on a real phone |
-| Roster + class management (Layer 2 shape, built early) | backend `utils/roster.js`, `controllers/classController.js`, `models/classModels.js`, `models/enrollmentModels.js`, `routes/classRoute.js`; frontend `components/teacher/classManagement.jsx` | Parse CSV/paste roster (lowercase, dedupe, `@nitjsr.ac.in` only, derive batch/branch/roll); create class; preview/save/read roster; enrollment active/inactive | Unit tests pass (3 roster tests via `npm test`). No end-to-end run (needs MongoDB + teacher session) |
-| Google sign-in + device binding (Layer 2 shape, built early) | backend `controllers/googleAuthController.js`, `models/deviceBindingRequestModels.js`, `utils/deviceBinding.js`, `routes/googleAuthRoute.js`; frontend `GoogleSignInButton.jsx`, `Login.jsx`, `utils/deviceKey.js`, `classManagement.jsx` review queue | Server verifies nitjsr.ac.in Google ID token, roster-gates accounts; student browser makes a P-256 key pair (IndexedDB) bound to the account; key changes go to a teacher review queue (approve/reject) | Device-binding unit tests pass (2 tests); the sign-in policy is now unit-tested too (5 tests) — backend suite 10/10. It was doubly broken until 2026-10-17: `config.env` had no `GOOGLE_CLIENT_ID` (503), and `classRoute`'s blanket `router.use` swallowed `/auth/google` so the handler never ran. Both fixed; verified by curl up to the token-verification step (garbage token → 401 "could not be verified"). Test accounts now exist for browser testing (see "Test accounts"). Teacher sign-in (`2023ugcs059@nitjsr.ac.in`) was verified for real on 2026-10-17 in Chrome on localhost; the two student test accounts still to be tried. Never tested on a phone |
-| Legacy attendance app (pre-plan scaffold, 2026-08-26) | `Mark.jsx`, `takeAttendance.jsx`, `addRoom.jsx`, location/code/passkey routes and controllers, dashboards, the seniors' handover docs | Original GPS-rectangle + 6-digit-code + WebAuthn attendance and its docs (this is the seniors' hand-over base we are adapting; its coordinate precision is why we are moving to acoustics). Not part of the Layer 1 gate | Not retested this session |
-| Deployment | `attendance-frontend/build/` (rebuilt 2026-10-17 evening; a rebuild after this session's changes passes) | Local production build. The live Vercel URL (`attendance-frontend-sage.vercel.app`) is the seniors' deploy — we do **not** have access to it, so we will host our own copy. Added `vercel.json` + `public/_redirects` so deep links (e.g. `/acoustic-lab`) work on our own Vercel/Netlify deploy | n/a |
+## How we verify
 
-Instruction for the next session: verify slices in order; mark a slice `passed` only after its test is actually run.
-
-## Test accounts (2026-10-17, for login/roster testing)
-
-| Account | Role | Configured in |
-| --- | --- | --- |
-| `2023ugcs059@nitjsr.ac.in` | teacher (provisioned on first Google sign-in) | `TEACHER_EMAILS` in `attendance-backend/config/config.env` |
-| `testforshivansh059@gmail.com` | test student (skips the class-roster gate) | `TEST_STUDENT_EMAILS` in `config.env` |
-| `12shivanshsingha@gmail.com` | test student (skips the class-roster gate) | `TEST_STUDENT_EMAILS` in `config.env` |
-
-- Test students are a test-only feature: any address in `TEST_STUDENT_EMAILS` may sign in with Google even though it is not `@nitjsr.ac.in`, and it skips the "must be on an active roster" gate. Remove the line (or empty it) before the real pilot.
-- Their device-binding review requests are visible to any teacher, because test accounts can never appear on a college roster.
-- Roster upload still accepts `@nitjsr.ac.in` only (unchanged): test students will not show up inside class rosters.
-- Still to check in Google Cloud Console (owner): `http://localhost:3000` in the OAuth client's Authorized JavaScript origins; and if the OAuth consent screen is in "Testing" status, add all three accounts as test users.
+- Backend unit tests: `cd attendance-backend && npm test` (54).
+- Sound codec tests: `cd attendance-frontend && npm run test:acoustic` (21).
+- Frontend: `CI=true npm run build` must be clean (lint warnings fail it).
+- End-to-end checks per phase run the real app in-process against MongoDB with a fake face service and temporary data that is deleted afterwards; phases that touch the whole database (lock, retention, reports) use a throwaway database.
 
 ## Codec evidence (FSK, synthetic — 2026-10-17)
 
@@ -64,54 +54,6 @@ Instruction for the next session: verify slices in order; mark a slice `passed` 
 | Check symbols: two tone flips | 2/200 accepted (checksum collisions, ~1 in 225 expected) |
 
 Codec facts as built: 17 tones at 110 Hz spacing from 18.0 kHz; 120 ms symbols; frame = 2 marker + 7 data + 2 check symbols (1.32 s); data digits base 15; consecutive data/check tones can never repeat (carried by construction, inverted by the decoder); check digits = weighted sum mod 225; 6 ms raised-cosine fade per symbol; detection = ≥9 dB above the median of the 17 tones. Caveat: this is synthetic audio — real speaker/mic behaviour is still untested (that is what the lab run and slice 1.8 are for).
-
-## Layer 1: slice list
-
-Status key: `todo`, `built, needs test`, `partial (built with gaps, needs test)`, `passed`, `failed`
-
-| # | Slice | Pass/fail test | Status |
-| --- | --- | --- | --- |
-| 1.1 | Static page with a Join button, served over HTTPS (free host) | Page opens on an Android Chrome phone from the hosted URL | **passed (2026-10-17, interim)** — the lab page opened over HTTPS in Chrome on an Android phone via a cloudflared quick tunnel; our own permanent host still to come (own Vercel/Netlify later; `vercel.json` + `_redirects` ready) |
-| 1.2 | Join starts AudioContext and mic; app logs real sample rate and the mic settings the browser applied; refuses below 44.1 kHz | Log shows sample rate and applied settings on a real phone | **partial** — on a real phone (2026-10-17): 48 kHz, echo/noise/AGC disabled "Yes", 1 mic channel; **no below-44.1-kHz refusal in code**; the second phone (44.1 kHz case) still pending |
-| 1.3 | Play one tone at a chosen frequency with ~6 ms fade; frequency sweep page | A second phone's spectrum view shows the tone; no audible clicks | **partial** — plays 5 fixed tones (15.5–19.5 kHz), no chosen frequency, **no 6 ms fade in the lab** (the fade now exists in the codec), no second-phone spectrum view; tones are measured on the same phone's mic |
-| 1.4 | Single-tone detector (Goertzel) with live level display and noise-floor estimate | Detects a tone from the other phone at 1 m; quiet room shows no detection | **partial** — self-detection verified on a real phone 2026-10-17 (margins 46–53 dB); ambient baseline + 12/6 dB verdicts exist (not the plan's ~9 dB-above-median rule); **no live level display**; the second-phone test is still pending |
-| 1.5 | Band sweep across 15–20 kHz on each available phone model; record which frequencies play and record well | Table of phone model vs usable frequencies saved in this file | **partial (started)** — 2026-10-17: Samsung M32 measured (see Measurements log): 15.5 / 16.5 / 17.5 / 18.5 kHz clearly usable, **19.5 kHz not detected**; 2026-10-18: Realme 12 Pro 5G — all five tones clear (14–31 dB, best 17.5 kHz); M01 pending |
-| 1.6 | FSK frame encoder (start marker, 7 data symbols, 2 check symbols, no repeated adjacent tone) | Node test: encode then decode a synthetic buffer, 1000 random keys, all correct | **passed (2026-10-17)** — `src/acoustic/fsk.js` + `src/acoustic/fsk.node-tests.js`; 1000/1000 keys at 48 kHz, 200/200 at 44.1 kHz, 1000/1000 tone-level. Files: `attendance-frontend/src/acoustic/fsk.js`, tests `fsk.node-tests.js`, script `npm run test:acoustic` |
-| 1.7 | Frame decoder tested on synthetic audio with added noise and echo | Node test: decode rate and false-positive rate reported at several noise levels | **passed (2026-10-17)** — noise 100/100 at 30/20/10/0 dB; echo (30/60/90 ms, gain 0.5) 50/50 each; echo+noise 50/50; false positives 0/100 + 0/30; single tone flips rejected 200/200; double flips 2/200 (checksum collisions ~1/225). Full numbers in "Codec evidence" |
-| 1.8 | Live send and receive between two phones at 1 m | Frames sent vs decoded recorded; at least 95% | todo — next slice proposed |
-| 1.9 | Range test at 6 m and at the far corner (about 20 m) | Same record at each distance; at least 95% (proposed target) | todo |
-| 1.10 | Choose the band (18–20 kHz or lower) from the measurements; decide whether Layer 1 gate passes | Decision written here with the numbers behind it | todo |
-
-Layer 1 gate (from `plan.md`): frames decode at 1 m, 6 m and the far corner, proposed target 95% of frames on phones students actually use.
-
-## Approved plan: cleanup + redesign before 1.8 (owner, 2026-10-17)
-
-Owner decisions: **Indigo modern SaaS** palette · **light theme only** for now · **full legacy removal** · order **cleanup → redesign → 1.8**.
-
-**Phase 1 — legacy cleanup (no visual change).** Delete frontend pages/routes `Register`, `Mark` (`/markAttendance`), `AddRoom`, `TakeAttendance` + their CSS and now-dead files (`App.css`, `Loader/loding.jsx`), including the links from Home/Navbar/dashboards. Backend: replace GPS `Location` rooms with a simple **Room** (`roomNo`) model and keep `GET /rooms`, add teacher `POST /rooms`; remove `/init-register`, `/verify-register`, `/init-auth`, `/verify-auth` (WebAuthn), `/register`, `/login` (password), `/admin/addRoom`, `/getRoom` (GPS), `/genCode`, `/deleteCode`, `/getCode` (6-digit). Remove deps: `@simplewebauthn/server`, `@simplewebauthn/browser`, `geoip-lite`, `node-cron`, `validator`, `crypto` (npm), `bcryptjs`, `framer-motion`, `react-intersection-observer`. Hygiene: `sendToken` no longer leaks `passKey`; `/api/v1/` joke string → `/health`; backend package renamed `attendance-backend`. Verify: backend tests 10/10, frontend build, curl smoke, no links to removed routes. **→ DONE and verified 2026-10-17**: rooms migrated to the new `Room` model via `scripts/migrate-rooms.js` (B-204 carried over; 0 classes to repoint), teacher `POST /rooms` added (its UI arrives in Phase 3), backend tests 10/10, acoustic tests 12/12, production build passes (main bundle −4.9 kB gz), smoke curls clean (`/health` 200 JSON; `/islogin` + `/rooms` 401; every removed endpoint 404; Google garbage 401), backend `npm audit` 0 vulnerabilities, dev server + tunnel re-verified.
-
-**Phase 2 — design system + core screens.** Tokens in `index.css` + new `src/ui/` kit (AppShell with role chip/user menu, Button, Card, StatCard, Badge, Field, EmptyState, Spinner, Toast); mobile-first. Rebuild Home (honest copy, no dead links), Login (Google-only, split brand panel), Student dashboard (device-status hero card, "Test phone audio"), Teacher dashboard (real stats: classes / active students / pending device reviews — no fake demo rows). Extras: toasts, empty/loading states, 404 page. **→ DONE and verified 2026-10-17:** tokens (indigo/slate scales, semantic colors, radii, shadows) + `src/ui/` kit (ui.css, Brand, AppShell with role chip/avatar/user area/logout, Button, Card, StatCard, Badge, Field, Spinner/PageLoader, EmptyState, Toast provider); Home (hero, animated equalizer wave, 3-step how-it-works, features, CTA, footer — fake stats removed), Login (split indigo brand panel + Google-only card), Student dashboard (device-status hero: approved/review/unbound + check-in explainer; fake classes/attendance removed; role redirect added), Teacher dashboard (real stats from `/classes` + `/device-reviews`, recent classes, quick actions; fake demo data removed), Navbar, 404 page + route, new `manifest.json`/`index.html` head, Inter + `ui-` prefix so the two not-yet-restyled pages keep their own CSS. Production build passes (CSS +1.15 kB, JS +2.77 kB gz); `/`, `/login`, `/acoustic-lab` serve 200 locally and through the tunnel; no change to the sign-in/device-claim logic.
-
-**Phase 3 — teacher tools + lab polish.** Class management: class cards, inline "+ Add room" (no GPS), roster paste with highlighted preview errors + sample helper, review queue polish. Acoustic lab: restyle + fold in the three gaps (below-44.1 kHz refusal, 6 ms fades, live level meter). Verify: lab re-run on M32 (no audio regression) + owner click-through.
-
-**Phase 4 — slice 1.8** built in the new design (TX loop page + RX decode page), then the M01 ⇄ M32 at 1 m test. `fsk.js` codec and its tests are untouched by all phases.
-
-## Next slice (owner approved; after cleanup + redesign)
-
-- **1.8 — live send and receive between two phones at 1 m.** TX page plays frames from `src/acoustic/fsk.js` in a loop (with the 6 ms fade, screen wake lock, repeated key played N times); RX page runs the 17-tone Goertzel bank over the audio worklet and decodes on the known symbol schedule; both pages show counters (frames played / heard / decoded). Owner runs M01 ⇄ M32 at 1 m and records the numbers in the measurements log. Pass = ≥95% decoded (proposed).
-- **In parallel, owner runs the existing lab (1.1–1.5 checks) on M01 + M32** over HTTPS and shares: sample rate, applied mic settings, the five tone margins, and the recommendation line. This closes 1.1/1.2 and fills the 1.5 table.
-- If either fails, fix before starting 1.9 (range tests).
-
-## Later layers (not started; do not begin before the previous gate passes)
-
-- Layer 2: Cascade. Server mints keys, waves, domain-restricted Google sign-in, roster upload, free-host check. Gate: small rehearsal reaches every phone; waves and time per wave measured.
-- Layer 3: ID round and scoring. Time slots, neighbour reports, review queue, same-day override, 1-day expiry job and attendance lock. Gate: outside phones rejected; inside phones accepted or queued.
-- Layer 4: Class pilot with 70–120 students. Gate: attendance matches manual roll call; false accepts and rejects counted.
-- Layer 5: Mobile app, decided after Layer 4.
-
-Each of these must be broken into slices like Layer 1 before work starts.
-
-**Note (2026-10-17):** two Layer 2-shaped pieces were already built early (roster/classes; Google sign-in/device binding — see audit table). They are untested end-to-end, do not count toward any gate, and must be re-sliced and tested when Layer 2 starts. No **new** Layer 2 work until the Layer 1 gate passes.
 
 ## Measurements log
 
@@ -159,43 +101,6 @@ First test phones (owner, 2026-10-17): **Samsung M01** and **Samsung M32** (more
 | 2026-10-23 | Phase 8: identity enrollment (branch `aprajita/phase-8-enrollment`) | Owner answered 16 design questions (see FEATURES.md Phase 8). Backend: `users.enrollment` + `consent`, `identitymedia`, `auditlogs`, `facesessions` rebind; `utils/enrollment.js` (decision table, roll OCR match, image data-URL parsing), `utils/faceSessions.js`, `utils/teacherAccess.js`; `faceClient.detectFaces/detectText`; `enrollmentController` (status, consent, ID card sanity + OCR without using an attempt, signed live selfie → verified / pending / failed, private media, teacher approve/reject+reason/reset/force, class identity status, new-phone face verify → auto-approve via shared `applyDeviceDecision`), retention purge on roster removal; ID-card route alone gets a 1 MB JSON limit. Frontend: `Enroll` wizard, `VerifyDevice`, teacher `Reviews` (identity checks + new phones, out-of-attempts list), roster Identity column, student Identity card, Login routing, `imageCompress`, lazy routes | Backend **39/39** (5 new); **40/40** end-to-end checks in-process with a fake Rekognition client (consent, ID sanity 422 w/o attempt, 1 MB body ok, OCR, wrong-phone signature 401, verified, 409 resubmit, pending roll mismatch, media access 200/200/403, reject needs reason + deletes images, not-live failed attempt, unsure → approve, 3 attempts → blocked list → reset, class status, new phone auto-approve vs teacher fallback, force re-enroll, audit, retention); Phase 5 33/33 + Phase 6 11/11 regressions; acoustic 21/21; CI build clean (main +3 kB) | Owner: add `rekognition:DetectText` to the IAM policy; phone test after merge |
 | 2026-10-23 | Phase 8 verified on phones | Owner added `rekognition:DetectText` (confirmed permitted); merged PR #11; ran the phone test: own enrollment verified, other-face enrollment went to teacher review and was decided there, new phone approved by face check — all as expected. **Phase 8 done.** Similarity/liveness scores not recorded — confirm the 80 / 90 / 75 pass marks during Phase 9 testing | Owner phone test passed | Next: Phase 9 (face + liveness at check-in) |
 | 2026-10-24 | Phase 9: face + liveness at every check-in (branch `aprajita/phase-9-face-at-checkin`) | Owner answered 12 design questions (FEATURES.md Phase 9). Backend: record status `heard`, `face`, `relayedAt`, `decision`; evidence `frame`; `faceRequired` default true; `decide` extended (face states, `faceFinal`) + `faceStatusFrom`; join blocked unless identity verified (403 `not_enrolled`, error responses now carry `code`); claim → heard (relay no longer in the claim for face check-ins); face submit (device-signed, AWS liveness + CompareFaces vs reference, 2 tries, mismatch → review), skip, relay-after-face endpoint (once, open only), 2-min face grace (`finalizeFaceGrace` on reads + sweep), evidence frame endpoint, same-day teacher decisions (audited, 409 after `lockAt`). Frontend: rebuilt student `CheckIn` (4-step tracker, lazy FaceCheck, retry/skip, relay after face, grace countdown, reload-safe), rebuilt teacher `LiveCheckin` (status header + stats + waves; live and `/teacher/sessions/:id` summary modes), new `CheckinStudents` (tabs, search, review cards with frame vs enrolled face, decide + note, side panel timeline), class page past check-ins open their summary, dashboard identity gate | Backend **41/41** (2 new decision tests); **33/33** Phase 9 end-to-end checks in-process with fake Rekognition (blocked join, heard, pass, mismatch, retry→review, relay once/after close, grace in/out, not_heard, absent, frames access, decisions + audit + 409s + lock, skip, student view); regressions Phase 5 33/33 + Phase 6 11/11 (sound-only path) + Phase 8 40/40; acoustic 21/21; CI build clean (main +3.9 kB, face chunk lazy). **UI not yet seen on a phone** | Owner phone test after merge |
-
-## Open items (from `plan.md`)
-
-- Can the teacher's phone sit in the centre, or must it stay at the front?
-- Confirm the college Google domain sign-in setup.
-- Pick the free host for Layer 2 after checking idle sleep and connection limits.
-- Confirm the assumptions in `plan.md` section 3.
-- Check the Google OAuth client (in Google Cloud Console) allows `http://localhost:3000` as an authorized JavaScript origin, and later add any deployed frontend origin. If the consent screen is in "Testing" status, add the accounts in "Test accounts" as test users.
-- `bcrypt` (native) was removed from `package.json`; if anything later genuinely needs native bcrypt, use `bcryptjs` (already present) or re-add and rebuild it.
-
-## Blockers
-
-- **Second phone + cross-phone testing still pending:** the first real-phone lab run is recorded (2026-10-17, see Measurements log); the lab needs no sign-in, and the tunnel URL changes on every run.
-- **Student test-account sign-in pending:** teacher sign-in with `2023ugcs059@nitjsr.ac.in` verified end-to-end on 2026-10-17 (Chrome on localhost). The two Gmail test accounts still need one sign-in each (separate Chrome profiles recommended, because one device key is stored per browser).
-- **Old MongoDB data dir `~/data/db` is partially root-owned (13 files):** cannot be opened by the current user. A fresh dev dir is in use instead. Only relevant if the old data matters — `sudo chown shivanshsingh:staff ~/data/db/*` would reclaim it.
-- **Resolved 2026-10-17 — Node version:** the old `>=22 <26` restriction came from an unused, broken native `bcrypt` dependency (nothing required it; both models use pure-JS `bcryptjs`). It was removed, the guard and `engines` widened to `>=22`, and the whole auth flow verified on Node 26.11.1. Plain `npm start` works now.
-
-## Local commands (verified 2026-10-17)
-
-```bash
-# 1. MongoDB (fresh dev data dir; keep running in its own terminal)
-~/mongodb-macos-aarch64--8.3.11/bin/mongod --dbpath ~/data/db-attendance-dev --logpath ~/data/log/mongod-attendance.log
-
-# 2. Backend (any Node >=22, including your default Node 26)
-cd attendance-backend && npm start                                      # http://localhost:4000
-
-# 3. Frontend (desktop)
-cd attendance-frontend && npm start                                     # http://localhost:3000
-
-# 4. Phone tests over HTTPS (cloudflared installed; chain verified 2026-10-17)
-cd attendance-frontend && npm run start:shared                          # binds 0.0.0.0 + same-origin API proxy
-cloudflared tunnel --url http://localhost:3000                          # new URL each run; open it on the phones
-
-# Tests
-cd attendance-backend && npm test                                       # 10/10 (roster + device binding + sign-in policy)
-cd attendance-frontend && npm run test:acoustic                         # FSK codec, 12 tests
-```
 | 2026-10-24 | Phase 9 verified on phones | Merged PR #12 and confirmed the deploy (Render face/relay routes live, new Vercel bundle); owner ran the phone test of the face check at check-in and confirmed it works end to end. **Phase 9 done.** Face similarity / liveness scores still not recorded — confirm the 80 / 90 / 75 pass marks during the class rehearsal | Owner phone test passed | Next: Phase 10 (reviews, queries, daily lock, retention) |
 | 2026-10-24 | Phase 10: reviews, overrides, queries, lock, retention (branch `aprajita/phase-10-reviews-lock`) | Owner answered 23 design questions (FEATURES.md Phase 10). Backend: `utils/reviewRules.js` (lock, query, decision/override rules), `lockTimeFor` (09:00 IST next morning), `settleSession` (close → face grace → lock, applied on every read/write) + `lockSession` (undecided review → absent `unresolved`, audited as the system, evidence deleted), `reviewController` (attendance reviews grouped by check-in, counts, decisions incl. present ↔ absent overrides with a required note, bulk present, student queries, recent check-ins), head count + spot-check, `auditlogs` before/after + 180-day TTL, ID card deleted on verify, `utils/mailer.js` (Brevo HTTP API, evening digest), `POST /jobs/run` (secret header; close sweep, re-time old check-ins, lock, retention, digest once per teacher per day) + GitHub Actions cron every 30 min + in-process 10 min fallback, `/health` `email`/`jobs`. Frontend: Reviews → Attendance tab (lazy; photo cards, query quote, select + sticky "Mark N present"), live page head count + lazy spot-check sheet, overrides in the student side panel, shared `recordParts`, `ui/Sheet` (bottom sheet / dialog), Reviews count in the nav + dashboard alert, student dashboard "Recent check-ins" + lazy query sheet, query on the check-in result screen | Backend **49/49** (8 new); **48/48** Phase 10 end-to-end checks in-process with fake Rekognition + fake mailer, run in a throwaway database because the jobs touch the whole DB; regressions Phase 5 33/33 + Phase 6 11/11 + Phase 8 40/40 + Phase 9 33/33 (one Phase 9 assertion updated: overriding a present record without a note is now 400 `note_required`, not 409); CI build clean (main +4.5 kB gz; attendance tab, spot-check and query sheet in lazy chunks). **UI not yet seen on a phone** | Owner: Brevo account + `BREVO_API_KEY`/`MAIL_FROM`/`APP_URL` on Render; `JOBS_SECRET` on Render + GitHub; phone test after merge |
 | 2026-10-24 | Phase 10 verified on phones | Merged PR #13; confirmed the deploys (Render `/health` → `email:true, jobs:true` after the owner added `JOBS_SECRET`, `APP_URL`, `BREVO_API_KEY`, `MAIL_FROM`; new Vercel bundle; `/jobs/run` 503 before the secret, manual "Scheduled jobs" workflow run green with a full summary). Owner ran the phone test: student query → review → teacher decided, head count warning, spot-check "Not here", override with a note, lock the next morning — all as expected. **Phase 10 done.** The evening digest email has not been seen yet | Owner phone test passed (email pending) | Next: Phase 11 (attendance records & reports) |
@@ -208,3 +113,5 @@ cd attendance-frontend && npm run test:acoustic                         # FSK co
 | 2026-10-25 | UI redesign round 3: teacher screens (PR #19, merged) | Live check-in gets a pinned dark live bar (timer, Present / roster, Review, Listening, Spot-check, Close; head count + waves in a Room check card). Teacher home gets a Today section (running check-in with countdown + Resume, today's finished check-ins with counts; reads the existing class sessions endpoint every 30 s). Classes: New class opens a sheet (same handler), stale Reviews card removed. Class page: Archive moved into Edit class (Restore shown when archived). Roster becomes cards on phones. Reviews identity / new-phone cards restyled. Visual only; every handler still wired (grep-counted) | Lint + CI build clean; Vercel deploy verified | Owner phone test; remaining UI round: onboarding (login, welcome, identity wizard) |
 | 2026-10-25 | UI fixes (PR #20) + redesign round 4: onboarding (PR #21), merged | #20 (owner bug report): sheets no longer re-focus on every render (keyboard closed after each character in New class / query sheets); student-home step numbering scoped (teacher "Before you start" showed numbers twice); check-in stage no longer forced to 100vh on phones (Join sat under the floating tab bar). #21: identity wizard with a "getting ready" path (phone → identity → ready), segmented progress, consent summary + full notice under "Full details" (text unchanged), ID-card framing guide + tips, selfie tips, larger result icons, full-width buttons on phones; new-phone intro; login copy updated to sound + face. Visual / wording only, handlers grep-checked | Lint + CI build clean; Vercel deploys verified | All four UI rounds done; owner phone test of onboarding (needs a reset identity or a fresh student) |
 | 2026-10-25 | Page-load latency (PR #22, merged) | Owner: pages load too slowly. Measured: Atlas is AWS Mumbai (ap-south-1); the Render server's own ping to Atlas is **232 ms** (`/health?db=1`), so Render runs far from the database (likely US); `/time` with no DB took 0.5–1.2 s from India; requests ran their queries one after another, settling every check-in in a list one query at a time; teacher home made one request per class; every page re-checked `/islogin`. Fixed in code: `settleSessions` (one query finds which check-ins need settling; same close / grace / lock logic), parallel lookups in `/reviews/counts`, `/me/attendance` in one pass, new `GET /sessions/today`, indexes (enrollments/records by email, sessions by teacher+status and class+date), `/health?db=1`, frontend login check reused for 60 s (cleared on logout / new sign-in) | In-process from India: `/reviews/counts` 928→~480 ms, class attendance 901→538, `/me/attendance` 853→~510, recent check-ins 804→~480, Today 3 calls→1 (~410 ms). Unit 54/54; Phase 5/6/8/9/10/11 33/11/40/33/48/25 all pass; CI build clean | Owner: move the Render service to Singapore (next to Mumbai Atlas) and stop free-tier sleep (Starter plan or a 10-min keep-alive ping) |
+| 2026-10-25 | Home sign-in guide, rename, home / login polish (PRs #23–#26, merged) | Home explains how teachers and students sign in; product name in website text is now **MarkMePresent** (config, URLs, env vars, AWS / Render names unchanged); home pill removed, footer "NIT Jamshedpur"; long login paragraph hidden on phones | CI builds clean; Vercel deploys verified | — |
+| 2026-10-25 | Privacy notice, Help, logo, unused endpoint (PR #27, merged) + docs refresh | `/privacy` (what is collected, why, retention, who sees it, processors, DPDP rights, contacts: class teacher then Department of CSE) and `/help` (FAQ) pages, linked from home, login, app menus and the enrollment consent step; new check + sound-wave logo (favicon, app icon, brand tile); removed `GET /reports/summary`. Docs: new `docs/setup.md` (setup, configuration, hosting, services, monitoring incl. AWS budget alert steps, troubleshooting); README, FEATURES.md and this file rewritten; deleted `plan.md`, `agent.md`, `resume-prompt.md`, `litellm_config.example.yaml`, root `.env.example` and the old `docs/` pages | Unit 54/54; Phase 11 check 24/24 (summary now 404); acoustic 21/21; CI build clean; live `/privacy`, `/help`, `logo.svg` verified | Owner: set the AWS budget alert (docs/setup.md §5) |

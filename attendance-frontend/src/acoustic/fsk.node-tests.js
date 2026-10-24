@@ -88,7 +88,7 @@ test("frame structure: marker, symbol count, tone grid and no repeated adjacent 
     }
   }
 
-  // Starting values from plan.md section 5.
+  // Original starting values of the signal design.
   assert.equal(codec.toneFrequency(0), 18000);
   assert.equal(codec.toneFrequency(16), 19760);
   assert.equal(codec.toneFrequency(1) - codec.toneFrequency(0), 110);

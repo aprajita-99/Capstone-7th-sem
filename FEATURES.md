@@ -1,12 +1,12 @@
-# Bio Attend — Features & implementation plan
+# MarkMePresent — Features & implementation plan
 
-> **Product:** Bio Attend — classroom attendance that proves *who* is present (face + liveness) and *where* they are (near-ultrasonic sound heard inside the room).
+> **Product:** MarkMePresent — classroom attendance that proves *who* is present (face + liveness) and *where* they are (near-ultrasonic sound heard inside the room).
 > **Surfaces:** one responsive website (React) used by teachers and students · one API (Express + MongoDB Atlas) · AWS Rekognition for face liveness + matching (hosted API).
 > **Audience:** anyone building the project. It says exactly what we build, in what order, and how each piece works — student side, teacher side, database, APIs, frontend, backend.
-> **Companion files:** `plan.md` (signal design + research decisions) · `progress.md` (build log + measurements) · `agent.md` (how to work: one slice at a time, test before moving on).
+> **Companion files:** `progress.md` (status, build log, measurements) · `docs/setup.md` (local setup, hosting, services, monitoring) · `README.md` (overview).
 > **Decisions locked (2026-10-18):** website only (no native app for now) · college Google sign-in · one bound device per student · ID card + live selfie at first sign-in · face + liveness + sound at every check-in · teacher reviews only unsure cases, same day.
 
-Send this file when someone asks: *what is Bio Attend, how does a class take attendance with it, what is built, and what do we build next?*
+Send this file when someone asks: *what is MarkMePresent, how does a class take attendance with it, what is built, and what do we build next?*
 
 ---
 
@@ -37,7 +37,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **10** | Reviews → Attendance tab (bulk present), present ↔ absent overrides, student queries, lock at 09:00 IST next morning, retention (evidence at lock, audit 180 days, ID card after verify), headcount + spot-check, evening digest email, scheduled jobs | **Shipped** (owner phone test passed 2026-10-24; digest email not yet seen) |
 | **11** | Class Attendance tab (% per student, phone list + desktop matrix, cell → record), class + per-check-in CSV (Excel-safe), student `/student/attendance` (%, miss / attend-more line, queries, past classes) | **Shipped** (owner test passed 2026-10-25) |
 | **12** | Neighbour verification (ID round) | **On hold** (owner, 2026-10-25: needs real-classroom measurements to set the threshold; resume at the class rehearsal) |
-| **13** | Pilot readiness (consent, privacy notice, monitoring, runbook) → live class pilot | **On hold** (owner, 2026-10-25: until the owner says so; still required before a real class pilot) |
+| **13** | Pilot readiness (consent, privacy notice, help, monitoring, runbook) → live class pilot | **Partly shipped** — privacy notice (`/privacy`) and help page (`/help`) live 2026-10-25; test-account removal, monitoring alerts, runbook and the pilot still on hold |
 | — | Native mobile app, iOS, multi-college | **Not in v1** |
 
 ### Build order — what we build next
@@ -105,7 +105,7 @@ Words we use everywhere:
 
 ## 1. What the software is
 
-Bio Attend replaces roll call. During the last minutes of class the teacher taps **Start check-in**. Students tap **Join**. Each student's phone **hears** a one-time key played as near-inaudible sound inside the room, then the student does a **3-second face check**. The server marks the student present only if:
+MarkMePresent replaces roll call. During the last minutes of class the teacher taps **Start check-in**. Students tap **Join**. Each student's phone **hears** a one-time key played as near-inaudible sound inside the room, then the student does a **3-second face check**. The server marks the student present only if:
 
 1. the key was really heard (correct, fresh, from this session),
 2. the request came from the student's **own bound phone** (signed with its secret key),
@@ -148,7 +148,7 @@ Bio Attend replaces roll call. During the last minutes of class the teacher taps
 
 | Surface | Who | Notes | Status |
 | --- | --- | --- | --- |
-| Website — public | Anyone | Home, Login, Privacy notice, Sound lab | **Shipped** (Privacy notice planned) |
+| Website — public | Anyone | Home, Login, Privacy notice, Help, Sound lab | **Shipped** |
 | Website — student | Students on phone (Android Chrome first) | Dashboard, enrollment, check-in, history | Partial |
 | Website — teacher | Teachers on laptop + phone | Dashboard, classes, live check-in, reviews, reports | Partial |
 | Face service | Backend only (never called by browsers) | Python | Planned |
@@ -321,7 +321,8 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | `/` · `/login` · `*` | Public | Home · Login · 404 | Shipped |
 | `/acoustic-lab` | Public | Sound lab | Shipped (fix in 4) |
 | `/acoustic-lab/link` | Public | Phone-to-phone link test | 4 |
-| `/privacy` | Public | Privacy & data notice | 13 |
+| `/privacy` | Public | Privacy notice (what is collected, why, who sees it, retention, DPDP rights, contacts) | 13 (shipped) |
+| `/help` | Public | Help: sign-in, phone, identity check, check-in and after-class problems; teacher tips | 13 (shipped) |
 | `/face-test` | Signed in | AWS liveness self-test + compare two checks | 7 |
 | `/student-dashboard` | Student | Status cards + open check-ins + recent check-ins with queries | Shipped (extended 5, 8, 10) |
 | `/student/enroll` | Student | Consent + ID card + live selfie wizard | 8 |
@@ -534,7 +535,7 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 **Done when.**
 - `npm run test:acoustic`: existing 12 pass + new tests for the alternate profile and for `receiver` on synthetic streamed audio.
 - Real phones (record in `progress.md`: model, Android, Chrome, profile, distance, sent, decoded): ≥ 95 % decoded at **1 m** and **6 m**; far-corner (~20 m) number recorded; 3–5 phones sending the same frame together tested.
-- **Band chosen** and written into `plan.md` (default profile updated if needed).
+- **Band chosen** and written into `progress.md` (measurements log; default profile updated if needed).
 
 ---
 
@@ -919,15 +920,15 @@ Every report first settles the class's check-ins (close → face grace → lock)
 
 **Rollout.** First **record-only** (store data, don't affect status) during rehearsals/pilot to choose the threshold; then enforce (`heardBy < threshold` → `review`).
 
-**Done when.** Rehearsal data shows inside phones heard by ≥ threshold neighbours and a phone outside the door is not; threshold recorded in `plan.md`.
+**Done when.** Rehearsal data shows inside phones heard by ≥ threshold neighbours and a phone outside the door is not; threshold recorded in `progress.md`.
 
 ---
 
 ### Phase 13 — Pilot readiness & launch
 
-**Status (2026-10-25).** On hold until the owner says so. Still required before any real class pilot (privacy notice + consent under the DPDP Act, test accounts removed).
+**Status (2026-10-25).** Privacy notice (`/privacy`) and help page (`/help`) shipped (PR #27; contacts: the class teacher, then the Department of CSE, NIT Jamshedpur). The rest — removing `TEST_STUDENT_EMAILS` and the domain override, monitoring alerts (AWS budget alert steps are in `docs/setup.md`), runbook, pilot — is on hold until the owner says so.
 
-**Goal.** Run Bio Attend in a real class (70–120 students) in **shadow mode** next to a normal roll call, and measure it.
+**Goal.** Run MarkMePresent in a real class (70–120 students) in **shadow mode** next to a normal roll call, and measure it.
 
 **Depends on.** All phases in the minimum pilot path.
 
@@ -977,6 +978,18 @@ Every report first settles the class's check-ins (close → face grace → lock)
 | Friend's phone runs two identities | Face check per identity; headcount + spot-check | 9, 10 |
 | Skilled accomplice with modified client inside the room | Not fully stopped on the web; headcount + spot-check make it visible | 10 |
 
+### Known risks and honest limits
+
+| Risk | Effect | Mitigation |
+| --- | --- | --- |
+| Phones that cannot play or hear 16.5–19.8 kHz | Those students fail the sound step | Per-model checks in the sound lab; mid band by default; relay from nearby phones; review, never silently absent |
+| Many phones sounding in a hard-walled room | Garbled frames | Identical signals per wave, long symbols, repeat combining; measure in the class rehearsal |
+| Key forwarded to someone outside | Remote student obtains a key | Keys live seconds; neighbour verification (Phase 12, on hold) |
+| Student just outside the door (**confirmed 2026-10-23, door closed**) | Can hear the key and be marked present | Teacher phone away from the door, relay so the teacher can play quieter, head count + spot-check; Phase 12 to close it |
+| Screen locks / tab in the background | Audio pauses | Wake lock, keep the page open |
+| Free hosting sleeps (Render free tier) | First request after idle takes 30–60 s | Keep-alive ping or a paid instance (`docs/setup.md`) |
+| Accomplice in the room with a modified client | Can get through | Not fully stopped on the web; made visible by head count, spot-check and face frames |
+
 ## 8. Testing strategy
 
 | Level | What | How |
@@ -1009,7 +1022,7 @@ Every report first settles the class's check-ins (close → face grace → lock)
 
 ## 11. One-line summary
 
-Bio Attend marks a student present only when **their own bound phone** hears a **seconds-old key played as sound inside the room** and **their live face matches their ID-verified reference** — built in 14 phases, each standing on the ones before it, with the server deciding everything and the teacher resolving only the unsure cases before the next-morning lock.
+MarkMePresent marks a student present only when **their own bound phone** hears a **seconds-old key played as sound inside the room** and **their live face matches their ID-verified reference** — built in 14 phases, each standing on the ones before it, with the server deciding everything and the teacher resolving only the unsure cases before the next-morning lock.
 
 ---
 
