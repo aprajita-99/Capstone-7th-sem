@@ -54,7 +54,7 @@ const runReceiver = (stream, profile) => {
   return found;
 };
 
-test("profiles: high is the plan.md default, mid sits 1.5 kHz lower with the same layout", () => {
+test("profiles: high is the original default, mid sits 1.5 kHz lower with the same layout", () => {
   assert.equal(fsk.toneFrequency(0), 18000);
   assert.equal(fsk.toneFrequency(0, fsk.PROFILES.mid), 16500);
   assert.equal(fsk.toneFrequency(16, fsk.PROFILES.mid), 18260);
