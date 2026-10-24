@@ -10,7 +10,8 @@ const attendanceSessionSchema = new mongoose.Schema(
     startedAt: { type: Date, required: true },
     closesAt: { type: Date, required: true },
     closedAt: Date,
-    lockAt: { type: Date, required: true }, // end of the local day; locking itself arrives in Phase 10
+    lockAt: { type: Date, required: true }, // 09:00 local the next morning (Phase 10); then status "locked"
+    lockedAt: Date,
     settings: {
       windowMin: Number,
       keyLifetimeSec: Number,
@@ -18,8 +19,10 @@ const attendanceSessionSchema = new mongoose.Schema(
       profile: { type: String, enum: ["high", "mid"] },
       faceRequired: { type: Boolean, default: true }, // every check-in includes the face check (Phase 9)
     },
+    headcount: { count: Number, at: Date }, // teacher's head count (Phase 10)
     stats: {
       joined: { type: Number, default: 0 },
+      heard: { type: Number, default: 0 },
       present: { type: Number, default: 0 },
       review: { type: Number, default: 0 },
       absent: { type: Number, default: 0 },

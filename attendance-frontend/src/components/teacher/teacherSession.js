@@ -4,18 +4,24 @@ import axios from "axios";
 import SERVER_URL from "../../config/api";
 import { useToast } from "../../ui/Toast";
 
-export const teacherLinks = (active) => [
+// counts: GET /reviews/counts → the Reviews link shows the number of open cases.
+export const teacherLinks = (active, counts) => [
   { to: "/teacher-dashboard", label: "Dashboard", active: active === "dashboard" },
   { to: "/teacher/classes", label: "Classes & rosters", active: active === "classes" },
-  { to: "/teacher/reviews", label: "Reviews", active: active === "reviews" },
+  { to: "/teacher/reviews", label: "Reviews", active: active === "reviews", count: counts?.total || 0 },
   { to: "/acoustic-lab", label: "Phone audio test" },
 ];
 
-// Loads the signed-in teacher; students go to their dashboard, anyone else to login.
+// Open review counts for the nav badge (best-effort; the page works without them).
+export const fetchReviewCounts = () =>
+  axios.get(`${SERVER_URL}/reviews/counts`, { withCredentials: true }).then((response) => response.data.counts);
+
+// Loads the signed-in teacher (+ open review counts); students go to their dashboard, anyone else to login.
 export const useTeacherSession = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const [user, setUser] = useState(null);
+  const [counts, setCounts] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +34,11 @@ export const useTeacherSession = () => {
           return;
         }
         setUser(response.data.user);
+        fetchReviewCounts()
+          .then((value) => {
+            if (!cancelled) setCounts(value);
+          })
+          .catch(() => {});
       })
       .catch(() => {
         if (!cancelled) navigate("/login");
@@ -47,5 +58,7 @@ export const useTeacherSession = () => {
     toast("Signed out. See you next class!", "success");
   }, [navigate, toast]);
 
-  return { user, logout };
+  const refreshCounts = useCallback(() => fetchReviewCounts().then(setCounts).catch(() => {}), []);
+
+  return { user, logout, counts, refreshCounts };
 };

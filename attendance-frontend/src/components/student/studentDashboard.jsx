@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
@@ -10,8 +10,66 @@ import EmptyState from "../../ui/EmptyState";
 import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { roomLabel } from "../../utils/rooms";
+import { shortWhen, untilLabel } from "../../utils/lockTime";
+import { decisionText, explain, queryReasonLabel } from "./attendanceText";
 import "./studentDashboard.css";
 import "../checkin.css";
+
+const QuerySheet = lazy(() => import("./QuerySheet"));
+
+const RECENT_BADGE = {
+    present: { variant: "success", label: "Present" },
+    review: { variant: "warning", label: "In review" },
+    absent: { variant: "danger", label: "Absent" },
+    joined: { variant: "info", label: "Checking in" },
+    heard: { variant: "info", label: "Checking in" },
+};
+
+const classLabel = (courseClass) => (courseClass ? `${courseClass.courseCode}${courseClass.section ? ` · ${courseClass.section}` : ""}` : "Class");
+
+// One line under a recent check-in: the decision, the query state, or why it is in review.
+const recentDetail = (checkin) => {
+    const decided = decisionText(checkin);
+    if (decided) return decided;
+    if (checkin.query) return `Query sent (${queryReasonLabel(checkin.query.reason).toLowerCase()}) — waiting for your teacher.`;
+    if (checkin.status === "review") return `Your teacher will check it: ${explain(checkin.reasons) || "the check was not complete"}.`;
+    if (checkin.status === "absent") return explain(checkin.reasons) ? `Marked absent: ${explain(checkin.reasons)}.` : "Marked absent.";
+    return null;
+};
+
+// Check-ins that are not locked yet (Phase 10): status, teacher decision, and the query button.
+const RecentCheckins = ({ checkins, onQuery, onOpen }) => (
+    <Card
+        className="student-classes recent-checkins"
+        title="Recent check-ins"
+        subtitle="If something went wrong, raise a query before the check-in locks at 09:00 the next morning."
+    >
+        <ul className="recent-list">
+            {checkins.map((checkin) => {
+                const badge = RECENT_BADGE[checkin.status] || RECENT_BADGE.absent;
+                const detail = recentDetail(checkin);
+                return (
+                    <li key={checkin.recordId} className={`recent-row recent-row--${checkin.status}`}>
+                        <button type="button" className="recent-row__main" onClick={() => onOpen(checkin)}>
+                            <span className="recent-row__class">
+                                <strong>{classLabel(checkin.class)}</strong>
+                                <span className="ui-muted">{shortWhen(checkin.startedAt)}</span>
+                            </span>
+                            <Badge variant={badge.variant} dot>{badge.label}</Badge>
+                        </button>
+                        {detail && <p className="recent-row__detail">{detail}</p>}
+                        {checkin.canQuery && (
+                            <div className="recent-row__action">
+                                <Button variant="soft" size="sm" onClick={() => onQuery(checkin)}>Raise a query</Button>
+                                <span className="ui-muted">{untilLabel(checkin.lockAt)}</span>
+                            </div>
+                        )}
+                    </li>
+                );
+            })}
+        </ul>
+    </Card>
+);
 
 const STATUS_VIEW = {
     approved: {
@@ -80,6 +138,13 @@ const StudentDashboard = () => {
     const [identity, setIdentity] = useState(null);
     const [openCheckins, setOpenCheckins] = useState([]);
     const [checkinIdentityOk, setCheckinIdentityOk] = useState(true);
+    const [recent, setRecent] = useState([]);
+    const [querying, setQuerying] = useState(null);
+
+    const loadRecent = useCallback(
+        () => axios.get(`${SERVER_URL}/me/recent-checkins`, { withCredentials: true }).then((response) => setRecent(response.data.checkins)).catch(() => {}),
+        []
+    );
 
     useEffect(() => {
         const fetchUser = async () => {
@@ -124,6 +189,20 @@ const StudentDashboard = () => {
         const timer = window.setInterval(load, 10000);
         return () => window.clearInterval(timer);
     }, [user]);
+
+    // Recent check-ins (decisions, queries), refreshed every 30 seconds.
+    useEffect(() => {
+        if (!user) return undefined;
+        loadRecent();
+        const timer = window.setInterval(loadRecent, 30000);
+        return () => window.clearInterval(timer);
+    }, [user, loadRecent]);
+
+    const queryDone = () => {
+        setQuerying(null);
+        toast("Query sent. Your teacher will see it on their review list.", "success");
+        loadRecent();
+    };
 
     const handleLogout = useCallback(async () => {
         try {
@@ -200,23 +279,27 @@ const StudentDashboard = () => {
                     </div>
                 </Card>
 
-                <Card title="When your teacher starts a check-in" subtitle="Nothing to tap — the app handles it.">
+                <Card title="When your teacher starts a check-in" subtitle="About 30–60 seconds, from this phone.">
                     <ol className="checkin-steps">
                         <li>
-                            <strong>Keep this page open.</strong>
-                            The app listens for the one-time key tones played in the room.
+                            <strong>Tap Join.</strong>
+                            A “Check-in open” card appears at the top of this page.
                         </li>
                         <li>
-                            <strong>Wait a few seconds.</strong>
-                            Your phone hears the key through its microphone.
+                            <strong>Your phone hears the key.</strong>
+                            Keep it out, face-up; it listens for the near-silent tones played in the room.
                         </li>
                         <li>
-                            <strong>You’re marked present.</strong>
-                            The server records that this device heard the key.
+                            <strong>Quick face check.</strong>
+                            Follow the oval on screen. Then you’re marked present.
                         </li>
                     </ol>
                 </Card>
             </div>
+
+            {recent.length > 0 && (
+                <RecentCheckins checkins={recent} onQuery={setQuerying} onOpen={(checkin) => navigate(`/student/check-in/${checkin.sessionId}`)} />
+            )}
 
             {identity && <IdentityCard identity={identity} onStart={() => navigate("/student/enroll")} />}
 
@@ -247,6 +330,18 @@ const StudentDashboard = () => {
                     </ul>
                 )}
             </Card>
+
+            {querying && (
+                <Suspense fallback={null}>
+                    <QuerySheet
+                        recordId={querying.recordId}
+                        classLabel={classLabel(querying.class)}
+                        lockAt={querying.lockAt}
+                        onDone={queryDone}
+                        onClose={() => setQuerying(null)}
+                    />
+                </Suspense>
+            )}
         </AppShell>
     );
 };

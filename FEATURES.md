@@ -34,7 +34,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **7** | Face service via **AWS Rekognition** (Face Liveness + CompareFaces, Mumbai region): `faceClient`, user-bound single-use `facesessions`, shared `FaceCheck` component, `/face-test` page | **Shipped** (liveness + compare verified on a phone 2026-10-23) |
 | **8** | Identity enrollment: consent → ID card (face + text + roll OCR) → live selfie → auto-verify or teacher review; Reviews page; new phone approved by face | **Shipped** (owner phone test passed 2026-10-23) |
 | **9** | Face + liveness at every check-in (hear → face → relay), 2 tries, 2-min grace, review cases decided same day from the live/summary page | **Shipped** (owner phone test passed 2026-10-24) |
-| **10** | Reviews, overrides, same-day queries, daily lock, data retention | **Planned** |
+| **10** | Reviews → Attendance tab (bulk present), present ↔ absent overrides, student queries, lock at 09:00 IST next morning, retention (evidence at lock, audit 180 days, ID card after verify), headcount + spot-check, evening digest email, scheduled jobs | **Built** (49/49 backend tests, 48/48 end-to-end checks; phone test pending) |
 | **11** | Attendance records, reports, CSV export, student history | **Planned** |
 | **12** | Neighbour verification (ID round) | **Planned** |
 | **13** | Pilot readiness (consent, privacy notice, monitoring, runbook) → live class pilot | **Planned** |
@@ -56,7 +56,7 @@ Every phase depends **only on phases above it**. Finish and test a phase before 
 | **7** | Face service | AWS Rekognition integration: liveness + match | Needed by 8 and 9 |
 | **8** | Identity enrollment | ID card + selfie at first sign-in | Reference face for every check-in |
 | **9** | Face at check-in | Random liveness challenge + match | Proves the right person holds the phone |
-| **10** | Reviews & lock | Unsure cases, overrides, queries, midnight lock, deletion | Makes it fair and compliant |
+| **10** | Reviews & lock | Unsure cases, overrides, queries, lock at 09:00 next morning, deletion | Makes it fair and compliant |
 | **11** | Records & reports | Attendance matrix, %, CSV, student history | Useful output |
 | **12** | Neighbour verification | Phones confirm they heard each other | Stops key forwarding to outside phones |
 | **13** | Pilot | Consent, privacy, monitoring, runbook, live class | Delivery |
@@ -96,8 +96,10 @@ Words we use everywhere:
 | **Frame** | One key turned into 11 tones (~1.3 s) |
 | **Wave** | Wave 0 = teacher's phone plays; wave 1 = phones that heard wave 0 re-play; and so on |
 | **Liveness challenge** | Random instructions ("turn left, then blink") proving a live face |
-| **Review** | A record the server could not decide; the teacher decides, same day |
-| **Lock** | At midnight (IST) a session's records become final |
+| **Review** | A record the server could not decide; the teacher decides before the lock (09:00 the next morning) |
+| **Lock** | At 09:00 IST the morning after a check-in, its records become final (Phase 10) |
+| **Query** | A student's one request, per record, for the teacher to look again (absent or in-review records, until the lock) |
+| **Override** | A teacher changing a present record to absent or the reverse, with a required note (audited) |
 
 ---
 
@@ -115,7 +117,7 @@ Bio Attend replaces roll call. During the last minutes of class the teacher taps
 | Is this their own phone? | Device binding + signed challenge |
 | Is the phone inside the room? | Sound key (can't travel through walls or over the internet) |
 | Is the right person holding it? | Face match + liveness |
-| What if the system is unsure? | Teacher review, same day |
+| What if the system is unsure? | Teacher review before the next-morning lock; the student can raise a query |
 
 ### 1.1 Architecture
 
@@ -174,7 +176,9 @@ Bio Attend replaces roll call. During the last minutes of class the teacher taps
 | Join a check-in | ✓ (own classes) | — |
 | Enroll ID + face | ✓ (self) | — |
 | Approve devices / enrollments / attendance reviews | — | ✓ (own students) |
-| Override a record | — | ✓ review records only, same day |
+| Decide a review / answer a query | — | ✓ until the lock (09:00 next morning) |
+| Override a record (present ↔ absent) | — | ✓ until the lock, note required, audited |
+| Raise a query | ✓ own absent / in-review record, once, until the lock | — |
 | See attendance | Own only | Own classes |
 
 ### 2.3 Classrooms
@@ -218,7 +222,7 @@ Classes are held in a fixed set of 36 rooms on three floors. A room is just its 
 3. Live panel: present count by wave, list of names, review count, thumbnails.
 4. Optional: types the **headcount**; the panel warns if *present > heads*. Optional: **Spot-check** shows 5 random present students to call out.
 5. **Close** (or auto-close when the window ends). Students who never joined become **absent**.
-6. Same day: resolves the **Reviews** list.
+6. Before 09:00 the next morning: resolves the **Reviews → Attendance** list (an evening email at 20:00 lists what is still open).
 
 ### 3.4 Every class — student (≈30–60 seconds)
 1. Dashboard shows **"Check-in open for CS301"** → tap **Join** (browsers need a tap to use the mic). Students without a verified identity are sent to the identity wizard first.
@@ -228,8 +232,8 @@ Classes are held in a fixed set of 36 rooms on three floors. A room is just its 
 5. Result: **Present ✅**, or **In review ⚠️** (with reason), or **Absent ❌**.
 
 ### 3.5 After class
-- Student may raise **one query per record** the same day ("my phone could not hear").
-- At **23:59 IST** the session **locks**: no more changes. Check-in photos, IP and location details are **deleted**; the reference face and ID stay for the term.
+- Student may raise **one query per absent / in-review record** until the lock ("my phone could not hear"); an absent record moves into review.
+- At **09:00 IST the next morning** the check-in **locks**: no more changes; review cases nobody decided become **absent** (`unresolved`). Check-in photos, IP and browser details are **deleted**. The reference face stays while the student is on a roster; the ID card photo is deleted as soon as identity is verified. Audit logs and query text are kept 180 days.
 - Teacher exports CSV anytime; student sees their attendance %.
 
 ### 3.6 Hearing the teacher in bad conditions (owner requirement, 2026-10-22)
@@ -277,10 +281,10 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | `attendancesessions` | One check-in window | 5 |
 | `wavekeys` | Keys per session per wave (rotating) | 5 (+6) |
 | `attendancerecords` | One row per student per session (final result) | 5 (+9, 10) |
-| `checkinevidence` | IP, user agent, optional GPS, check-in frames — **TTL 24 h** | 5 (+9) |
+| `checkinevidence` | IP, user agent, check-in frames — **deleted at the lock** (TTL 48 h backstop) | 5 (+9, 10) |
 | `identitymedia` | ID card image + reference face image (binary, size-capped) | 8 |
 | `facesessions` | AWS liveness sessions bound to a student + purpose (TTL, single use) | 7–9 |
-| `auditlogs` | Overrides, approvals, rejections | 10 |
+| `auditlogs` | Decisions, overrides, queries, lock actions, approvals, digest marks — `before`/`after`, **TTL 180 days** | 8 (+10) |
 | `neighbourreports` | Which IDs each phone heard in the ID round | 12 |
 
 > Images are stored as compressed JPEG binaries inside MongoDB documents (ID card ≤ 600 KB, reference face ≤ 200 KB, each check-in frame ≤ 60 KB). No extra storage service needed; Atlas free tier (512 MB) holds a pilot easily. Check-in frames live in `checkinevidence`, which a TTL index deletes automatically.
@@ -301,7 +305,8 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 | Enrollment (student) | `GET /enrollment/status` · `POST /enrollment/consent` · `POST /enrollment/id-card` · `POST /face/liveness-session` · `POST /enrollment/selfie` · `POST /device-bindings/face-verify` | 8 |
 | Enrollment (teacher) | `GET /enrollment-reviews` · `POST /enrollment-reviews/:userId` · `POST /enrollment-reviews/:userId/reset-attempts` · `POST /enrollment-reviews/:userId/force-reenroll` · `GET /classes/:classId/enrollment-status` | 8 |
 | Face at check-in | `POST /face/liveness-session` (`checkin`) · `POST /sessions/:sessionId/face` · `POST /sessions/:sessionId/face/skip` · `POST /sessions/:sessionId/relay` · `GET /evidence/:recordId/frame` · `POST /records/:recordId/decision` | 9 |
-| Reviews & queries | `GET /reviews` · `POST /records/:recordId/decision` · `POST /records/:recordId/query` | 10 |
+| Reviews & queries | `GET /reviews?type=attendance` · `GET /reviews/counts` · `POST /records/:recordId/decision` (review, query, override) · `POST /records/bulk-decision` · `POST /records/:recordId/query` · `GET /me/recent-checkins` · `PATCH /sessions/:sessionId/headcount` · `GET /sessions/:sessionId/spot-check` | 10 |
+| Jobs | `POST /jobs/run` (header `x-jobs-secret`; GitHub Actions cron every 30 min) | 10 |
 | Media (teacher) | `GET /media/:mediaId` · `GET /evidence/:recordId/frames/:index` | 8 (+9) |
 | Reports | `GET /classes/:classId/attendance` · `GET /classes/:classId/attendance.csv` · `GET /sessions/:sessionId/export.csv` · `GET /me/attendance` | 11 |
 | Neighbour round | `GET /sessions/:sessionId/id-round` · `POST /sessions/:sessionId/neighbour-reports` | 12 |
@@ -318,7 +323,7 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | `/acoustic-lab/link` | Public | Phone-to-phone link test | 4 |
 | `/privacy` | Public | Privacy & data notice | 13 |
 | `/face-test` | Signed in | AWS liveness self-test + compare two checks | 7 |
-| `/student-dashboard` | Student | Status cards + open check-ins | Shipped (extended 5, 8) |
+| `/student-dashboard` | Student | Status cards + open check-ins + recent check-ins with queries | Shipped (extended 5, 8, 10) |
 | `/student/enroll` | Student | Consent + ID card + live selfie wizard | 8 |
 | `/student/verify-device` | Student | New phone: approve with a face check | 8 |
 | `/student/check-in/:sessionId` | Student | Listen → relay → face → result | 5 (+6, 9) |
@@ -326,9 +331,9 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | `/teacher-dashboard` | Teacher | Stats, recent classes | Shipped (extended 11) |
 | `/teacher/classes` | Teacher | Classes, rooms, rosters | Shipped (restyle 2) |
 | `/teacher/classes/:classId` | Teacher | Class detail: roster, sessions, attendance | 2 (+11) |
-| `/teacher/classes/:classId/live` | Teacher | Live check-in: speaker check, playing key, stats + waves, tabs/search, review cards with frames + decisions | 5 (+6, 9, 10) |
-| `/teacher/sessions/:sessionId` | Teacher | Summary of a past check-in (same list; decisions until midnight) | 9 |
-| `/teacher/reviews` | Teacher | Identity checks · new phones (attendance reviews in Phase 10) | 8 (+10) |
+| `/teacher/classes/:classId/live` | Teacher | Live check-in: speaker check, playing key, stats + waves, head count, spot-check sheet, tabs/search, review cards with frames + decisions, overrides in the side panel | 5 (+6, 9, 10) |
+| `/teacher/sessions/:sessionId` | Teacher | Summary of a past check-in (same list; decisions and overrides until the lock) | 9 (+10) |
+| `/teacher/reviews` | Teacher | Attendance (by check-in, bulk present) · identity checks · new phones; `?tab=` opens a tab | 8 (+10) |
 
 ### 4.4 Configuration
 
@@ -340,7 +345,10 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | `TIMEZONE` (default `Asia/Kolkata`) | backend | Day boundary for lock / same-day rules | 5 |
 | `CHECKIN_WINDOW_MIN` (6), `KEY_LIFETIME_SEC` (15), `MAX_WAVES` (5), `CHECKIN_PROFILE` (`mid`) | backend | Session defaults (band = mid until the band decision) | 5–6 |
 | `AWS_REGION` (`ap-south-1`), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `LIVENESS_THRESHOLD` (80), `MATCH_THRESHOLD` (90), `REVIEW_THRESHOLD` (75) | backend | AWS Rekognition | 7 |
-| `EVIDENCE_TTL_HOURS` (24) | backend | Retention | 5 |
+| `EVIDENCE_TTL_HOURS` (48) | backend | Backstop TTL for check-in evidence (normally deleted at the lock) | 5 (+10) |
+| `LOCK_HOUR` (9), `AUDIT_RETENTION_DAYS` (180), `DIGEST_HOUR` (20) | backend | Lock time next morning, audit/query retention, evening digest hour (local) | 10 |
+| `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, `APP_URL` | backend | Teacher digest email via the Brevo HTTP API (skipped when unset) | 10 |
+| `JOBS_SECRET` | backend + GitHub Actions secret | Protects `POST /jobs/run` | 10 |
 | `REACT_APP_GOOGLE_CLIENT_ID`, `REACT_APP_API_URL`, `REACT_APP_GOOGLE_HOSTED_DOMAIN` | frontend | Existing | 1 |
 | `REACT_APP_AWS_REGION`, `REACT_APP_AWS_IDENTITY_POOL_ID` | frontend | Cognito guest credentials for the liveness stream | 7 |
 
@@ -777,36 +785,59 @@ Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOL
 
 ### Phase 10 — Reviews, overrides, queries, lock, retention
 
-**Goal.** Unsure cases are resolved fairly by the teacher on the same day; records lock at midnight; personal evidence is deleted.
+**Goal.** Unsure cases are resolved fairly by the teacher before the check-in locks; students can ask for a second look; records then become final and personal evidence is deleted.
 
-**Depends on.** Phases 5 (and uses reasons produced by 3, 8, 9 when present).
+**Depends on.** Phases 5, 8, 9.
+
+**Owner decisions (2026-10-24).**
+
+| Topic | Decision |
+| --- | --- |
+| Review tab | **Reviews → Attendance**: every `review` record of the teacher's check-ins that are not locked, grouped by check-in, oldest first |
+| Queries | Students raise **one query per record** on **absent** records (→ review, reason `student_query`) or **review** records (explanation attached). Not on present records or after the teacher decided. Reason (`cant_hear` / `camera_failed` / `was_present` / `other`) + up to 300 characters, no uploads |
+| Query deadline | Until the lock. A query is not device-signed: it only sends the case to the teacher and never grants attendance |
+| Lock | **09:00 IST the morning after** the check-in (`LOCK_HOUR`). Applied lazily on every read/write, plus the scheduled job |
+| Unresolved at lock | Absent, reason `unresolved` added, audited as the system |
+| Overrides | Until the lock the teacher may change any **present ↔ absent** record (open or closed check-in) with a **required note**; audited with before/after; the student sees "Changed by your teacher", never the note |
+| After lock | Fully frozen: decisions, overrides, queries, head count → 409 `locked` |
+| Retention | Check-in evidence (frames, IP, browser) deleted at the lock (TTL 48 h backstop); audit logs + query text 180 days; ID card photo deleted once identity is verified (reference face kept) |
+| Query answer | Decision only (present / absent) |
+| Bulk | Checkboxes + sticky "Mark N present" bar; no bulk absent |
+| Notifications | In-app (Reviews nav count, dashboard counts and alert, student "Recent check-ins") + **one email: teacher evening digest ~20:00 IST** when cases are open (Brevo HTTP API; skipped when not configured) |
+| Scheduler | GitHub Actions cron every 30 min → `POST /jobs/run` (`x-jobs-secret`); in-process 10 min fallback (a free Render instance sleeps) |
+| Live tools | Head count (warns when present > heads) + Spot-check 5 ("Not here" = override to absent) |
 
 **What users get.**
-- *Teacher:* **Reviews → Attendance** tab: each review with reason, frames, reference face, wave, device status → **Mark present / Mark absent** (+ note). **Headcount** box and **Spot-check 5** on the live page.
-- *Student:* "In review" status with reason; **Raise query** (one per record, same day); sees the final decision.
+- *Teacher:* Reviews → **Attendance** tab (cards: check-in frame vs enrolled face, reasons, the student's query, Mark present / Mark absent…; select + bulk present; "Locks …" chip per check-in); live page **Head count** and **Spot-check 5** sheet; side panel **Change to present / absent** with a note; dashboard alert "N attendance reviews waiting"; evening digest email.
+- *Student:* check-in result screen and dashboard **Recent check-ins** card: status, "Decided / Changed by your teacher", "Not reviewed in time", **Raise a query** (bottom sheet) until the lock.
 
 **Database.**
-- `attendancerecords.decision{status, by, at, note}`, `query{text, raisedAt, answeredAt}`.
-- `attendancesessions.headcount`, `locked` via `status:"locked"`.
-- **New `auditlogs`:** `actor`, `action (override|approve_device|reject_device|approve_enrollment|reject_enrollment|close_session)`, `target{type,id}`, `before`, `after`, `at`.
+- `attendancerecords.decision{status, kind (review|query|override|lock), from, by, at, note}`, `query{reason, text, raisedAt, fromStatus}`; reasons add `student_query`, `unresolved`.
+- `attendancesessions.headcount{count, at}`, `lockedAt`, `status:"locked"`; `lockAt` = 09:00 local next morning (older check-ins re-timed by the job).
+- `auditlogs.before`, `after`, `expiresAt` (TTL, 180 days).
 
 **API.**
 
 | Method & path | Who | Request → Response |
 | --- | --- | --- |
-| `GET /reviews?type=attendance` | Teacher | → open review records across own classes (today) |
-| `POST /records/:recordId/decision` | Teacher (owner) | `{status: present|absent, note?}` → `{record}` — **only if record is `review` and session not locked** |
-| `POST /records/:recordId/query` | Student (own record) | `{text}` → `{record}` — same day, once; moves an `absent` record into `review` |
-| `PATCH /sessions/:sessionId/headcount` | Teacher (owner) | `{headcount}` → `{session, warning?}` (warning when present > headcount) |
-| `GET /sessions/:sessionId/spot-check?n=5` | Teacher (owner) | → 5 random present students |
+| `GET /reviews?type=attendance` | Teacher | → `{groups:[{session, class, records}]}` (unlocked check-ins with review cases) |
+| `GET /reviews/counts` | Teacher | → `{counts:{attendance, queries, enrollments, devices, total}}` |
+| `POST /records/:recordId/decision` | Teacher (owner) | `{status, note?}` → review / query decision, or override (present ↔ absent, note required); 409 `in_progress` / `same_status` / `locked`, 400 `note_required` |
+| `POST /records/bulk-decision` | Teacher (owner) | `{recordIds[≤100], status:"present"}` → `{updated, skipped}` (review records only) |
+| `POST /records/:recordId/query` | Student (own record) | `{reason, text?}` → `{record}`; 409 `already_queried` / `not_queryable` / `teacher_decided` / `locked` |
+| `GET /me/recent-checkins` | Student | → records of unlocked check-ins with `decision{status, kind}`, `query`, `canQuery`, `lockAt` |
+| `GET /sessions/:sessionId/me` | Student | now also `record._id`, `query`, `canQuery`, `session.lockAt`; the teacher's note is never sent |
+| `PATCH /sessions/:sessionId/headcount` | Teacher (owner) | `{headcount 0–500}` → `{session, present, warning}` |
+| `GET /sessions/:sessionId/spot-check?n=5` | Teacher (owner) | → up to `n` (1–10) random present students |
+| `POST /jobs/run` | Scheduler (`x-jobs-secret`) | → `{summary}`: close sweep, re-time, lock, retention, digest; 503 without `JOBS_SECRET`, 401 wrong secret |
 
-**Backend work.** `controllers/reviewController.js`; lock sweep in `index.js` every 10 min: sessions with `lockAt < now` → `locked`; any remaining `review` → `absent` with reason `unresolved` (configurable). TTL indexes already delete evidence/challenges; sweep also removes `gps`/IP fields if TTL not yet run.
+**Backend.** `utils/reviewRules.js` (pure: `isLocked`, `canQuery`, `canDecide`, `lockOutcome`, `cleanQuery`), `utils/clock.js` `lockTimeFor`/`localDay`/`localHour`, `utils/mailer.js` (Brevo, `buildDigest`, `setSenderForTests`), `controllers/reviewController.js`, `controllers/jobsController.js` + `routes/jobsRoute.js`, `sessionController` (`settleSession` = close → face grace → lock; `lockSession`; `recordViews`; head count; spot-check), enrollment deletes the ID card on verify, `/health` reports `email` + `jobs`, `.github/workflows/jobs.yml`.
 
-**Frontend work.** `Reviews.jsx` third tab; review detail drawer with images; `LiveCheckin.jsx` headcount + spot-check; student query form on `CheckIn.jsx` result and `/student/attendance`.
+**Frontend.** `teacher/AttendanceReviews.jsx` (lazy), `teacher/SpotCheckSheet.jsx` (lazy), `teacher/recordParts.jsx` (shared face pair / reasons / query quote), `Reviews.jsx` Attendance tab + `?tab=`, `LiveCheckin.jsx` head count + spot-check, `CheckinStudents.jsx` overrides, `student/QuerySheet.jsx` (lazy), `student/attendanceText.js`, `studentDashboard.jsx` Recent check-ins, `CheckIn.jsx` query on the result screen, `ui/Sheet.jsx` (bottom sheet / dialog), nav count on Reviews, `utils/lockTime.js`.
 
-**Rules & edge cases.** Teacher can change **only** review records (`plan.md` rule); all changes audited; after lock nothing changes.
+**Done when.** Unit tests for lock time, review/query/override rules, digest escaping, mailer skip, jobs secret (49/49); in-process end-to-end checks in a throwaway database with fake Rekognition + fake mailer (48/48); Phase 5/6/8/9 regressions; owner phone test (query → review → teacher decides; spot-check "Not here"; next morning after 09:00 the check-in shows locked).
 
-**Done when.** Unit tests: same-day and review-only rules, lock sweep, query once-per-record. Manual: query → review → teacher decides → lock next day.
+**Owner setup.** Brevo account + verified sender → `BREVO_API_KEY`, `MAIL_FROM`, `APP_URL` on Render; `JOBS_SECRET` on Render and as a GitHub Actions secret.
 
 ---
 
@@ -818,7 +849,7 @@ Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOL
 
 **What users get.**
 - *Teacher:* class detail **Attendance** tab: matrix (students × sessions, ✓ / ✗ / ⚠), attendance % per student, low-attendance highlight; **Export CSV** per session and per class; dashboard stats (sessions this week, average attendance, open reviews).
-- *Student:* `/student/attendance`: per class %, list of sessions with status, query buttons (same day).
+- *Student:* `/student/attendance`: per class %, list of sessions with status, query buttons (until the lock).
 
 **Database.** No new collections; add index `{class:1, student:1}` on `attendancerecords`.
 
@@ -882,7 +913,7 @@ Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOL
 **API.** `GET /consent/current` → `{version, text}` · `POST /me/consent {version}`.
 
 **Work.**
-- `/privacy` page: what is collected (Google profile, device public key, ID card, reference face, check-in frames, IP, optional GPS), why, how long (frames/IP/GPS 24 h; ID + reference face for the term), who can see it, how to opt out (manual check by teacher), how to raise a query. Required under India's DPDP Act 2023.
+- `/privacy` page: what is collected (Google profile, device public key, ID card, reference face, check-in frames, IP, optional GPS), why, how long (frames, IP, browser until the check-in locks at 09:00 the next morning; ID card until identity is verified; reference face while on a roster; audit logs and queries 180 days), who can see it, how to opt out (manual check by teacher), how to raise a query. Required under India's DPDP Act 2023.
 - Monitoring: request logging, error alerts (Render logs), AWS face service configured/reachable on the API `/health`, AWS Budget alert.
 - Pilot runbook: warm-up (open site 2 min early), teacher phone placement, volume, what to do if the sound fails (fall back to roll call), data collection sheet.
 - Remove `TEST_STUDENT_EMAILS` and `REACT_APP_GOOGLE_HOSTED_DOMAIN=` override before the pilot.
@@ -895,11 +926,11 @@ Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOL
 ## 6. Security rules (apply in every phase)
 
 1. **Server decides.** No client field like `passed`, `matched`, `present` is ever trusted.
-2. **Every student action that changes attendance is signed** by the bound device key over a fresh, single-use challenge.
+2. **Every student action that changes attendance is signed** by the bound device key over a fresh, single-use challenge. Exception: a student **query** (Phase 10) is not signed — it only sends the record to the teacher and can never grant attendance.
 3. **Keys and challenges are short-lived and single-use**; keys never shown or logged.
 4. **Teacher can only touch their own classes**; ownership checked on every route (`getOwnedClass` pattern).
 5. **Images are private**: served only to the student and their teachers, never public URLs.
-6. **Minimum data, short retention**: TTL indexes delete evidence; lock at midnight.
+6. **Minimum data, short retention**: evidence deleted when the check-in locks (09:00 next morning, TTL as backstop); ID card deleted once verified; audit logs 180 days.
 7. **Per-route guards** in Express (never a blanket `router.use` that shadows later routers).
 8. **Uploads**: MIME + size checks, memory storage, no file paths from clients.
 
@@ -937,7 +968,7 @@ Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOL
 
 **Student — normal class.** Card "Check-in open" → Join → "Listening…" → "Heard ✅ — helping classmates…" → camera: "turn right, then blink" → "Present ✅".
 
-**Student — phone couldn't hear.** Result "Not heard" → face passes → "In review" → raises query "phone speaker weak" → teacher approves same day.
+**Student — phone couldn't hear.** Result "Not heard" → face passes → "In review" → raises query "phone speaker weak" → teacher approves before the lock.
 
 **Cheating attempt.** Friend carries absent Ravi's phone → sound ✓, face ✗ → review with frames → teacher sees a different face → absent, audit logged.
 
@@ -951,7 +982,7 @@ Decisions use thresholds from config: liveness `confidence ≥ LIVENESS_THRESHOL
 
 ## 11. One-line summary
 
-Bio Attend marks a student present only when **their own bound phone** hears a **seconds-old key played as sound inside the room** and **their live face matches their ID-verified reference** — built in 14 phases, each standing on the ones before it, with the server deciding everything and the teacher resolving only the unsure cases the same day.
+Bio Attend marks a student present only when **their own bound phone** hears a **seconds-old key played as sound inside the room** and **their live face matches their ID-verified reference** — built in 14 phases, each standing on the ones before it, with the server deciding everything and the teacher resolving only the unsure cases before the next-morning lock.
 
 ---
 

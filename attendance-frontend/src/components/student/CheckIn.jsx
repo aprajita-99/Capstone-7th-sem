@@ -15,10 +15,13 @@ import Button from "../../ui/Button";
 import Card from "../../ui/Card";
 import { PageLoader, Spinner } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
+import { untilLabel } from "../../utils/lockTime";
+import { decisionText, explain, queryReasonLabel } from "./attendanceText";
 import "../checkin.css";
 
 // The AWS liveness component is large: load it only when the face step starts.
 const FaceCheck = lazy(() => import("../face/FaceCheck"));
+const QuerySheet = lazy(() => import("./QuerySheet"));
 
 const { FrameReceiver } = receiverModule;
 const { upcomingSlots } = slotsModule;
@@ -36,15 +39,6 @@ const STEP_OF = {
   done: 3,
 };
 
-const REASON_TEXT = {
-  not_heard: "your phone joined but did not hear the key",
-  face_mismatch: "the face in the check did not match your enrolled photo",
-  face_unsure: "the face match was not certain (often poor light)",
-  face_not_live: "the camera check did not look like a live person",
-  face_missing: "the face check was not completed in time",
-  not_joined: "you did not join this check-in",
-};
-const explain = (reasons = []) => reasons.map((reason) => REASON_TEXT[reason] || reason).join("; ");
 
 const formatClock = (ms) => {
   const total = Math.max(0, Math.round(ms / 1000));
@@ -76,6 +70,7 @@ const CheckIn = () => {
   const [level, setLevel] = useState(null);
   const [listeningSince, setListeningSince] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [querying, setQuerying] = useState(false);
 
   const audioRef = useRef({});
   const receiverRef = useRef(null);
@@ -342,17 +337,19 @@ const CheckIn = () => {
 
   const doneView = () => {
     const status = record?.status;
+    const decided = decisionText(record);
     if (status === "present") {
       return {
         icon: "✓", tone: "success", title: "You’re marked present",
-        text: record?.decision ? "Your teacher confirmed your attendance." : relayed ? "Done. Your phone also passed the key on to classmates further back." : "Done. You can close this page.",
+        text: decided || (relayed ? "Done. Your phone also passed the key on to classmates further back." : "Done. You can close this page."),
       };
     }
     if (status === "review" || status === "heard") {
-      return { icon: "⌛", tone: "warning", title: "In review", text: `Your teacher will check this today because ${explain(record.reasons) || "the check was not complete"}.` };
+      if (record?.query) return { icon: "💬", tone: "warning", title: "Query sent", text: "Your teacher will look at this check-in again before it locks at 09:00 the next morning." };
+      return { icon: "⌛", tone: "warning", title: "In review", text: `Your teacher will check this before 09:00 tomorrow because ${explain(record.reasons) || "the check was not complete"}.` };
     }
     if (status === "absent") {
-      return { icon: "✕", tone: "danger", title: "Marked absent", text: record?.decision ? "Your teacher reviewed this check-in and marked you absent." : "This check-in has closed and you were not checked in." };
+      return { icon: "✕", tone: "danger", title: "Marked absent", text: decided || (explain(record?.reasons) ? `This check-in has closed: ${explain(record.reasons)}.` : "This check-in has closed and you were not checked in.") };
     }
     return { icon: "⏹", tone: "warning", title: "Check-in closed", text: "This check-in is no longer open." };
   };
@@ -422,8 +419,18 @@ const CheckIn = () => {
             )}
             {state === "face-retry" && <p className="ui-muted">Attempt {faceResult?.face?.attempts} of {faceResult?.face?.maxAttempts} used.</p>}
             {["submitting", "face-checking"].includes(state) && <Spinner />}
+            {state === "done" && record?.query && (
+              <blockquote className="query-quote query-quote--own">
+                <strong>{queryReasonLabel(record.query.reason)}</strong>
+                {record.query.text && <span>“{record.query.text}”</span>}
+                <cite>Your query</cite>
+              </blockquote>
+            )}
 
             <div className="checkin-hero__actions">
+              {state === "done" && record?.canQuery && (
+                <Button size="lg" onClick={() => setQuerying(true)}>Raise a query</Button>
+              )}
               {state === "identity" && <Button size="lg" onClick={() => navigate("/student/enroll")}>Complete identity check</Button>}
               {state === "ready" && <Button size="lg" onClick={join}>Join check-in</Button>}
               {state === "face-intro" && <Button size="lg" onClick={() => { setErrorText(""); setState("face"); }}>Start face check</Button>}
@@ -438,10 +445,29 @@ const CheckIn = () => {
                 <Button variant="secondary" onClick={() => navigate("/student-dashboard")}>Back to dashboard</Button>
               )}
             </div>
+            {state === "done" && record?.canQuery && session?.lockAt && (
+              <p className="ui-muted">Something went wrong? You can raise one query {untilLabel(session.lockAt, now)}.</p>
+            )}
             {errorText && state === "face-intro" && <p className="ui-field__error">{errorText}</p>}
           </div>
         )}
       </Card>
+
+      {querying && record && (
+        <Suspense fallback={null}>
+          <QuerySheet
+            recordId={record._id}
+            classLabel={sessionClass ? `${sessionClass.courseCode}${sessionClass.section ? ` · ${sessionClass.section}` : ""}` : ""}
+            lockAt={session?.lockAt}
+            onDone={() => {
+              setQuerying(false);
+              toast("Query sent. Your teacher will see it on their review list.", "success");
+              loadStatus().catch(() => {});
+            }}
+            onClose={() => setQuerying(false)}
+          />
+        </Suspense>
+      )}
     </AppShell>
   );
 };

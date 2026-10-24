@@ -73,7 +73,7 @@ const ClassDetail = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { user, logout } = useTeacherSession();
+  const { user, logout, counts } = useTeacherSession();
 
   const [courseClass, setCourseClass] = useState(null);
   const [roster, setRoster] = useState([]);
@@ -259,7 +259,7 @@ const ClassDetail = () => {
       name={user.name || user.email}
       email={user.email}
       onLogout={logout}
-      links={teacherLinks("classes")}
+      links={teacherLinks("classes", counts)}
     >
       <Link to="/teacher/classes" className="class-back">← All classes</Link>
 

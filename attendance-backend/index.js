@@ -24,6 +24,13 @@ setInterval(() => {
     sweepExpiredSessions().catch((err) => console.log(`session sweep failed: ${err.message}`));
 }, 60 * 1000).unref();
 
+// Lock, retention and the evening digest (Phase 10). The GitHub Actions cron
+// calls POST /api/v1/jobs/run as well, because a free Render instance sleeps.
+const { runJobs } = require("./controllers/jobsController");
+setInterval(() => {
+    runJobs().catch((err) => console.log(`jobs run failed: ${err.message}`));
+}, 10 * 60 * 1000).unref();
+
 //handling uncaught exception
 process.on("uncaughtException", err => {
     console.log(`Error:${err.message}`);

@@ -136,8 +136,9 @@ exports.submitSelfie = catchAsyncError(async (req, res, next) => {
 
   if (decision.outcome === "verified") {
     const reference = await saveMedia(user._id, "reference_face", "image/jpeg", liveness.referenceImage);
-    await deleteMedia(enrollment.referenceFaceMedia, enrollment.selfieMedia);
-    Object.assign(enrollment, { status: "verified", referenceFaceMedia: reference._id, selfieMedia: undefined, verifiedAt: new Date(), decidedBy: undefined, decidedAt: new Date() });
+    // Retention: once verified only the reference face is kept; the ID card is deleted.
+    await deleteMedia(enrollment.referenceFaceMedia, enrollment.selfieMedia, enrollment.idCardMedia);
+    Object.assign(enrollment, { status: "verified", referenceFaceMedia: reference._id, selfieMedia: undefined, idCardMedia: undefined, verifiedAt: new Date(), decidedBy: undefined, decidedAt: new Date() });
   } else if (decision.outcome === "pending") {
     const selfie = await saveMedia(user._id, "selfie", "image/jpeg", liveness.referenceImage);
     await deleteMedia(enrollment.selfieMedia);
@@ -263,8 +264,8 @@ exports.decideEnrollment = catchAsyncError(async (req, res, next) => {
     if (!selfie) return next(new ErrorHandler("The live selfie is missing; force a re-enrollment instead", 409));
     selfie.kind = "reference_face";
     await selfie.save();
-    await deleteMedia(enrollment.referenceFaceMedia);
-    Object.assign(enrollment, { status: "verified", referenceFaceMedia: selfie._id, selfieMedia: undefined, verifiedAt: new Date() });
+    await deleteMedia(enrollment.referenceFaceMedia, enrollment.idCardMedia); // ID card not kept after verification
+    Object.assign(enrollment, { status: "verified", referenceFaceMedia: selfie._id, selfieMedia: undefined, idCardMedia: undefined, verifiedAt: new Date() });
   } else {
     await deleteMedia(enrollment.selfieMedia, enrollment.idCardMedia);
     Object.assign(enrollment, { status: "rejected", rejectReason: reason, selfieMedia: undefined, idCardMedia: undefined, idCheck: undefined });

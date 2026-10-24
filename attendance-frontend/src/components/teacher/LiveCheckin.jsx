@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
@@ -15,9 +15,12 @@ import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { teacherLinks, useTeacherSession } from "./teacherSession";
 import CheckinStudents from "./CheckinStudents";
+import { lockLabel } from "../../utils/lockTime";
 import "./classes.css";
 import "./reviews.css";
 import "../checkin.css";
+
+const SpotCheckSheet = lazy(() => import("./SpotCheckSheet"));
 
 const { FrameReceiver } = receiverModule;
 const requestConfig = { withCredentials: true };
@@ -43,8 +46,11 @@ const LiveCheckin = () => {
   const params = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-  const { user, logout } = useTeacherSession();
+  const { user, logout, counts: reviewCounts, refreshCounts } = useTeacherSession();
   const summaryMode = Boolean(params.sessionId);
+  const [headcountInput, setHeadcountInput] = useState("");
+  const [headcountSaving, setHeadcountSaving] = useState(false);
+  const [spotOpen, setSpotOpen] = useState(false);
 
   const [classId, setClassId] = useState(params.classId || null);
   const [courseClass, setCourseClass] = useState(null);
@@ -241,16 +247,37 @@ const LiveCheckin = () => {
     }
   };
 
+  // Review decision or present ↔ absent override; resolves true when saved.
   const decide = async (record, status, note) => {
     setBusy(true);
     try {
-      await axios.post(`${SERVER_URL}/records/${record._id}/decision`, { status, note }, requestConfig);
-      toast(`${record.name || record.email.split("@")[0]} marked ${status}.`, "success");
+      const response = await axios.post(`${SERVER_URL}/records/${record._id}/decision`, { status, note }, requestConfig);
+      const changed = response.data.record?.decision?.kind === "override" ? "changed to" : "marked";
+      toast(`${record.name || record.email.split("@")[0]} ${changed} ${status}.`, "success");
       await loadLive(session._id);
+      refreshCounts();
+      return true;
     } catch (requestError) {
       toast(errorMessage(requestError, "Could not save the decision."), "error");
+      return false;
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveHeadcount = async (event) => {
+    event.preventDefault();
+    setHeadcountSaving(true);
+    try {
+      const response = await axios.patch(`${SERVER_URL}/sessions/${session._id}/headcount`, { headcount: Number(headcountInput) }, requestConfig);
+      setSession(response.data.session);
+      setHeadcountInput("");
+      toast(response.data.warning ? `Saved — ${response.data.warning}.` : "Head count saved.", response.data.warning ? "error" : "success");
+      await loadLive(session._id);
+    } catch (requestError) {
+      toast(errorMessage(requestError, "Could not save the head count."), "error");
+    } finally {
+      setHeadcountSaving(false);
     }
   };
 
@@ -258,14 +285,16 @@ const LiveCheckin = () => {
 
   const counts = live?.counts || { joined: 0, heard: 0, present: 0, review: 0, absent: 0 };
   const remainingMs = session ? new Date(session.closesAt).getTime() - now : 0;
-  const locked = session?.lockAt ? now > new Date(session.lockAt).getTime() : false;
+  const locked = Boolean(session?.locked) || (session?.lockAt ? now > new Date(session.lockAt).getTime() : false);
+  const headcount = live?.session?.headcount ?? session?.headcount ?? null;
+  const overCount = headcount !== null && counts.present > headcount;
   const title = courseClass ? `${courseClass.courseCode}${courseClass.section ? ` · ${courseClass.section}` : ""}` : "Check-in";
   const startedLabel = session?.startedAt
     ? new Date(session.startedAt).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
     : "";
 
   return (
-    <AppShell role="teacher" name={user.name || user.email} email={user.email} onLogout={logout} links={teacherLinks("classes")}>
+    <AppShell role="teacher" name={user.name || user.email} email={user.email} onLogout={logout} links={teacherLinks("classes", reviewCounts)}>
       {classId && <Link to={`/teacher/classes/${classId}`} className="class-back">← Back to class</Link>}
       <div className="ui-page-head">
         <div>
@@ -332,8 +361,8 @@ const LiveCheckin = () => {
                       {inGrace
                         ? `Students who heard the key can finish their face check for ${formatClock(graceEndsAt - now)} more.`
                         : locked
-                          ? "Locked — decisions were possible until midnight on the day of the check-in."
-                          : "Decide the review cases below before midnight."}
+                          ? "Locked — nothing can change now. Undecided review cases were marked absent and check-in photos were deleted."
+                          : `Decide the review cases below. ${lockLabel(session.lockAt, now)} — undecided cases are then marked absent.`}
                     </p>
                   </div>
                 </>
@@ -346,6 +375,38 @@ const LiveCheckin = () => {
               <div className="checkin-stat"><strong>{counts.absent}</strong><span>Absent</span></div>
               <div className="checkin-stat"><strong>{live?.rosterSize ?? "—"}</strong><span>On roster</span></div>
             </div>
+            {!locked && (
+              <div className="checkin-tools">
+                <form className="headcount" onSubmit={saveHeadcount}>
+                  <label htmlFor="headcount-input" className="headcount__label">
+                    Head count
+                    {headcount !== null && <span className="ui-muted"> · counted {headcount}</span>}
+                  </label>
+                  <div className="headcount__row">
+                    <input
+                      id="headcount-input"
+                      className="ui-input headcount__input"
+                      type="number"
+                      inputMode="numeric"
+                      min="0"
+                      max="500"
+                      placeholder={headcount !== null ? String(headcount) : "Heads in the room"}
+                      value={headcountInput}
+                      onChange={(event) => setHeadcountInput(event.target.value)}
+                    />
+                    <Button type="submit" variant="secondary" loading={headcountSaving} disabled={headcountInput === ""}>Save</Button>
+                  </div>
+                </form>
+                <Button variant="soft" className="checkin-tools__spot" onClick={() => setSpotOpen(true)} disabled={counts.present === 0}>
+                  🎯 Spot-check 5
+                </Button>
+              </div>
+            )}
+            {overCount && (
+              <Badge variant="danger" dot>
+                {counts.present} marked present but you counted {headcount} — run a spot-check
+              </Badge>
+            )}
             {live?.byWave && Object.keys(live.byWave).length > 0 && (
               <div className="wave-bars" aria-label="Present students by wave">
                 {Object.entries(live.byWave).map(([wave, count]) => {
@@ -366,6 +427,12 @@ const LiveCheckin = () => {
             <CheckinStudents records={live?.records || []} locked={locked} busy={busy} onDecide={decide} />
           </Card>
         </>
+      )}
+
+      {spotOpen && session && (
+        <Suspense fallback={null}>
+          <SpotCheckSheet sessionId={session._id} locked={locked} onDecide={decide} onClose={() => setSpotOpen(false)} />
+        </Suspense>
       )}
     </AppShell>
   );

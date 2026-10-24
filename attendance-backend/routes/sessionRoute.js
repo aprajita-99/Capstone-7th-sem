@@ -13,8 +13,9 @@ const {
   submitFace,
   skipFace,
   requestRelay,
-  decideRecord,
   getEvidenceFrame,
+  setHeadcount,
+  spotCheck,
 } = require("../controllers/sessionController");
 
 const router = express.Router();
@@ -34,7 +35,8 @@ router.get("/sessions/:sessionId/me", student, getMyRecord);
 router.post("/sessions/:sessionId/face", student, submitFace);
 router.post("/sessions/:sessionId/face/skip", student, skipFace);
 router.post("/sessions/:sessionId/relay", student, requestRelay);
-router.post("/records/:recordId/decision", teacher, decideRecord);
+router.patch("/sessions/:sessionId/headcount", teacher, setHeadcount);
+router.get("/sessions/:sessionId/spot-check", teacher, spotCheck);
 router.get("/evidence/:recordId/frame", isAuthenticated, getEvidenceFrame);
 
 module.exports = router;
