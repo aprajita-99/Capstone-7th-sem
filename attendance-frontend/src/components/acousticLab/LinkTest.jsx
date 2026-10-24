@@ -179,7 +179,7 @@ const LinkTest = () => {
   const lowestMargin = margins.length ? Math.min(...margins) : null;
 
   const resultsText = [
-    "Bio Attend link test",
+    "MarkMePresent link test",
     `Role: ${role === "send" ? "sender" : "receiver"}`,
     `Band: ${profile.label} (${fsk.profileRange(profile)})`,
     `Key: ${keyText}`,

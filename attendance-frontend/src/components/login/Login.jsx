@@ -98,11 +98,11 @@ const Login = () => {
 
             <main className="login-panel">
                 <div className="login-card">
-                    <img src={img1} alt="Bio Attend" className="login-card__logo" />
+                    <img src={img1} alt="MarkMePresent" className="login-card__logo" />
                     <h2>Welcome back</h2>
                     <p className="login-card__sub">Sign in with your college account to continue.</p>
                     <p className="login-card__roles">
-                        <strong>Teachers and students use the same button</strong> — Bio Attend opens the right page for your account.
+                        <strong>Teachers and students use the same button</strong> — MarkMePresent opens the right page for your account.
                         Students: use your own phone. <Link to="/#sign-in">How to sign in</Link>
                     </p>
 
@@ -125,7 +125,7 @@ const Login = () => {
                         Need access? Ask your teacher to add your college email to the class roster.
                     </p>
                 </div>
-                <p className="login-foot">Bio Attend · NIT Jamshedpur</p>
+                <p className="login-foot">MarkMePresent · NIT Jamshedpur</p>
             </main>
         </div>
     );

@@ -45,7 +45,7 @@ function Home() {
 
         <section className="section" id="sign-in">
           <h2>How to sign in</h2>
-          <p className="section__sub">Teachers and students use the same <strong>Sign in with Google</strong> button — Bio Attend recognises which you are.</p>
+          <p className="section__sub">Teachers and students use the same <strong>Sign in with Google</strong> button — MarkMePresent recognises which you are.</p>
           <div className="signin__grid">
             <article className="signin-card">
               <span className="signin-card__icon"><FaUserGraduate /></span>
@@ -63,7 +63,7 @@ function Home() {
               <h3>Teachers</h3>
               <ol className="signin-card__steps">
                 <li>Sign in with your <strong>NIT Jamshedpur Google account</strong>.</li>
-                <li>Teacher access is turned on for your email by the Bio Attend admin — if you land on a student page, ask them to add you.</li>
+                <li>Teacher access is turned on for your email by the MarkMePresent admin — if you land on a student page, ask them to add you.</li>
                 <li>Create a class and add its roster (paste or upload the CSV of student emails).</li>
                 <li>In class, start a check-in from your phone; review any unsure cases before 9:00 the next morning.</li>
               </ol>
@@ -129,7 +129,7 @@ function Home() {
 
         <footer className="footer">
           <div className="footer__inner">
-            <span className="footer__note">© 2026 Bio Attend · NIT Jamshedpur capstone</span>
+            <span className="footer__note">© 2026 MarkMePresent · NIT Jamshedpur capstone</span>
             <nav className="footer__links" aria-label="Footer">
               <Link to="/login">Sign in</Link>
               <Link to="/acoustic-lab">Phone audio test</Link>

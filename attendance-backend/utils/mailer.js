@@ -23,7 +23,7 @@ const send = async ({ to, subject, text, html }) => {
     method: "POST",
     headers: { "api-key": process.env.BREVO_API_KEY, "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
-      sender: { email: process.env.MAIL_FROM, name: process.env.MAIL_FROM_NAME || "Bio Attend" },
+      sender: { email: process.env.MAIL_FROM, name: process.env.MAIL_FROM_NAME || "MarkMePresent" },
       to: [{ email: to.email, name: to.name || undefined }],
       subject,
       textContent: text,
@@ -46,7 +46,7 @@ const buildDigest = ({ teacherName, groups, appUrl, formatTime = (date) => date.
   const total = groups.reduce((sum, group) => sum + group.reviews, 0);
   const queries = groups.reduce((sum, group) => sum + group.queries, 0);
   const link = `${String(appUrl || "").replace(/\/+$/, "")}/teacher/reviews?tab=attendance`;
-  const subject = `Bio Attend: ${total} attendance review${total === 1 ? "" : "s"} waiting${queries ? ` (${queries} from student queries)` : ""}`;
+  const subject = `MarkMePresent: ${total} attendance review${total === 1 ? "" : "s"} waiting${queries ? ` (${queries} from student queries)` : ""}`;
   const label = (group) => `${group.courseCode}${group.section ? ` · ${group.section}` : ""}`;
   const line = (group) =>
     `${label(group)} (${formatTime(group.startedAt)}): ${group.reviews} to review${group.queries ? `, ${group.queries} with a student query` : ""}. Locks ${formatTime(group.lockAt)}.`;
