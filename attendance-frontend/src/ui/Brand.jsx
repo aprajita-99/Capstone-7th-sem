@@ -10,7 +10,7 @@ const Brand = ({ to = "/" }) => (
       </svg>
     </span>
     <span className="ui-brand__name">
-      Bio<em>Attend</em>
+      MarkMe<em>Present</em>
     </span>
   </Link>
 );
