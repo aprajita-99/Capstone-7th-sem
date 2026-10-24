@@ -214,50 +214,48 @@
 .class-att__legend { font-size: 12.5px; line-height: 1.9; }
 .class-att__removed { border: 1px dashed var(--slate-300); border-radius: var(--radius); padding: 10px 12px; }
 .class-att__removed summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--slate-700); min-height: 32px; display: flex; align-items: center; }
-.class-att__removed .att-list { margin-top: 10px; }
+.class-att__removed .att-table-wrap { margin-top: 10px; }
 
-/* % with a coloured bar */
-.att-pct { display: inline-flex; align-items: center; gap: 8px; min-width: 120px; }
-.att-pct strong { font-size: 14px; font-variant-numeric: tabular-nums; min-width: 48px; text-align: right; }
-.att-pct__track { flex: 1; height: 6px; border-radius: 999px; background: var(--slate-100); overflow: hidden; min-width: 56px; }
-.att-pct__track span { display: block; height: 100%; border-radius: 999px; background: var(--slate-300); }
-.att-pct--ok .att-pct__track span { background: var(--success); }
-.att-pct--warn .att-pct__track span { background: var(--warning); }
-.att-pct--low .att-pct__track span { background: var(--danger); }
-.att-pct--low strong { color: var(--danger); }
-.att-pct--warn strong { color: var(--warning-strong); }
-
-/* Phone list */
-.att-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-.att-row {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: "who pct" "dots dots";
-  gap: 8px 12px;
-  align-items: center;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--slate-200);
-  border-radius: var(--radius);
-  background: var(--surface);
+/* Roll-wise attendance table (phones; also the removed-students list) */
+.att-table-wrap { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow-x: auto; }
+.att-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.att-table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  background: var(--slate-50);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.att-table td { padding: 11px 12px; border-bottom: 1px solid var(--slate-100); vertical-align: middle; }
+.att-table tbody tr { cursor: pointer; }
+.att-table tbody tr:last-child td { border-bottom: 0; }
+.att-table tbody tr:hover td { background: var(--slate-50); }
+.att-table__num { text-align: right !important; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.att-table__roll { font-size: 12.5px; font-weight: 600; color: var(--slate-600); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.att-table__name button {
+  padding: 0;
+  border: 0;
+  background: none;
   font: inherit;
+  font-weight: 600;
+  color: var(--ink);
   text-align: left;
   cursor: pointer;
 }
-.att-row--ok { border-left-color: var(--success); }
-.att-row--warn { border-left-color: var(--warning); }
-.att-row--low { border-left-color: var(--danger); background: var(--surface-tint); }
-.att-row__who { grid-area: who; display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
-.att-row__who span { font-size: 12px; overflow-wrap: anywhere; }
-.att-row .att-pct { grid-area: pct; min-width: 132px; }
-.att-dots { grid-area: dots; display: flex; gap: 4px; flex-wrap: wrap; }
-.att-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--slate-200); }
-.att-dot--P { background: var(--success); }
-.att-dot--A { background: var(--danger); }
-.att-dot--R { background: var(--warning); }
-.att-dot--none { background: transparent; border: 1px dashed var(--slate-300); }
-.att-dot--implicit { background: transparent; border: 2px solid var(--danger); }
+.att-table__pending { display: block; font-size: 11.5px; color: var(--indigo-700); font-weight: 600; margin-top: 2px; }
+.att-table__pct { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--slate-700); }
+.att-table__pct--ok { color: var(--indigo-700); }
+.att-table__pct--low { color: var(--ink); font-weight: 800; }
+.att-table__row--low td { background: var(--slate-50); }
+@media (max-width: 380px) {
+  .att-table th,
+  .att-table td { padding-left: 8px; padding-right: 8px; }
+}
 
 /* Desktop matrix */
 .att-matrix-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
@@ -279,7 +277,8 @@ thead .att-matrix__name { z-index: 3; background: var(--slate-50); }
 tbody .att-matrix__name { white-space: normal; }
 tbody .att-matrix__name strong { display: block; font-weight: 600; }
 tbody .att-matrix__name span { display: block; font-size: 11.5px; color: var(--text-faint); font-weight: 400; }
-.att-matrix__pct { min-width: 150px; }
+.att-matrix__pct { min-width: 84px; }
+.att-matrix__attended { min-width: 84px; font-variant-numeric: tabular-nums; font-weight: 600; }
 .att-matrix__date span { display: block; }
 .att-matrix__date small { display: block; font-size: 11px; font-weight: 400; color: var(--text-faint); }
 .att-matrix tbody tr:hover td,

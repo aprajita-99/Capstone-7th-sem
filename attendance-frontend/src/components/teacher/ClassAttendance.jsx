@@ -19,39 +19,55 @@ const CELL = {
   "-": { label: "Not on the roster", short: "" },
 };
 const SORTS = {
+  roll: { label: "Roll no", compare: (left, right) => left.loginId.localeCompare(right.loginId) },
   low: { label: "Lowest % first", compare: (left, right) => (left.percent ?? 101) - (right.percent ?? 101) || left.loginId.localeCompare(right.loginId) },
-  roll: { label: "Roll", compare: (left, right) => left.loginId.localeCompare(right.loginId) },
   name: { label: "Name", compare: (left, right) => (left.name || left.loginId).localeCompare(right.name || right.loginId) },
 };
 
 const percentText = (row) => (row.percent === null ? "—" : `${row.percent}%`);
+const rollText = (row) => row.loginId.toUpperCase();
+const attendedText = (row) => `${row.present}/${row.counted}`;
 const cellLabel = (cell) => (cell.implicit ? "Absent — before joining the roster" : CELL[cell.status]?.label);
 const dateLabel = (value) => new Date(value).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 const timeLabel = (value) => new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
-const PercentBar = ({ row }) => (
-  <span className={`att-pct att-pct--${row.band}`}>
-    <span className="att-pct__track"><span style={{ width: `${row.percent ?? 0}%` }} /></span>
-    <strong>{percentText(row)}</strong>
+// % with a marker when below the minimum (monochrome: weight + icon, not colour).
+const PercentCell = ({ row }) => (
+  <span className={`att-table__pct att-table__pct--${row.band}`}>
+    {row.band === "low" && <Icon name="warning" size={13} label="Below 75%" />}
+    {percentText(row)}
   </span>
 );
 
-// Phone: one row per student with %, bar and the last 10 check-ins as dots.
-const StudentRow = ({ row, onOpen }) => (
-  <li>
-    <button type="button" className={`att-row att-row--${row.band}`} onClick={() => onOpen(row)}>
-      <span className="att-row__who">
-        <strong>{row.name || row.loginId}</strong>
-        <span className="ui-muted">{row.loginId}{row.pending ? ` · ${row.pending} in review` : ""}</span>
-      </span>
-      <PercentBar row={row} />
-      <span className="att-dots" aria-hidden="true">
-        {row.cells.slice(-10).map((cell) => (
-          <span key={cell.sessionId} className={`att-dot att-dot--${cell.status === "-" ? "none" : cell.status}${cell.implicit ? " att-dot--implicit" : ""}`} />
+// Phone: a plain roll-wise table (Roll no · Name · Attended · %); tapping a row opens the history.
+const AttendanceTable = ({ rows, onOpen }) => (
+  <div className="att-table-wrap">
+    <table className="att-table">
+      <thead>
+        <tr>
+          <th scope="col">Roll no</th>
+          <th scope="col">Name</th>
+          <th scope="col" className="att-table__num">Attended</th>
+          <th scope="col" className="att-table__num">%</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row) => (
+          <tr key={row.email} className={`att-table__row--${row.band}`} onClick={() => onOpen(row)}>
+            <td className="att-table__roll">{rollText(row)}</td>
+            <td className="att-table__name">
+              <button type="button" onClick={(event) => { event.stopPropagation(); onOpen(row); }} aria-label={`History of ${row.name || row.loginId}`}>
+                {row.name || "—"}
+              </button>
+              {row.pending > 0 && <span className="att-table__pending">{row.pending} in review</span>}
+            </td>
+            <td className="att-table__num">{attendedText(row)}</td>
+            <td className="att-table__num"><PercentCell row={row} /></td>
+          </tr>
         ))}
-      </span>
-    </button>
-  </li>
+      </tbody>
+    </table>
+  </div>
 );
 
 // Desktop: students × check-ins with a sticky name column.
@@ -61,6 +77,7 @@ const Matrix = ({ rows, sessions, onCell }) => (
       <thead>
         <tr>
           <th className="att-matrix__name" scope="col">Student</th>
+          <th className="att-matrix__attended" scope="col">Attended</th>
           <th className="att-matrix__pct" scope="col">%</th>
           {sessions.map((session) => (
             <th key={session._id} scope="col" className="att-matrix__date">
@@ -75,9 +92,10 @@ const Matrix = ({ rows, sessions, onCell }) => (
           <tr key={row.email} className={`att-matrix__row--${row.band}`}>
             <th scope="row" className="att-matrix__name">
               <strong>{row.name || row.loginId}</strong>
-              <span>{row.loginId}</span>
+              <span>{rollText(row)}</span>
             </th>
-            <td className="att-matrix__pct"><PercentBar row={row} /></td>
+            <td className="att-matrix__attended">{attendedText(row)}</td>
+            <td className="att-matrix__pct"><PercentCell row={row} /></td>
             {row.cells.map((cell) => (
               <td key={cell.sessionId}>
                 {cell.recordId ? (
@@ -131,7 +149,7 @@ const ClassAttendance = ({ classId }) => {
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [sort, setSort] = useState("low");
+  const [sort, setSort] = useState("roll");
   const [openRow, setOpenRow] = useState(null);
   const [exporting, setExporting] = useState(false);
 
@@ -201,19 +219,24 @@ const ClassAttendance = ({ classId }) => {
           ) : wide ? (
             <Matrix rows={rows} sessions={sessions} onCell={openCell} />
           ) : (
-            <ul className="att-list">{rows.map((row) => <StudentRow key={row.email} row={row} onOpen={setOpenRow} />)}</ul>
+            <AttendanceTable rows={rows} onOpen={setOpenRow} />
           )}
 
           <p className="class-att__legend ui-muted">
-            <span className="att-cell att-cell--P">P</span> present · <span className="att-cell att-cell--A">A</span> absent ·{" "}
-            <span className="att-cell att-cell--R">R</span> in review (not counted yet) · <span className="att-cell att-cell--A att-cell--implicit">–</span> before joining the roster (counts as absent).
-            {" "}Below {minPercent}% is red, below 85% amber.
+            {wide && (
+              <>
+                <span className="att-cell att-cell--P">P</span> present · <span className="att-cell att-cell--A">A</span> absent ·{" "}
+                <span className="att-cell att-cell--R">R</span> in review (not counted yet) · <span className="att-cell att-cell--A att-cell--implicit">–</span> before joining the roster (counts as absent).{" "}
+              </>
+            )}
+            Attended = present out of check-ins counted; cases in review are not counted until decided. <Icon name="warning" size={13} /> marks students below {minPercent}%.
+            {!wide && " Tap a student for their full history."}
           </p>
 
           {removed.length > 0 && (
             <details className="class-att__removed">
               <summary>Removed students ({removed.length})</summary>
-              <ul className="att-list">{removed.map((row) => <StudentRow key={row.email} row={row} onOpen={setOpenRow} />)}</ul>
+              <AttendanceTable rows={[...removed].sort(SORTS.roll.compare)} onOpen={setOpenRow} />
             </details>
           )}
         </>
