@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { FaCalendarCheck, FaChalkboardTeacher, FaExclamationTriangle, FaUserGraduate, FaMobileAlt } from "react-icons/fa";
+import { FaChalkboardTeacher, FaUserGraduate, FaMobileAlt } from "react-icons/fa";
 import SERVER_URL from "../../config/api";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
@@ -33,7 +33,6 @@ const TeacherDashboard = () => {
     const [user, setUser] = useState(null);
     const [classes, setClasses] = useState([]);
     const [reviewCounts, setReviewCounts] = useState(null);
-    const [report, setReport] = useState(null);
     const pendingReviews = reviewCounts?.total || 0;
 
     useEffect(() => {
@@ -50,8 +49,6 @@ const TeacherDashboard = () => {
                     axios.get(`${SERVER_URL}/classes`, requestConfig),
                     fetchReviewCounts(),
                 ]);
-                // Attendance numbers can take a moment (every class is summarised); load them separately.
-                axios.get(`${SERVER_URL}/reports/summary`, requestConfig).then((response) => setReport(response.data)).catch(() => {});
                 if (classesResult.status === "fulfilled") {
                     setClasses(classesResult.value.data.classes);
                 } else {
@@ -112,15 +109,6 @@ const TeacherDashboard = () => {
                     value={pendingReviews}
                     hint={pendingReviews > 0 ? reviewHint(reviewCounts) : "All clear"}
                     onClick={() => navigate("/teacher/reviews")}
-                />
-                <StatCard icon={<FaCalendarCheck />} tone="sky" label="Check-ins this week" value={report ? report.checkinsThisWeek : "…"} hint="Monday to Sunday" />
-                <StatCard
-                    icon={<FaExclamationTriangle />}
-                    tone={report?.belowMin.count ? "rose" : "emerald"}
-                    label={`Students below ${report?.minPercent || 75}%`}
-                    value={report ? report.belowMin.count : "…"}
-                    hint={report?.belowMin.count ? "Tap to see the class" : "Everyone is on track"}
-                    onClick={report?.belowMin.worstClassId ? () => navigate(`/teacher/classes/${report.belowMin.worstClassId}?tab=attendance`) : undefined}
                 />
             </div>
 
