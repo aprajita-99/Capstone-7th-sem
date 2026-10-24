@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import "./Login.css";
 import img1 from "../../assets/logo.png";
 import SERVER_URL from "../../config/api";
+import { clearSession } from "../../utils/session";
 import GoogleSignInButton from "./GoogleSignInButton";
 import { getOrCreateDevicePublicKey, publicKeyPayload, signDeviceChallenge } from "../../utils/deviceKey";
 import { enrollmentPostponed } from "../../utils/enrollPrompt";
@@ -27,6 +28,7 @@ const Login = () => {
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || "Google sign-in was not accepted.");
+            clearSession(); // a new account: never reuse a cached user from before
 
             let deviceStatus = "approved";
             if (data.user.role === "student") {

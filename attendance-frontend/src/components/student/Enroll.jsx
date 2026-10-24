@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import SERVER_URL from "../../config/api";
+import SERVER_URL from "../../config/api";
+import { fetchSessionUser } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -63,8 +64,7 @@ const Enroll = () => {
   }, []);
 
   useEffect(() => {
-    axios
-      .get(`${SERVER_URL}/islogin`, requestConfig)
+    fetchSessionUser()
       .then(async (response) => {
         if (response.data.user.role !== "student") {
           navigate("/teacher-dashboard");

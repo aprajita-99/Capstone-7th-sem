@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import SERVER_URL from "../../config/api";
+import SERVER_URL from "../../config/api";
+import { fetchSessionUser } from "../../utils/session";
 import { useToast } from "../../ui/Toast";
 
 // counts: GET /reviews/counts → the Reviews link shows the number of open cases.
@@ -25,8 +26,7 @@ export const useTeacherSession = () => {
 
   useEffect(() => {
     let cancelled = false;
-    axios
-      .get(`${SERVER_URL}/islogin`, { withCredentials: true })
+    fetchSessionUser()
       .then((response) => {
         if (cancelled) return;
         if (response.data.user.role !== "teacher") {
