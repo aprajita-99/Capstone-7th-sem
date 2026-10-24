@@ -9,7 +9,7 @@ import Card from "../../ui/Card";
 import Icon from "../../ui/Icon";
 import EmptyState from "../../ui/EmptyState";
 import PageHeader from "../../ui/PageHeader";
-import { PageLoader } from "../../ui/Spinner";
+import { PageLoader, Skeleton } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { roomLabel } from "../../utils/rooms";
 import { shortWhen, untilLabel } from "../../utils/lockTime";
@@ -132,6 +132,73 @@ const IdentityCard = ({ identity, onStart }) => {
     );
 };
 
+const formatClock = (ms) => {
+    const total = Math.max(0, Math.round(ms / 1000));
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+
+const greeting = (now) => {
+    const hour = new Date(now).getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+};
+
+// The open check-in, as the dark hero card at the top of the home page.
+const LiveCheckinCard = ({ checkin, now, identityOk, onJoin, onEnroll }) => {
+    const leftMs = new Date(checkin.closesAt).getTime() - now;
+    return (
+        <section className="live-hero">
+            <div className="live-hero__top">
+                <span className="live-hero__live"><span className="live-hero__dot" aria-hidden="true" />Live now</span>
+                {leftMs > 0 && <span className="live-hero__timer">closes in {formatClock(leftMs)}</span>}
+            </div>
+            <div>
+                <h2 className="live-hero__title">{classLabel(checkin.class)} is checking in</h2>
+                {checkin.class?.title && <p className="live-hero__sub">{checkin.class.title}</p>}
+            </div>
+            {checkin.myStatus === "present" ? (
+                <span className="live-hero__status"><Icon name="check" /> You’re marked present</span>
+            ) : checkin.myStatus === "review" ? (
+                <span className="live-hero__status"><Icon name="clock" /> In review — your teacher will check it</span>
+            ) : checkin.faceRequired && !identityOk ? (
+                <Button size="lg" block variant="soft" onClick={onEnroll}>Complete identity check to join</Button>
+            ) : (
+                <Button size="lg" block onClick={onJoin}>
+                    <Icon name="sound" /> {checkin.myStatus === "heard" ? "Continue face check" : "Join check-in"}
+                </Button>
+            )}
+        </section>
+    );
+};
+
+// One class: big %, and what it takes to stay at 75%.
+const AttendanceTile = ({ courseClass, item }) => {
+    const summary = item?.summary;
+    const band = summary?.band || "none";
+    let line = "No check-ins counted yet";
+    if (summary && summary.percent !== null) {
+        if (band === "low") line = `Below 75% · attend next ${item.needed}`;
+        else line = item.canMiss > 0 ? `Can miss ${item.canMiss} more` : "Right at 75% — don't miss the next";
+    }
+    return (
+        <Link to="/student/attendance" className={`att-tile att-tile--${band}`}>
+            <span className="att-tile__code">{courseClass.courseCode}{courseClass.section ? ` · ${courseClass.section}` : ""}</span>
+            <strong className="att-tile__pct">{summary?.percent != null ? `${summary.percent}%` : "—"}</strong>
+            <span className="att-tile__line">
+                {band === "low" && <Icon name="warning" size={13} />}
+                {band !== "low" && band !== "none" && <Icon name="check" size={13} />}
+                {line}
+            </span>
+            <span className="att-tile__meta">
+                {courseClass.title}
+                {courseClass.teacher?.name ? ` · ${courseClass.teacher.name}` : ""}
+                {courseClass.defaultRoom ? ` · ${roomLabel(courseClass.defaultRoom)}` : ""}
+            </span>
+        </Link>
+    );
+};
+
 const StudentDashboard = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -145,6 +212,13 @@ const StudentDashboard = () => {
     const [recent, setRecent] = useState([]);
     const [percentByClass, setPercentByClass] = useState({});
     const [querying, setQuerying] = useState(null);
+    const [now, setNow] = useState(Date.now());
+
+    // Clock for the live check-in countdown.
+    useEffect(() => {
+        const timer = window.setInterval(() => setNow(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, []);
 
     const loadRecent = useCallback(
         () => axios.get(`${SERVER_URL}/me/recent-checkins`, { withCredentials: true }).then((response) => setRecent(response.data.checkins)).catch(() => {}),
@@ -195,12 +269,12 @@ const StudentDashboard = () => {
         return () => window.clearInterval(timer);
     }, [user]);
 
-    // Attendance % per class for the "Your classes" list (Phase 11).
+    // Attendance per class (summary, can-miss / needed) for the attendance tiles (Phase 11).
     useEffect(() => {
         if (!user) return;
         axios
             .get(`${SERVER_URL}/me/attendance`, { withCredentials: true })
-            .then((response) => setPercentByClass(Object.fromEntries(response.data.classes.map((item) => [String(item.class._id), item.summary]))))
+            .then((response) => setPercentByClass(Object.fromEntries(response.data.classes.map((item) => [String(item.class._id), item]))))
             .catch(() => {});
     }, [user]);
 
@@ -235,6 +309,9 @@ const StudentDashboard = () => {
     const info = STATUS_VIEW[deviceStatus] || STATUS_VIEW.checking;
     const name = user.name || user.email.split("@")[0];
     const firstName = name.split(" ")[0];
+    const needsDevice = !["approved", "checking"].includes(deviceStatus);
+    const needsIdentity = Boolean(identity) && identity.status !== "verified";
+    const allSet = deviceStatus === "approved" && identity?.status === "verified";
 
     return (
         <AppShell
@@ -244,110 +321,104 @@ const StudentDashboard = () => {
             onLogout={handleLogout}
             links={studentLinks("dashboard")}
         >
-            <PageHeader
-                eyebrow="Student"
-                title={`Hi ${firstName}`}
-                subtitle="This is your attendance home. Check-ins happen right here once your teacher starts a session."
-            />
+            <PageHeader eyebrow={greeting(now)} title={`Hi ${firstName}`}>
+                {allSet && (
+                    <div className="home-ready">
+                        <Badge variant="success"><Icon name="check" size={13} /> Phone approved</Badge>
+                        <Badge variant="success"><Icon name="check" size={13} /> Identity verified</Badge>
+                    </div>
+                )}
+            </PageHeader>
 
-            {openCheckins.length > 0 && (
-                <Card className="checkin-open-card" title="Check-in open now">
+            {openCheckins.length > 0 ? (
+                <div className="live-hero-list">
                     {openCheckins.map((checkin) => (
-                        <div key={checkin._id} className="checkin-open-card__row">
-                            <span>
-                                <strong>{checkin.class?.courseCode}{checkin.class?.section ? ` · ${checkin.class.section}` : ""}</strong>{" "}
-                                <span className="ui-muted">{checkin.class?.title}</span>
-                            </span>
-                            {checkin.myStatus === "present" ? (
-                                <Badge variant="success" dot>Present</Badge>
-                            ) : checkin.myStatus === "review" ? (
-                                <Badge variant="warning" dot>In review</Badge>
-                            ) : checkin.faceRequired && !checkinIdentityOk ? (
-                                <Button variant="soft" onClick={() => navigate("/student/enroll")}>Complete identity check to join</Button>
-                            ) : (
-                                <Button onClick={() => navigate(`/student/check-in/${checkin._id}`)}>
-                                    {checkin.myStatus === "heard" ? "Continue face check" : "Join check-in"}
-                                </Button>
-                            )}
-                        </div>
+                        <LiveCheckinCard
+                            key={checkin._id}
+                            checkin={checkin}
+                            now={now}
+                            identityOk={checkinIdentityOk}
+                            onJoin={() => navigate(`/student/check-in/${checkin._id}`)}
+                            onEnroll={() => navigate("/student/enroll")}
+                        />
                     ))}
-                </Card>
+                </div>
+            ) : (
+                <section className="idle-hero">
+                    <span className="idle-hero__icon" aria-hidden="true"><Icon name="headphones" /></span>
+                    <div>
+                        <strong>No check-in right now</strong>
+                        <p>When your teacher starts one, it appears here. Keep this page open in class.</p>
+                    </div>
+                </section>
             )}
 
-            <div className="student-grid">
-                <Card className={`device-card device-card--${deviceStatus}`}>
-                    <div className="device-card__top">
-                        <span className="device-card__icon" aria-hidden="true"><Icon name={info.icon} /></span>
-                        <Badge variant={info.variant} dot>{info.badge}</Badge>
-                    </div>
-                    <h2 className="device-card__title">{info.title}</h2>
-                    <p className="device-card__text">{info.text}</p>
-                    <div className="device-card__actions">
-                        <Button variant="soft" onClick={() => navigate("/acoustic-lab")}><Icon name="sound" /> Test phone audio</Button>
-                    </div>
-                </Card>
+            {(needsDevice || needsIdentity) && (
+                <section className="home-section">
+                    <h2 className="home-section__title">Needs your attention</h2>
+                    {needsDevice && (
+                        <Card className={`device-card device-card--${deviceStatus}`}>
+                            <div className="device-card__top">
+                                <span className="device-card__icon" aria-hidden="true"><Icon name={info.icon} /></span>
+                                <Badge variant={info.variant} dot>{info.badge}</Badge>
+                            </div>
+                            <h2 className="device-card__title">{info.title}</h2>
+                            <p className="device-card__text">{info.text}</p>
+                        </Card>
+                    )}
+                    {needsIdentity && <IdentityCard identity={identity} onStart={() => navigate("/student/enroll")} />}
+                </section>
+            )}
 
-                <Card title="When your teacher starts a check-in" subtitle="About 30–60 seconds, from this phone.">
-                    <ol className="checkin-steps">
-                        <li>
-                            <strong>Tap Join.</strong>
-                            A “Check-in open” card appears at the top of this page.
-                        </li>
-                        <li>
-                            <strong>Your phone hears the key.</strong>
-                            Keep it out, face-up; it listens for the near-silent tones played in the room.
-                        </li>
-                        <li>
-                            <strong>Quick face check.</strong>
-                            Follow the oval on screen. Then you’re marked present.
-                        </li>
-                    </ol>
-                </Card>
-            </div>
+            <section className="home-section">
+                <div className="home-section__head">
+                    <h2 className="home-section__title">Your attendance</h2>
+                    <Link to="/student/attendance" className="home-section__link">See all</Link>
+                </div>
+                {classes === null ? (
+                    <div className="att-tiles">
+                        <Skeleton height={132} card />
+                        <Skeleton height={132} card />
+                    </div>
+                ) : classes.length === 0 ? (
+                    <Card>
+                        <EmptyState
+                            icon="classes"
+                            title="No classes yet"
+                            text="You’ll see a class here once your teacher adds your college email to its roster."
+                        />
+                    </Card>
+                ) : (
+                    <div className="att-tiles">
+                        {classes.map((courseClass) => (
+                            <AttendanceTile key={courseClass._id} courseClass={courseClass} item={percentByClass[String(courseClass._id)]} />
+                        ))}
+                    </div>
+                )}
+            </section>
 
             {recent.length > 0 && (
                 <RecentCheckins checkins={recent} onQuery={setQuerying} onOpen={(checkin) => navigate(`/student/check-in/${checkin.sessionId}`)} />
             )}
 
-            {identity && <IdentityCard identity={identity} onStart={() => navigate("/student/enroll")} />}
-
-            <Card
-                className="student-classes"
-                title="Your classes"
-                subtitle="Classes whose roster includes your college email."
-                actions={<Link to="/student/attendance" className="ui-btn ui-btn--ghost ui-btn--sm">Attendance →</Link>}
-            >
-                {classes === null ? (
-                    <p className="ui-muted">Loading…</p>
-                ) : classes.length === 0 ? (
-                    <EmptyState
-                        icon="classes"
-                        title="No classes yet"
-                        text="You’ll see a class here once your teacher adds your college email to its roster."
-                    />
-                ) : (
-                    <ul className="student-class-list">
-                        {classes.map((courseClass) => (
-                            <li key={courseClass._id} className="student-class">
-                                <span className="student-class__code">
-                                    {courseClass.courseCode}
-                                    {courseClass.section ? ` · Section ${courseClass.section}` : ""}
-                                </span>
-                                <span className="student-class__title">{courseClass.title}</span>
-                                <span className="student-class__meta">
-                                    {roomLabel(courseClass.defaultRoom)}
-                                    {courseClass.teacher?.name ? ` · ${courseClass.teacher.name}` : ""}
-                                </span>
-                                {percentByClass[String(courseClass._id)]?.percent != null && (
-                                    <Link to="/student/attendance" className={`student-class__pct student-class__pct--${percentByClass[String(courseClass._id)].band}`}>
-                                        {percentByClass[String(courseClass._id)].percent}% attendance
-                                    </Link>
-                                )}
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </Card>
+            <details className="how-it-works">
+                <summary>How check-in works</summary>
+                <ol className="checkin-steps">
+                    <li>
+                        <strong>Tap Join.</strong>
+                        A “Live now” card appears at the top of this page when your teacher starts a check-in.
+                    </li>
+                    <li>
+                        <strong>Your phone hears the key.</strong>
+                        Keep it out, face-up; it listens for the near-silent tones played in the room.
+                    </li>
+                    <li>
+                        <strong>Quick face check.</strong>
+                        Follow the oval on screen. Then you’re marked present.
+                    </li>
+                </ol>
+                <Button variant="soft" onClick={() => navigate("/acoustic-lab")}><Icon name="sound" /> Test phone audio</Button>
+            </details>
 
             {querying && (
                 <Suspense fallback={null}>
