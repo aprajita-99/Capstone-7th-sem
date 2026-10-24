@@ -35,7 +35,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **8** | Identity enrollment: consent → ID card (face + text + roll OCR) → live selfie → auto-verify or teacher review; Reviews page; new phone approved by face | **Shipped** (owner phone test passed 2026-10-23) |
 | **9** | Face + liveness at every check-in (hear → face → relay), 2 tries, 2-min grace, review cases decided same day from the live/summary page | **Shipped** (owner phone test passed 2026-10-24) |
 | **10** | Reviews → Attendance tab (bulk present), present ↔ absent overrides, student queries, lock at 09:00 IST next morning, retention (evidence at lock, audit 180 days, ID card after verify), headcount + spot-check, evening digest email, scheduled jobs | **Shipped** (owner phone test passed 2026-10-24; digest email not yet seen) |
-| **11** | Class Attendance tab (% per student, phone list + desktop matrix, cell → record), class + per-check-in CSV (Excel-safe), dashboard cards (check-ins this week, below 75%), student `/student/attendance` (%, miss / attend-more line, queries, past classes) | **Built** (54/54 backend tests, 25/25 end-to-end checks; phone test pending) |
+| **11** | Class Attendance tab (% per student, phone list + desktop matrix, cell → record), class + per-check-in CSV (Excel-safe), dashboard cards (check-ins this week, below 75%), student `/student/attendance` (%, miss / attend-more line, queries, past classes) | **Shipped** (owner test passed 2026-10-25) |
 | **12** | Neighbour verification (ID round) | **Planned** |
 | **13** | Pilot readiness (consent, privacy notice, monitoring, runbook) → live class pilot | **Planned** |
 | — | Native mobile app, iOS, multi-college | **Not in v1** |
