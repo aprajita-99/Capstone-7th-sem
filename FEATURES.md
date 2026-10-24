@@ -34,7 +34,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **7** | Face service via **AWS Rekognition** (Face Liveness + CompareFaces, Mumbai region): `faceClient`, user-bound single-use `facesessions`, shared `FaceCheck` component, `/face-test` page | **Shipped** (liveness + compare verified on a phone 2026-10-23) |
 | **8** | Identity enrollment: consent → ID card (face + text + roll OCR) → live selfie → auto-verify or teacher review; Reviews page; new phone approved by face | **Shipped** (owner phone test passed 2026-10-23) |
 | **9** | Face + liveness at every check-in (hear → face → relay), 2 tries, 2-min grace, review cases decided same day from the live/summary page | **Shipped** (owner phone test passed 2026-10-24) |
-| **10** | Reviews → Attendance tab (bulk present), present ↔ absent overrides, student queries, lock at 09:00 IST next morning, retention (evidence at lock, audit 180 days, ID card after verify), headcount + spot-check, evening digest email, scheduled jobs | **Built** (49/49 backend tests, 48/48 end-to-end checks; phone test pending) |
+| **10** | Reviews → Attendance tab (bulk present), present ↔ absent overrides, student queries, lock at 09:00 IST next morning, retention (evidence at lock, audit 180 days, ID card after verify), headcount + spot-check, evening digest email, scheduled jobs | **Shipped** (owner phone test passed 2026-10-24; digest email not yet seen) |
 | **11** | Attendance records, reports, CSV export, student history | **Planned** |
 | **12** | Neighbour verification (ID round) | **Planned** |
 | **13** | Pilot readiness (consent, privacy notice, monitoring, runbook) → live class pilot | **Planned** |
