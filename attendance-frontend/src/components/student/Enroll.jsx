@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
-import SERVER_URL from "../../config/api";
+import SERVER_URL from "../../config/api";
 import { fetchSessionUser } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
@@ -190,6 +190,7 @@ const Enroll = () => {
                 <li><strong>How long:</strong> while you are on a class roster this term; it is deleted when you leave all rosters or a teacher resets it.</li>
                 <li><strong>If something looks wrong:</strong> ask your teacher; they review unclear cases by hand.</li>
               </ul>
+              <p className="enroll-privacy-link">Read the full <Link to="/privacy" target="_blank" rel="noopener">privacy notice</Link>.</p>
             </details>
             <label className="enroll-agree">
               <input type="checkbox" checked={agree} onChange={(event) => setAgree(event.target.checked)} />

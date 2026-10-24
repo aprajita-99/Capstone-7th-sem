@@ -139,6 +139,8 @@ function Home() {
             <span className="footer__note">© 2026 MarkMePresent · NIT Jamshedpur</span>
             <nav className="footer__links" aria-label="Footer">
               <Link to="/login">Sign in</Link>
+              <Link to="/help">Help</Link>
+              <Link to="/privacy">Privacy</Link>
               <Link to="/acoustic-lab">Phone audio test</Link>
             </nav>
           </div>
