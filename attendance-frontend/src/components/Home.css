@@ -1,52 +1,35 @@
-/* Home — public landing page */
+/* Home — public landing page (bold monochrome) */
 
-.home { overflow-x: hidden; }
+.home { overflow-x: hidden; background: var(--bg); }
 
-/* Hero */
+/* ---------- Hero ---------- */
 .hero {
-  padding: 84px 20px 60px;
+  padding: 88px 20px 56px;
   text-align: center;
-  background: radial-gradient(900px 420px at 50% -120px, var(--indigo-100), transparent 70%);
+  background: radial-gradient(900px 420px at 50% -140px, var(--indigo-100), transparent 70%);
 }
 
-.hero__inner { max-width: 800px; margin: 0 auto; }
-
-.hero__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 22px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: #fff;
-  border: 1px solid var(--indigo-200);
-  color: var(--indigo-700);
-  font-size: 12.5px;
-  font-weight: 600;
-  box-shadow: var(--shadow-sm);
-}
+.hero__inner { max-width: 760px; margin: 0 auto; }
 
 .hero h1 {
-  font-size: clamp(34px, 5.6vw, 54px);
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  line-height: 1.06;
+  font-size: clamp(36px, 6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.04;
 }
 
-.hero__accent {
-  color: var(--indigo-600);
-}
+.hero__accent { display: block; color: var(--indigo-600); }
 
 .hero__sub {
-  margin: 20px auto 0;
-  max-width: 620px;
-  font-size: 16.5px;
+  margin: 22px auto 0;
+  max-width: 600px;
+  font-size: 17px;
   line-height: 1.6;
   color: var(--text-soft);
 }
 
 .hero__actions {
-  margin-top: 30px;
+  margin-top: 32px;
   display: flex;
   gap: 12px;
   justify-content: center;
@@ -54,7 +37,7 @@
 }
 
 .hero__wave {
-  margin-top: 46px;
+  margin-top: 48px;
   height: 64px;
   display: flex;
   align-items: center;
@@ -65,115 +48,167 @@
 .hero__wave span {
   width: 3px;
   border-radius: 99px;
-  background: linear-gradient(180deg, var(--indigo-400), var(--indigo-600));
+  background: var(--indigo-400);
   animation: wave-pulse 2.4s ease-in-out infinite;
 }
 
 @keyframes wave-pulse {
-  0%, 100% { transform: scaleY(0.5); opacity: 0.5; }
+  0%, 100% { transform: scaleY(0.5); opacity: 0.45; }
   50% { transform: scaleY(1); opacity: 1; }
 }
 
-/* Sections */
-.section { max-width: 1040px; margin: 0 auto; padding: 64px 20px; }
+@media (prefers-reduced-motion: reduce) {
+  .hero__wave span { animation: none; }
+}
+
+/* ---------- Sections ---------- */
+.section { max-width: 1040px; margin: 0 auto; padding: 72px 20px; }
+
+/* Alternate band so sections are clearly separated */
+.band { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+.section__eyebrow {
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--indigo-700);
+  margin-bottom: 10px;
+}
 
 .section h2 {
-  font-size: clamp(24px, 3.2vw, 32px);
+  font-size: clamp(26px, 3.4vw, 36px);
   font-weight: 700;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
   text-align: center;
 }
 
 .section__sub {
-  margin: 12px auto 0;
+  margin: 14px auto 0;
   text-align: center;
-  max-width: 560px;
+  max-width: 580px;
   color: var(--text-soft);
-  font-size: 15px;
+  font-size: 15.5px;
+  line-height: 1.6;
 }
+.section__sub strong { color: var(--ink); }
+
+/* One card style for steps, features and sign-in */
+.step,
+.feature,
+.signin-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+.band .step { background: var(--bg); box-shadow: none; }
+
+.step h3,
+.feature h3 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 8px; }
+.step p,
+.feature p { font-size: 14.5px; line-height: 1.6; color: var(--text-soft); }
 
 /* Steps */
 .steps__grid {
-  margin-top: 38px;
+  margin-top: 40px;
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
-.step {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 26px 24px;
-  box-shadow: var(--shadow-sm);
-}
-
 .step__num {
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
   display: grid;
   place-items: center;
+  font-family: var(--font-display);
   font-weight: 700;
-  font-size: 15px;
+  font-size: 17px;
   color: #fff;
   background: var(--ink);
   margin-bottom: 16px;
 }
 
-.step h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
-.step p { font-size: 14px; line-height: 1.6; color: var(--text-soft); }
-
 /* Features */
 .features__grid {
+  margin-top: 40px;
   display: grid;
   gap: 16px;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-}
-
-.feature {
-  background: #fff;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 22px;
-  box-shadow: var(--shadow-sm);
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
 }
 
 .feature__icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: var(--indigo-50);
-  color: var(--indigo-600);
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background: var(--indigo-100);
+  color: var(--ink);
   display: grid;
   place-items: center;
-  font-size: 18px;
-  margin-bottom: 14px;
+  font-size: 19px;
+  margin-bottom: 16px;
 }
 
-.feature h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
-.feature p { font-size: 13.5px; line-height: 1.6; color: var(--text-soft); }
+/* How to sign in: students and teachers side by side */
+#sign-in { scroll-margin-top: 72px; }
+.signin__grid {
+  margin-top: 40px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+.signin-card { display: flex; flex-direction: column; gap: 14px; }
+.signin-card__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  background: var(--ink);
+  color: var(--indigo-300);
+}
+.signin-card h3 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.signin-card__steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-left: 20px;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--text-soft);
+  flex: 1;
+}
+.signin-card__steps strong { color: var(--ink); }
+.signin-card__steps li { padding-left: 2px; overflow-wrap: anywhere; }
+.signin-card__steps li::marker { font-weight: 700; color: var(--indigo-700); }
+.signin-card .ui-btn { align-self: flex-start; min-height: 48px; }
 
-/* CTA */
-.cta-wrap { max-width: 1040px; margin: 0 auto; padding: 0 20px 72px; }
+/* ---------- CTA ---------- */
+.cta-wrap { max-width: 1040px; margin: 0 auto; padding: 72px 20px; }
 
 .cta {
   text-align: center;
   padding: 56px 28px;
-  border-radius: 24px;
+  border-radius: 28px;
   color: #fff;
   background: var(--ink);
   box-shadow: var(--shadow-lg);
 }
 
-.cta h2 { font-size: clamp(22px, 3vw, 30px); font-weight: 700; letter-spacing: -0.02em; }
-.cta p { margin-top: 10px; color: rgba(255, 255, 255, 0.82); font-size: 15px; }
+.cta h2 { font-size: clamp(24px, 3.2vw, 34px); font-weight: 700; letter-spacing: -0.03em; color: #fff; }
+.cta p { margin-top: 10px; color: var(--slate-300); font-size: 15.5px; }
 
-.cta .ui-btn { margin-top: 24px; background: #fff; color: var(--indigo-700); }
-.cta .ui-btn:hover { background: var(--indigo-50); color: var(--indigo-700); }
+.cta .ui-btn { margin-top: 24px; background: #fff; color: var(--ink); }
+.cta .ui-btn:hover { background: var(--indigo-100); color: var(--ink); }
 
-/* Footer */
-.footer { border-top: 1px solid var(--border); background: #fff; }
+/* ---------- Footer ---------- */
+.footer { border-top: 1px solid var(--border); background: var(--surface); }
 
 .footer__inner {
   max-width: 1040px;
@@ -186,49 +221,29 @@
   flex-wrap: wrap;
 }
 
-.footer__links { display: flex; gap: 18px; font-size: 13.5px; }
-.footer__links a { color: var(--slate-500); text-decoration: none; }
-.footer__links a:hover { color: var(--indigo-600); }
+.footer__links { display: flex; gap: 20px; font-size: 14px; }
+.footer__links a { color: var(--slate-600); text-decoration: none; font-weight: 600; }
+.footer__links a:hover { color: var(--ink); }
 
-.footer__note { font-size: 13px; color: var(--text-faint); }
+.footer__note { font-size: 13.5px; color: var(--text-faint); }
 
+/* ---------- Phones ---------- */
 @media (max-width: 560px) {
-  .hero { padding: 60px 16px 44px; }
-  .section { padding: 48px 16px; }
-  .cta-wrap { padding: 0 16px 56px; }
-  .cta { padding: 44px 20px; }
-}
-
-/* How to sign in: students and teachers side by side */
-#sign-in { scroll-margin-top: 72px; }
-.signin__grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
-.signin-card {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 24px;
-  border-radius: 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-}
-.signin-card:first-child { border: 2px solid var(--ink); }
-.signin-card__icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
-  display: grid;
-  place-items: center;
-  font-size: 22px;
-  background: var(--ink);
-  color: var(--indigo-300);
-}
-.signin-card h3 { font-size: 22px; letter-spacing: -0.02em; }
-.signin-card__steps { display: flex; flex-direction: column; gap: 10px; padding-left: 20px; font-size: 14px; line-height: 1.55; color: var(--text-soft); flex: 1; }
-.signin-card__steps strong { color: var(--ink); }
-.signin-card__steps li::marker { font-weight: 700; color: var(--indigo-700); }
-.signin-card .ui-btn { align-self: flex-start; min-height: 48px; }
-@media (max-width: 520px) {
+  .hero { padding: 56px 16px 40px; }
+  .hero__sub { font-size: 16px; }
+  .hero__actions { flex-direction: column; align-items: stretch; }
+  .hero__actions .ui-btn { width: 100%; }
+  .hero__wave { margin-top: 36px; height: 48px; }
+  .section { padding: 52px 16px; }
+  .steps__grid,
+  .features__grid,
+  .signin__grid { margin-top: 28px; }
+  .step,
+  .feature,
   .signin-card { padding: 20px 18px; }
+  .signin__grid { grid-template-columns: 1fr; }
   .signin-card .ui-btn { align-self: stretch; }
+  .cta-wrap { padding: 52px 16px; }
+  .cta { padding: 40px 20px; border-radius: 24px; }
+  .footer__inner { flex-direction: column; align-items: flex-start; gap: 10px; }
 }

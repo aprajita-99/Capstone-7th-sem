@@ -22,10 +22,9 @@ function Home() {
       <div className="home">
         <section className="hero">
           <div className="hero__inner">
-            <span className="hero__badge">Sound + face check-in · works on Android Chrome</span>
             <h1>
               Attendance that proves
-              <span className="hero__accent"> who’s in the room.</span>
+              <span className="hero__accent">who’s in the room.</span>
             </h1>
             <p className="hero__sub">
               Each student’s phone hears a near-silent key played in class, then a quick live face check
@@ -44,6 +43,7 @@ function Home() {
         </section>
 
         <section className="section" id="sign-in">
+          <p className="section__eyebrow">Sign in</p>
           <h2>How to sign in</h2>
           <p className="section__sub">Teachers and students use the same <strong>Sign in with Google</strong> button — MarkMePresent recognises which you are.</p>
           <div className="signin__grid">
@@ -72,7 +72,9 @@ function Home() {
           </div>
         </section>
 
+        <div className="band">
         <section className="section" id="how">
+          <p className="section__eyebrow">Every class</p>
           <h2>How a check-in works</h2>
           <p className="section__sub">Three steps, about a minute, nothing for students to install.</p>
           <div className="steps__grid">
@@ -94,7 +96,12 @@ function Home() {
           </div>
         </section>
 
+        </div>
+
         <section className="section">
+          <p className="section__eyebrow">Why it works</p>
+          <h2>Why MarkMePresent</h2>
+          <p className="section__sub">Built so attendance can’t be faked by a friend, a forwarded code or a photo.</p>
           <div className="features__grid">
             <article className="feature">
               <span className="feature__icon"><FaUserShield /></span>
@@ -129,7 +136,7 @@ function Home() {
 
         <footer className="footer">
           <div className="footer__inner">
-            <span className="footer__note">© 2026 MarkMePresent · NIT Jamshedpur capstone</span>
+            <span className="footer__note">© 2026 MarkMePresent · NIT Jamshedpur</span>
             <nav className="footer__links" aria-label="Footer">
               <Link to="/login">Sign in</Link>
               <Link to="/acoustic-lab">Phone audio test</Link>
