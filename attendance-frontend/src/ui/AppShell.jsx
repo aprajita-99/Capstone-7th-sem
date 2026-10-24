@@ -4,7 +4,7 @@ import Badge from "./Badge";
 import Brand from "./Brand";
 
 // Sticky top bar + centered content column shared by every signed-in page.
-// `links` is an array of { to, label, active }.
+// `links` is an array of { to, label, active, count? } (count > 0 shows a small badge).
 const AppShell = ({ role, name, email, onLogout, links = [], children }) => {
   const initial = String(name || email || "?").trim().charAt(0).toUpperCase();
 
@@ -19,6 +19,7 @@ const AppShell = ({ role, name, email, onLogout, links = [], children }) => {
               {links.map((link) => (
                 <Link key={link.to} to={link.to} className={`ui-shell__link ${link.active ? "is-active" : ""}`}>
                   {link.label}
+                  {link.count > 0 && <span className="ui-shell__count" aria-label={`${link.count} waiting`}>{link.count > 99 ? "99+" : link.count}</span>}
                 </Link>
               ))}
             </nav>

@@ -1,37 +1,8 @@
 import React, { useMemo, useState } from "react";
-import SERVER_URL from "../../config/api";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import EmptyState from "../../ui/EmptyState";
-
-const frameUrl = (recordId) => `${SERVER_URL}/evidence/${recordId}/frame`;
-const mediaUrl = (mediaId) => `${SERVER_URL}/media/${mediaId}`;
-
-const STATUS_BADGE = {
-  present: { variant: "success", label: "Present" },
-  joined: { variant: "info", label: "Listening" },
-  heard: { variant: "info", label: "Face check" },
-  review: { variant: "warning", label: "Review" },
-  absent: { variant: "neutral", label: "Absent" },
-};
-
-const REASON_LABEL = {
-  not_heard: "Not heard",
-  face_mismatch: "Face doesn't match",
-  face_unsure: "Face unsure",
-  face_not_live: "Not a live face",
-  face_missing: "No face check",
-  device_unverified: "Phone not verified",
-  not_joined: "Did not join",
-};
-
-const FACE_LABEL = {
-  passed: "Face matched",
-  unsure: "Face unsure",
-  mismatch: "Face mismatch",
-  not_live: "Not live",
-  missing: "No face check",
-};
+import { DECISION_LABEL, FACE_LABEL, FacePair, QUERY_REASON_LABEL, QueryQuote, ReasonBadges, STATUS_BADGE, displayName, time } from "./recordParts";
 
 const TABS = [
   { id: "review", label: "Review", match: (record) => record.status === "review" },
@@ -39,29 +10,6 @@ const TABS = [
   { id: "listening", label: "Listening", match: (record) => ["joined", "heard"].includes(record.status) },
   { id: "absent", label: "Absent", match: (record) => record.status === "absent" },
 ];
-
-const displayName = (record) => record.name || record.email.split("@")[0];
-const time = (value) => (value ? new Date(value).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : null);
-
-const FacePair = ({ record, size = "md" }) => (
-  <div className={`face-pair face-pair--${size}`}>
-    <figure>
-      {record.hasFrame ? <img src={frameUrl(record._id)} alt={`Check-in frame of ${displayName(record)}`} loading="lazy" /> : <span className="face-pair__empty">No frame</span>}
-      <figcaption>Check-in</figcaption>
-    </figure>
-    <figure>
-      {record.referenceFaceMedia ? <img src={mediaUrl(record.referenceFaceMedia)} alt={`Enrolled face of ${displayName(record)}`} loading="lazy" /> : <span className="face-pair__empty">Not enrolled</span>}
-      <figcaption>Enrolled</figcaption>
-    </figure>
-  </div>
-);
-
-const ReasonBadges = ({ record }) => (
-  <span className="reason-badges">
-    {(record.reasons || []).map((reason) => <Badge key={reason} variant="warning">{REASON_LABEL[reason] || reason}</Badge>)}
-    {record.decision && <Badge variant="info">Decided by teacher</Badge>}
-  </span>
-);
 
 const ReviewCard = ({ record, locked, busy, onDecide, onOpen }) => {
   const [note, setNote] = useState("");
@@ -82,8 +30,9 @@ const ReviewCard = ({ record, locked, busy, onDecide, onOpen }) => {
             {record.face.attempts ? ` · ${record.face.attempts} attempt${record.face.attempts > 1 ? "s" : ""}` : ""}
           </span>
         )}
+        <QueryQuote query={record.query} />
         {locked ? (
-          <Badge variant="neutral">Locked — decisions close at midnight</Badge>
+          <Badge variant="neutral">Locked — decisions closed at 09:00</Badge>
         ) : (
           <>
             {showNote && (
@@ -101,15 +50,54 @@ const ReviewCard = ({ record, locked, busy, onDecide, onOpen }) => {
   );
 };
 
-const StudentPanel = ({ record, onClose }) => {
+// Present ↔ absent override (Phase 10): the teacher must say why; audited, student sees "changed by teacher".
+const OverrideForm = ({ record, busy, onDecide }) => {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const target = record.status === "present" ? "absent" : "present";
+  if (!open) {
+    return (
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+        Change to {target}…
+      </Button>
+    );
+  }
+  return (
+    <div className="override-form">
+      <label className="ui-field__label" htmlFor={`override-${record._id}`}>Why are you changing this to {target}?</label>
+      <textarea
+        id={`override-${record._id}`}
+        className="ui-textarea override-form__note"
+        rows={2}
+        maxLength={300}
+        placeholder={target === "absent" ? "e.g. Spot-check: not in the room" : "e.g. Phone broken, seen in class"}
+        value={note}
+        onChange={(event) => setNote(event.target.value)}
+      />
+      <div className="review-card__actions">
+        <Button size="sm" variant={target === "absent" ? "danger" : "primary"} disabled={busy || !note.trim()} onClick={() => onDecide(record, target, note.trim())}>
+          Mark {target}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+      </div>
+      <p className="ui-muted student-panel__note">Kept in the audit log. The student sees “changed by your teacher”, not your note.</p>
+    </div>
+  );
+};
+
+const StudentPanel = ({ record, locked, busy, onDecide, onClose }) => {
   const badge = STATUS_BADGE[record.status] || STATUS_BADGE.absent;
   const steps = [
     { label: "Joined", at: record.joinedAt },
     { label: record.wave ? `Heard the key (wave ${record.wave})` : "Heard the key", at: record.heardAt },
     record.face ? { label: `${FACE_LABEL[record.face.status] || record.face.status}${typeof record.face.similarity === "number" ? ` (${record.face.similarity.toFixed(0)})` : ""}`, at: record.face.checkedAt } : null,
     record.relayedAt ? { label: "Relayed the key", at: record.relayedAt } : null,
-    record.decision ? { label: `Teacher marked ${record.decision.status}${record.decision.note ? ` — “${record.decision.note}”` : ""}`, at: record.decision.at } : null,
+    record.query ? { label: `Student query: ${QUERY_REASON_LABEL[record.query.reason] || record.query.reason}`, at: record.query.raisedAt } : null,
+    record.decision
+      ? { label: `${record.decision.kind === "lock" ? "Locked undecided →" : `${DECISION_LABEL[record.decision.kind] || "Teacher"}:`} ${record.decision.status}${record.decision.note ? ` — “${record.decision.note}”` : ""}`, at: record.decision.at }
+      : null,
   ].filter((step) => step && step.at);
+  const canOverride = !locked && ["present", "absent"].includes(record.status) && onDecide;
   return (
     <div className="student-panel" role="dialog" aria-modal="true" aria-label={displayName(record)}>
       <button type="button" className="student-panel__backdrop" aria-label="Close" onClick={onClose} />
@@ -124,12 +112,14 @@ const StudentPanel = ({ record, onClose }) => {
         <Badge variant={badge.variant} dot>{badge.label}</Badge>
         <ReasonBadges record={record} />
         <FacePair record={record} size="lg" />
+        <QueryQuote query={record.query} />
         <ol className="student-panel__timeline">
           {steps.length === 0 ? <li className="ui-muted">No activity yet.</li> : steps.map((step) => (
             <li key={step.label}><span>{time(step.at)}</span>{step.label}</li>
           ))}
         </ol>
-        <p className="ui-muted student-panel__note">Check-in frames are deleted after 24 hours.</p>
+        {canOverride && <OverrideForm key={`${record._id}-${record.status}`} record={record} busy={busy} onDecide={onDecide} />}
+        <p className="ui-muted student-panel__note">Check-in frames are deleted when the check-in locks (09:00 the next morning).</p>
       </aside>
     </div>
   );
@@ -198,7 +188,7 @@ const CheckinStudents = ({ records = [], locked, busy, onDecide }) => {
                       {record.loginId || record.email}
                       {record.wave ? ` · wave ${record.wave}` : ""}
                       {record.face ? ` · ${FACE_LABEL[record.face.status] || record.face.status}` : ""}
-                      {record.decision ? " · decided by teacher" : ""}
+                      {record.decision ? ` · ${(DECISION_LABEL[record.decision.kind] || "decided by teacher").toLowerCase()}` : ""}
                     </span>
                   </span>
                   <Badge variant={badge.variant}>{badge.label}</Badge>
@@ -209,7 +199,7 @@ const CheckinStudents = ({ records = [], locked, busy, onDecide }) => {
         </ul>
       )}
 
-      {current && <StudentPanel record={current} onClose={() => setOpenRecord(null)} />}
+      {current && <StudentPanel record={current} locked={locked} busy={busy} onDecide={onDecide} onClose={() => setOpenRecord(null)} />}
     </div>
   );
 };

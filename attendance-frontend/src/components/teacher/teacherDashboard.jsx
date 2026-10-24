@@ -12,17 +12,26 @@ import { PageLoader } from "../../ui/Spinner";
 import StatCard from "../../ui/StatCard";
 import { useToast } from "../../ui/Toast";
 import { roomLabel } from "../../utils/rooms";
-import { teacherLinks } from "./teacherSession";
+import { fetchReviewCounts, teacherLinks } from "./teacherSession";
 import "./teacherDashboard.css";
 
 const requestConfig = { withCredentials: true };
+
+// "3 attendance · 1 identity · 2 phones"
+const reviewHint = (counts) =>
+    [
+        counts?.attendance ? `${counts.attendance} attendance` : null,
+        counts?.enrollments ? `${counts.enrollments} identity` : null,
+        counts?.devices ? `${counts.devices} phone${counts.devices === 1 ? "" : "s"}` : null,
+    ].filter(Boolean).join(" · ");
 
 const TeacherDashboard = () => {
     const navigate = useNavigate();
     const toast = useToast();
     const [user, setUser] = useState(null);
     const [classes, setClasses] = useState([]);
-    const [pendingReviews, setPendingReviews] = useState(0);
+    const [reviewCounts, setReviewCounts] = useState(null);
+    const pendingReviews = reviewCounts?.total || 0;
 
     useEffect(() => {
         const load = async () => {
@@ -34,22 +43,18 @@ const TeacherDashboard = () => {
                 }
                 setUser(userResponse.data.user);
 
-                const [classesResult, reviewsResult, enrollmentResult] = await Promise.allSettled([
+                const [classesResult, countsResult] = await Promise.allSettled([
                     axios.get(`${SERVER_URL}/classes`, requestConfig),
-                    axios.get(`${SERVER_URL}/device-reviews`, requestConfig),
-                    axios.get(`${SERVER_URL}/enrollment-reviews`, requestConfig),
+                    fetchReviewCounts(),
                 ]);
                 if (classesResult.status === "fulfilled") {
                     setClasses(classesResult.value.data.classes);
                 } else {
                     toast("Could not load your classes.", "error");
                 }
-                const deviceCount = reviewsResult.status === "fulfilled" ? reviewsResult.value.data.reviews.length : 0;
-                const enrollmentCount = enrollmentResult.status === "fulfilled"
-                    ? enrollmentResult.value.data.reviews.length + (enrollmentResult.value.data.blocked || []).length
-                    : 0;
-                setPendingReviews(deviceCount + enrollmentCount);
-                if (reviewsResult.status === "rejected" || enrollmentResult.status === "rejected") {
+                if (countsResult.status === "fulfilled") {
+                    setReviewCounts(countsResult.value);
+                } else {
                     toast("Could not load all reviews.", "error");
                 }
             } catch (error) {
@@ -83,7 +88,7 @@ const TeacherDashboard = () => {
             name={name}
             email={user.email}
             onLogout={handleLogout}
-            links={teacherLinks("dashboard")}
+            links={teacherLinks("dashboard", reviewCounts)}
         >
             <div className="ui-page-head">
                 <div>
@@ -105,9 +110,25 @@ const TeacherDashboard = () => {
                     tone={pendingReviews > 0 ? "amber" : "emerald"}
                     label="Pending reviews"
                     value={pendingReviews}
-                    hint={pendingReviews > 0 ? "New phones + identity checks" : "All clear"}
+                    hint={pendingReviews > 0 ? reviewHint(reviewCounts) : "All clear"}
                 />
             </div>
+
+            {reviewCounts?.attendance > 0 && (
+                <Card className="review-alert">
+                    <div className="review-alert__row">
+                        <span className="review-alert__icon" aria-hidden="true">⚠</span>
+                        <span className="review-alert__text">
+                            <strong>{reviewCounts.attendance} attendance review{reviewCounts.attendance === 1 ? "" : "s"} waiting</strong>
+                            <span className="ui-muted">
+                                {reviewCounts.queries > 0 ? `${reviewCounts.queries} from student queries. ` : ""}
+                                Undecided cases are marked absent when the check-in locks at 09:00.
+                            </span>
+                        </span>
+                        <Button onClick={() => navigate("/teacher/reviews?tab=attendance")}>Review now</Button>
+                    </div>
+                </Card>
+            )}
 
             <div className="teacher-grid">
                 <Card
@@ -144,13 +165,20 @@ const TeacherDashboard = () => {
                     )}
                 </Card>
 
-                <Card title="Quick actions" subtitle="The two things you’ll do most often.">
+                <Card title="Quick actions" subtitle="The things you’ll do most often.">
                     <div className="quick-actions">
+                        <button type="button" className="quick-action" onClick={() => navigate("/teacher/reviews")}>
+                            <span className="quick-action__icon" aria-hidden="true">✅</span>
+                            <span className="quick-action__body">
+                                <strong>Reviews</strong>
+                                <small>Unsure check-ins, student queries, identity checks and new phones</small>
+                            </span>
+                        </button>
                         <button type="button" className="quick-action" onClick={() => navigate("/teacher/classes")}>
                             <span className="quick-action__icon" aria-hidden="true">👥</span>
                             <span className="quick-action__body">
                                 <strong>Classes & rosters</strong>
-                                <small>Create classes, paste rosters, review new devices</small>
+                                <small>Create classes, paste rosters, start check-ins</small>
                             </span>
                         </button>
                         <button type="button" className="quick-action" onClick={() => navigate("/acoustic-lab")}>

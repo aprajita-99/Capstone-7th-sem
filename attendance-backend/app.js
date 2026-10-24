@@ -70,6 +70,12 @@ app.use("/api/v1", faceRoute);
 const enrollmentRoute = require('./routes/enrollmentRoute');
 app.use("/api/v1", enrollmentRoute);
 
+const reviewRoute = require('./routes/reviewRoute');
+app.use("/api/v1", reviewRoute);
+
+const jobsRoute = require('./routes/jobsRoute');
+app.use("/api/v1", jobsRoute);
+
 const errorMiddleware = require('./middleware/error');
 app.use(errorMiddleware);
 

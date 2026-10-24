@@ -12,7 +12,8 @@ const AuditLog = require("../models/auditLogModels");
 const faceClient = require("../utils/faceClient");
 const { currentKey, findKey } = require("../utils/keys");
 const { decide, faceStatusFrom } = require("../utils/attendanceDecision");
-const { endOfDay } = require("../utils/clock");
+const { lockTimeFor } = require("../utils/clock");
+const { isLocked, canQuery, lockOutcome } = require("../utils/reviewRules");
 const { verifyDeviceProof } = require("../utils/deviceProof");
 const { consumeFaceSession } = require("../utils/faceSessions");
 const { SLOT_MS, relayPlan, studentWave } = require("../utils/relay");
@@ -34,7 +35,9 @@ const defaultSettings = () => ({
   faceRequired: true, // owner decision: face check at every check-in
 });
 
-const evidenceTtlMs = () => envNumber("EVIDENCE_TTL_HOURS", 24) * 60 * 60 * 1000;
+// Evidence (IP, browser, check-in frame) is deleted when the check-in locks;
+// the TTL is only a backstop in case the lock job does not run.
+const evidenceTtlMs = () => envNumber("EVIDENCE_TTL_HOURS", 48) * 60 * 60 * 1000;
 
 // ---------- shared helpers ----------
 
@@ -104,9 +107,8 @@ const finalizeSession = async (session) => {
   return refreshStats(closing);
 };
 
-// After the grace, students still waiting on their face step go to review.
-const finalizeFaceGrace = async (session) => {
-  if (session.status !== "closed" || faceStepOpen(session)) return session;
+// Students still waiting on their face step go to review (after the grace, or at the lock).
+const settleHeardRecords = async (session) => {
   const waiting = await AttendanceRecord.find({ session: session._id, status: "heard" });
   if (waiting.length === 0) return session;
   for (const record of waiting) {
@@ -118,10 +120,63 @@ const finalizeFaceGrace = async (session) => {
   return refreshStats(session);
 };
 
-const closeIfExpired = async (session) => {
+const finalizeFaceGrace = async (session) => {
+  if (session.status !== "closed" || faceStepOpen(session)) return session;
+  return settleHeardRecords(session);
+};
+
+/**
+ * Lock a closed check-in exactly once (Phase 10): undecided review cases
+ * become absent (unresolved, audited as the system) and the check-in's
+ * evidence (IP, browser, face frames) is deleted. Nothing changes afterwards.
+ */
+const lockSession = async (session) => {
+  await settleHeardRecords(session);
+  const now = new Date();
+  const locking = await AttendanceSession.findOneAndUpdate(
+    { _id: session._id, status: "closed", lockAt: { $lte: now } },
+    { $set: { status: "locked", lockedAt: now } },
+    { new: true }
+  );
+  if (!locking) return AttendanceSession.findById(session._id); // someone else locked it
+
+  const undecided = await AttendanceRecord.find({ session: locking._id, status: "review" });
+  const audits = [];
+  for (const record of undecided) {
+    const before = { status: record.status, reasons: [...record.reasons] };
+    const outcome = lockOutcome(record);
+    record.status = outcome.status;
+    record.reasons = outcome.reasons;
+    record.decision = { status: outcome.status, kind: "lock", from: "review", at: now };
+    await record.save();
+    audits.push({ action: "attendance_unresolved_absent", target: { type: "AttendanceRecord", id: record._id }, before, after: { status: record.status, reasons: record.reasons }, note: "Not decided before the lock" });
+  }
+  if (audits.length) await AuditLog.insertMany(audits);
+
+  const recordIds = await AttendanceRecord.distinct("_id", { session: locking._id });
+  await CheckinEvidence.deleteMany({ record: { $in: recordIds } });
+  return refreshStats(locking);
+};
+
+// Bring a session up to date: close when its window ended, settle the face
+// grace, lock when lockAt has passed. Runs on every read and write, so the
+// lock holds even when no background job runs.
+const settleSession = async (session) => {
   let current = session;
-  if (current.status === "open" && current.closesAt.getTime() <= Date.now()) current = await finalizeSession(current);
-  return finalizeFaceGrace(current);
+  const now = Date.now();
+  if (current.status === "open" && (current.closesAt.getTime() <= now || current.lockAt.getTime() <= now)) current = await finalizeSession(current);
+  current = await finalizeFaceGrace(current);
+  if (current.status === "closed" && current.lockAt.getTime() <= now) current = await lockSession(current);
+  return current;
+};
+exports.settleSession = settleSession;
+exports.refreshStats = refreshStats;
+
+// Locks every check-in whose lockAt has passed (jobs run + index.js interval).
+exports.lockDueSessions = async () => {
+  const due = await AttendanceSession.find({ status: { $in: ["open", "closed"] }, lockAt: { $lte: new Date() } });
+  for (const session of due) await settleSession(session);
+  return due.length;
 };
 
 // Closes every open session whose window has ended and settles face grace (called from index.js).
@@ -154,7 +209,7 @@ const getOwnedSession = async (sessionId, teacherId, next) => {
     next(new ErrorHandler("Check-in not found", 404));
     return null;
   }
-  return closeIfExpired(session);
+  return settleSession(session);
 };
 
 // Student must be on the active roster of the session's class.
@@ -164,7 +219,7 @@ const loadStudentSession = async (sessionId, user) => {
   if (!found) return { error: new ErrorHandler("Check-in not found", 404) };
   const onRoster = await Enrollment.exists({ class: found.class, email: user.email, status: "active" });
   if (!onRoster) return { error: new ErrorHandler("You are not on this class roster", 403) };
-  return { session: await closeIfExpired(found) };
+  return { session: await settleSession(found) };
 };
 
 const getStudentSession = async (sessionId, user, next) => {
@@ -173,10 +228,56 @@ const getStudentSession = async (sessionId, user, next) => {
   return session || null;
 };
 
+/**
+ * Teacher-facing rows for attendance records (live page, summary, Reviews):
+ * roster name + roll, sound / face / relay steps, decision, student query,
+ * and whether a check-in frame and an enrolled face exist.
+ */
+const recordViews = async (records) => {
+  if (records.length === 0) return [];
+  const emails = [...new Set(records.map((record) => record.email))];
+  const classIds = [...new Set(records.map((record) => String(record.class)))];
+  const [roster, students, framed] = await Promise.all([
+    Enrollment.find({ class: { $in: classIds }, email: { $in: emails } }).select("class email name identity"),
+    User.find({ email: { $in: emails } }).select("email enrollment.referenceFaceMedia"),
+    CheckinEvidence.distinct("record", { record: { $in: records.map((record) => record._id) }, frame: { $exists: true } }),
+  ]);
+  const rosterByKey = new Map(roster.map((entry) => [`${entry.class}|${entry.email}`, entry]));
+  const referenceByEmail = new Map(students.map((student) => [student.email, student.enrollment?.referenceFaceMedia || null]));
+  const framedIds = new Set(framed.map(String));
+
+  return records.map((record) => {
+    const entry = rosterByKey.get(`${record.class}|${record.email}`);
+    return {
+      _id: record._id,
+      session: record.session,
+      email: record.email,
+      name: entry?.name || "",
+      rollNumber: entry?.identity?.rollNumber || "",
+      loginId: entry?.identity?.loginId || record.email.split("@")[0],
+      status: record.status,
+      reasons: record.reasons,
+      wave: record.acoustic?.wave,
+      heardAt: record.acoustic?.heardAt,
+      joinedAt: record.joinedAt,
+      face: record.face?.status ? record.face : null,
+      relayedAt: record.relayedAt,
+      decision: record.decision?.status ? record.decision : null,
+      query: record.query?.raisedAt ? record.query : null,
+      hasFrame: framedIds.has(String(record._id)),
+      referenceFaceMedia: referenceByEmail.get(record.email) || null,
+    };
+  });
+};
+exports.recordViews = recordViews;
+
 const publicSession = (session) => ({
   _id: session._id,
   class: session.class,
   status: session.status,
+  locked: isLocked(session),
+  lockedAt: session.lockedAt,
+  headcount: session.headcount?.count ?? null,
   startedAt: session.startedAt,
   closesAt: session.closesAt,
   closedAt: session.closedAt,
@@ -211,7 +312,7 @@ exports.startSession = catchAsyncError(async (req, res, next) => {
   if (courseClass.archived) return next(new ErrorHandler("This class is archived. Restore it to take attendance.", 400));
 
   const open = await AttendanceSession.findOne({ class: courseClass._id, status: "open" });
-  if (open && (await closeIfExpired(open)).status === "open") {
+  if (open && (await settleSession(open)).status === "open") {
     return next(new ErrorHandler("A check-in is already open for this class", 409));
   }
 
@@ -229,7 +330,7 @@ exports.startSession = catchAsyncError(async (req, res, next) => {
       status: "open",
       startedAt: now,
       closesAt: new Date(now.getTime() + settings.windowMin * 60 * 1000),
-      lockAt: endOfDay(now),
+      lockAt: lockTimeFor(now),
       settings,
     });
   } catch (error) {
@@ -247,7 +348,7 @@ exports.listClassSessions = catchAsyncError(async (req, res, next) => {
 
   const sessions = await AttendanceSession.find({ class: courseClass._id }).sort({ startedAt: -1 }).limit(20);
   const current = [];
-  for (const session of sessions) current.push(await closeIfExpired(session));
+  for (const session of sessions) current.push(await settleSession(session));
   const open = current.find((session) => session.status === "open");
   const { profile, windowMin } = defaultSettings();
   res.status(200).json({
@@ -263,46 +364,46 @@ exports.getSession = catchAsyncError(async (req, res, next) => {
   const session = await getOwnedSession(req.params.sessionId, req.user._id, next);
   if (!session) return;
 
-  const [records, roster, courseClass] = await Promise.all([
-    AttendanceRecord.find({ session: session._id }).select("email status reasons joinedAt acoustic face decision relayedAt").sort({ updatedAt: -1 }),
-    Enrollment.find({ class: session.class, status: "active" }).select("email name identity"),
+  const [records, rosterSize, courseClass, counts, byWave] = await Promise.all([
+    AttendanceRecord.find({ session: session._id }).sort({ updatedAt: -1 }),
+    Enrollment.countDocuments({ class: session.class, status: "active" }),
     CourseClass.findById(session.class).select("courseCode title section"),
-  ]);
-  const names = new Map(roster.map((entry) => [entry.email, entry]));
-  const [counts, byWave, students, framed] = await Promise.all([
     countByStatus(session._id),
     countByWave(session._id),
-    User.find({ email: { $in: records.map((record) => record.email) } }).select("email enrollment.referenceFaceMedia"),
-    CheckinEvidence.distinct("record", { record: { $in: records.map((record) => record._id) }, frame: { $exists: true } }),
   ]);
-  const referenceByEmail = new Map(students.map((student) => [student.email, student.enrollment?.referenceFaceMedia || null]));
-  const framedIds = new Set(framed.map(String));
 
   res.status(200).json({
     success: true,
     session: publicSession(session),
     class: courseClass,
-    rosterSize: roster.length,
+    rosterSize,
     counts,
     byWave,
-    records: records.map((record) => ({
-      _id: record._id,
-      email: record.email,
-      name: names.get(record.email)?.name || "",
-      rollNumber: names.get(record.email)?.identity?.rollNumber || "",
-      loginId: names.get(record.email)?.identity?.loginId || record.email.split("@")[0],
-      status: record.status,
-      reasons: record.reasons,
-      wave: record.acoustic?.wave,
-      heardAt: record.acoustic?.heardAt,
-      joinedAt: record.joinedAt,
-      face: record.face?.status ? record.face : null,
-      relayedAt: record.relayedAt,
-      decision: record.decision?.status ? record.decision : null,
-      hasFrame: framedIds.has(String(record._id)),
-      referenceFaceMedia: referenceByEmail.get(record.email) || null,
-    })),
+    records: await recordViews(records),
   });
+});
+
+// Teacher's head count (Phase 10): warns when more students are present than are in the room.
+exports.setHeadcount = catchAsyncError(async (req, res, next) => {
+  const session = await getOwnedSession(req.params.sessionId, req.user._id, next);
+  if (!session) return;
+  if (isLocked(session)) return next(new ErrorHandler("This check-in is locked", 409, "locked"));
+  const count = Number(req.body?.headcount);
+  if (!Number.isInteger(count) || count < 0 || count > 500) return next(new ErrorHandler("Head count must be a whole number from 0 to 500", 400));
+  session.headcount = { count, at: new Date() };
+  await session.save();
+  const present = await AttendanceRecord.countDocuments({ session: session._id, status: "present" });
+  res.status(200).json({ success: true, session: publicSession(session), present, warning: present > count ? `${present} marked present but you counted ${count}` : null });
+});
+
+// Spot-check (Phase 10): n random present students to call out in class.
+exports.spotCheck = catchAsyncError(async (req, res, next) => {
+  const session = await getOwnedSession(req.params.sessionId, req.user._id, next);
+  if (!session) return;
+  const size = Math.min(10, Math.max(1, Math.round(Number(req.query.n) || 5)));
+  const sampled = await AttendanceRecord.aggregate([{ $match: { session: session._id, status: "present" } }, { $sample: { size } }]);
+  const records = await AttendanceRecord.find({ _id: { $in: sampled.map((row) => row._id) } });
+  res.status(200).json({ success: true, records: await recordViews(records), locked: isLocked(session) });
 });
 
 exports.getBeacon = catchAsyncError(async (req, res, next) => {
@@ -321,29 +422,7 @@ exports.closeSession = catchAsyncError(async (req, res, next) => {
   res.status(200).json({ success: true, session: publicSession(closed) });
 });
 
-// Teacher's same-day decision on a review case (Phase 9; Phase 10 adds queries and the lock job).
-exports.decideRecord = catchAsyncError(async (req, res, next) => {
-  const { recordId } = req.params;
-  const status = req.body?.status;
-  const note = String(req.body?.note || "").trim().slice(0, 300);
-  if (!["present", "absent"].includes(status)) return next(new ErrorHandler("Choose present or absent", 400));
-  if (!mongoose.isValidObjectId(recordId)) return next(new ErrorHandler("Record not found", 404));
-
-  const record = await AttendanceRecord.findById(recordId);
-  const session = record && (await AttendanceSession.findOne({ _id: record.session, teacher: req.user._id }));
-  if (!record || !session) return next(new ErrorHandler("Record not found", 404));
-  if (record.status !== "review") return next(new ErrorHandler("Only records in review can be changed", 409));
-  if (Date.now() > session.lockAt.getTime()) return next(new ErrorHandler("This check-in is locked; decisions are only possible the same day", 409, "locked"));
-
-  record.decision = { status, from: "review", by: req.user._id, at: new Date(), note: note || undefined };
-  record.status = status;
-  await record.save();
-  await AuditLog.create({ actor: req.user._id, action: `attendance_marked_${status}`, target: { type: "AttendanceRecord", id: record._id }, note: [record.reasons.join(","), note].filter(Boolean).join(" | ") });
-  await refreshStats(session);
-  res.status(200).json({ success: true, record: { _id: record._id, status: record.status, decision: record.decision } });
-});
-
-// Check-in face frame: the class teacher or the student themselves; deleted after 24 h.
+// Check-in face frame: the class teacher or the student themselves; deleted when the check-in locks.
 exports.getEvidenceFrame = catchAsyncError(async (req, res, next) => {
   if (!mongoose.isValidObjectId(req.params.recordId)) return next(new ErrorHandler("Frame not found", 404));
   const record = await AttendanceRecord.findById(req.params.recordId);
@@ -352,7 +431,7 @@ exports.getEvidenceFrame = catchAsyncError(async (req, res, next) => {
   const teacherOwns = req.user.role === "teacher" && (await AttendanceSession.exists({ _id: record.session, teacher: req.user._id }));
   if (!ownRecord && !teacherOwns) return next(new ErrorHandler("You cannot view this frame", 403));
   const evidence = await CheckinEvidence.findOne({ record: record._id, frame: { $exists: true } }).sort({ updatedAt: -1 });
-  if (!evidence?.frame) return next(new ErrorHandler("Frame not found (frames are deleted after 24 hours)", 404));
+  if (!evidence?.frame) return next(new ErrorHandler("Frame not found (frames are deleted when the check-in locks)", 404));
   res.set({ "Content-Type": "image/jpeg", "Cache-Control": "private, no-store" });
   res.send(evidence.frame);
 });
@@ -551,10 +630,16 @@ exports.requestRelay = catchAsyncError(async (req, res, next) => {
   res.status(200).json({ success: true, relay, reason: relay ? undefined : "last_wave" });
 });
 
+// What a student sees of a decision and of their own query (never the teacher's note).
+const studentDecision = (decision) => (decision?.status ? { status: decision.status, kind: decision.kind || (decision.by ? "review" : null), at: decision.at } : null);
+const studentQuery = (query) => (query?.raisedAt ? { reason: query.reason, text: query.text, raisedAt: query.raisedAt } : null);
+exports.studentDecision = studentDecision;
+exports.studentQuery = studentQuery;
+
 exports.getMyRecord = catchAsyncError(async (req, res, next) => {
   const session = await getStudentSession(req.params.sessionId, req.user, next);
   if (!session) return;
-  const record = await AttendanceRecord.findOne({ session: session._id, email: req.user.email }).select("status reasons acoustic face relayedAt decision");
+  const record = await AttendanceRecord.findOne({ session: session._id, email: req.user.email }).select("status reasons acoustic face relayedAt decision query");
   await session.populate("class", "courseCode title section");
   res.status(200).json({
     success: true,
@@ -564,6 +649,8 @@ exports.getMyRecord = catchAsyncError(async (req, res, next) => {
       closesAt: session.closesAt,
       closedAt: session.closedAt,
       faceGraceEndsAt: faceGraceEndsAt(session),
+      lockAt: session.lockAt,
+      locked: isLocked(session),
       profile: session.settings.profile,
       faceRequired: session.settings.faceRequired,
       class: session.class,
@@ -571,12 +658,15 @@ exports.getMyRecord = catchAsyncError(async (req, res, next) => {
     identityVerified: req.user.enrollment?.status === "verified",
     record: record
       ? {
+          _id: record._id,
           status: record.status,
           reasons: record.reasons,
           heardAt: record.acoustic?.heardAt,
           face: record.face?.status ? record.face : null,
           relayed: Boolean(record.relayedAt),
-          decision: record.decision?.status ? record.decision : null,
+          decision: studentDecision(record.decision),
+          query: studentQuery(record.query),
+          canQuery: canQuery(record, session).ok,
         }
       : null,
   });

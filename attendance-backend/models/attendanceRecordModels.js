@@ -10,6 +10,7 @@ const attendanceRecordSchema = new mongoose.Schema(
     email: { type: String, required: true, lowercase: true, trim: true },
     // heard = key heard, face check still to come (Phase 9)
     status: { type: String, enum: ["joined", "heard", "present", "review", "absent"], required: true },
+    // not_heard, face_*, device_unverified, not_joined, student_query (Phase 10), unresolved (locked undecided)
     reasons: [String],
     joinedAt: Date,
     acoustic: {
@@ -30,13 +31,21 @@ const attendanceRecordSchema = new mongoose.Schema(
       checkedAt: Date,
     },
     relayedAt: Date,
-    // Teacher's same-day decision on a review case
+    // Teacher's decision (review case, student query or override) or the lock's (Phase 10)
     decision: {
       status: { type: String, enum: ["present", "absent"] },
-      from: String,
+      kind: { type: String, enum: ["review", "query", "override", "lock"] },
+      from: String, // status before the decision
       by: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
       at: Date,
-      note: String,
+      note: String, // teacher only; never shown to the student
+    },
+    // Student query (Phase 10): once per record, until the lock
+    query: {
+      reason: { type: String, enum: ["cant_hear", "camera_failed", "was_present", "other"] },
+      text: String, // cleared after AUDIT_RETENTION_DAYS
+      raisedAt: Date,
+      fromStatus: String,
     },
   },
   { timestamps: true }

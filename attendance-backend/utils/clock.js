@@ -31,4 +31,21 @@ const endOfDay = (date = new Date(), zone = timeZone()) => {
   return new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 23, 59, 59, 999) - offsetMs);
 };
 
-module.exports = { DEFAULT_TIMEZONE, timeZone, endOfDay };
+const lockHour = () => {
+  const hour = Number(process.env.LOCK_HOUR);
+  return Number.isInteger(hour) && hour >= 0 && hour <= 23 ? hour : 9;
+};
+
+// When a check-in locks (Phase 10): LOCK_HOUR (default 09:00) local time on
+// the morning after the check-in's local day.
+const lockTimeFor = (date = new Date(), zone = timeZone(), hour = lockHour()) =>
+  new Date(endOfDay(date, zone).getTime() + 1 + hour * 60 * 60 * 1000);
+
+// Local calendar day ("2026-10-24") and hour of `date` in the college time zone.
+const localDay = (date = new Date(), zone = timeZone()) => {
+  const parts = localParts(date, zone);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+};
+const localHour = (date = new Date(), zone = timeZone()) => localParts(date, zone).hour;
+
+module.exports = { DEFAULT_TIMEZONE, timeZone, endOfDay, lockTimeFor, localDay, localHour };

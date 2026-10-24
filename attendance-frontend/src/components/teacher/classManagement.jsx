@@ -22,7 +22,7 @@ const errorMessage = (requestError, fallback) => requestError.response?.data?.me
 const ClassManagement = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const { user, logout } = useTeacherSession();
+  const { user, logout, counts } = useTeacherSession();
   const [classes, setClasses] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [showArchived, setShowArchived] = useState(false);
@@ -69,7 +69,7 @@ const ClassManagement = () => {
       name={user.name || user.email}
       email={user.email}
       onLogout={logout}
-      links={teacherLinks("classes")}
+      links={teacherLinks("classes", counts)}
     >
       <div className="ui-page-head">
         <div>

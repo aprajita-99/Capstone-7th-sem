@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import AppShell from "../../ui/AppShell";
@@ -6,11 +7,16 @@ import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
-import { PageLoader } from "../../ui/Spinner";
+import Spinner, { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { teacherLinks, useTeacherSession } from "./teacherSession";
 import "./classes.css";
 import "./reviews.css";
+import "../checkin.css";
+
+// Review cards with photos load only when the Attendance tab is opened.
+const AttendanceReviews = lazy(() => import("./AttendanceReviews"));
+const TAB_IDS = ["attendance", "enrollments", "devices"];
 
 const requestConfig = { withCredentials: true };
 const errorMessage = (requestError, fallback) => requestError.response?.data?.message || fallback;
@@ -72,42 +78,71 @@ const EnrollmentCard = ({ row, busy, onDecide, onReset, onForce }) => {
 };
 
 /**
- * Teacher reviews (Phase 8): new-device requests and identity enrollments
- * that the system could not decide on its own.
+ * Teacher reviews: attendance cases from check-ins that are not locked yet
+ * (Phase 10), identity enrollments and new-device requests (Phase 8) — the
+ * cases the system could not decide on its own.
  */
 const Reviews = () => {
   const toast = useToast();
-  const { user, logout } = useTeacherSession();
-  const [tab, setTab] = useState("enrollments");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { user, logout, counts, refreshCounts } = useTeacherSession();
+  const requestedTab = TAB_IDS.includes(searchParams.get("tab")) ? searchParams.get("tab") : null;
+  const [tab, setTabState] = useState(requestedTab);
   const [devices, setDevices] = useState(null);
   const [enrollments, setEnrollments] = useState({ reviews: [], blocked: [] });
+  const [attendance, setAttendance] = useState([]);
   const [busy, setBusy] = useState(false);
 
+  const setTab = (next) => {
+    setTabState(next);
+    setSearchParams({ tab: next }, { replace: true });
+  };
+
   const load = useCallback(async () => {
-    const [deviceResponse, enrollmentResponse] = await Promise.all([
+    const [deviceResponse, enrollmentResponse, attendanceResponse] = await Promise.all([
       axios.get(`${SERVER_URL}/device-reviews`, requestConfig),
       axios.get(`${SERVER_URL}/enrollment-reviews`, requestConfig),
+      axios.get(`${SERVER_URL}/reviews?type=attendance`, requestConfig),
     ]);
     setDevices(deviceResponse.data.reviews);
     setEnrollments({ reviews: enrollmentResponse.data.reviews, blocked: enrollmentResponse.data.blocked || [] });
+    setAttendance(attendanceResponse.data.groups || []);
+    // Open the tab with something waiting, attendance first.
+    const waiting = { attendance: (attendanceResponse.data.groups || []).length, enrollments: enrollmentResponse.data.reviews.length, devices: deviceResponse.data.reviews.length };
+    setTabState((current) => current || TAB_IDS.find((id) => waiting[id] > 0) || "attendance");
   }, []);
 
   useEffect(() => {
-    if (user) load().catch(() => toast("Could not load reviews.", "error"));
+    if (!user) return;
+    load().catch(() => {
+      toast("Could not load reviews.", "error");
+      setDevices((current) => current || []);
+      setTabState((current) => current || "attendance");
+    });
   }, [user, load, toast]);
 
   const run = async (action, success) => {
     setBusy(true);
     try {
-      await action();
-      toast(success, "success");
+      const message = await action();
+      toast(message || success, "success");
       await load();
+      refreshCounts();
     } catch (requestError) {
       toast(errorMessage(requestError, "That did not work."), "error");
     } finally {
       setBusy(false);
     }
   };
+
+  const decideAttendance = (record, status, note) =>
+    run(() => axios.post(`${SERVER_URL}/records/${record._id}/decision`, { status, note }, requestConfig), `${record.name || record.email.split("@")[0]} marked ${status}.`);
+  const bulkPresent = (recordIds) =>
+    run(async () => {
+      const response = await axios.post(`${SERVER_URL}/records/bulk-decision`, { recordIds, status: "present" }, requestConfig);
+      const { updated, skipped } = response.data;
+      return `${updated.length} marked present${skipped.length ? ` · ${skipped.length} skipped (already decided or locked)` : ""}.`;
+    }, "Marked present.");
 
   const decideDevice = (review, decision) =>
     run(() => axios.post(`${SERVER_URL}/device-reviews/${review._id}`, { decision }, requestConfig), decision === "approved" ? "Device approved." : "Device rejected.");
@@ -120,20 +155,24 @@ const Reviews = () => {
     run(() => axios.post(`${SERVER_URL}/enrollment-reviews/${row.userId}/force-reenroll`, {}, requestConfig), `${row.name} must enroll again.`);
   };
 
-  if (!user || devices === null) return <PageLoader label="Loading reviews…" />;
+  if (!user || devices === null || !tab) return <PageLoader label="Loading reviews…" />;
 
   const enrollmentCount = enrollments.reviews.length + enrollments.blocked.length;
+  const attendanceCount = attendance.reduce((sum, group) => sum + group.records.length, 0);
 
   return (
-    <AppShell role="teacher" name={user.name || user.email} email={user.email} onLogout={logout} links={teacherLinks("reviews")}>
+    <AppShell role="teacher" name={user.name || user.email} email={user.email} onLogout={logout} links={teacherLinks("reviews", counts)}>
       <div className="ui-page-head">
         <div>
           <h1 className="ui-page-head__title">Reviews</h1>
-          <p className="ui-page-head__sub">Cases the system could not decide on its own. Students see your decision and any reason you give.</p>
+          <p className="ui-page-head__sub">Cases the system could not decide on its own. Check-ins lock at 09:00 the next morning; anything still undecided is then marked absent.</p>
         </div>
       </div>
 
       <div className="review-tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === "attendance"} className={tab === "attendance" ? "is-active" : ""} onClick={() => setTab("attendance")}>
+          Attendance <Badge variant={attendanceCount ? "warning" : "neutral"}>{attendanceCount}</Badge>
+        </button>
         <button type="button" role="tab" aria-selected={tab === "enrollments"} className={tab === "enrollments" ? "is-active" : ""} onClick={() => setTab("enrollments")}>
           Identity checks <Badge variant={enrollmentCount ? "warning" : "neutral"}>{enrollmentCount}</Badge>
         </button>
@@ -141,6 +180,12 @@ const Reviews = () => {
           New phones <Badge variant={devices.length ? "warning" : "neutral"}>{devices.length}</Badge>
         </button>
       </div>
+
+      {tab === "attendance" && (
+        <Suspense fallback={<div className="att-loading"><Spinner /> <span className="ui-muted">Loading reviews…</span></div>}>
+          <AttendanceReviews groups={attendance} busy={busy} onDecide={decideAttendance} onBulkPresent={bulkPresent} />
+        </Suspense>
+      )}
 
       {tab === "enrollments" && (
         <>
