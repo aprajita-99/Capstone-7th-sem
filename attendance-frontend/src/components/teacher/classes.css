@@ -313,3 +313,49 @@ button.att-cell:hover { outline: 2px solid var(--indigo-300); }
 .att-history__when { display: flex; flex-direction: column; min-width: 70px; }
 .att-history__when span { font-size: 12px; }
 .att-history__label { flex: 1; color: var(--text-soft); }
+
+/* ---------- Redesign round 3: classes, class page, roster on phones ---------- */
+.edit-archive {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.edit-archive strong { font-size: 14.5px; }
+.edit-archive p { font-size: 13px; margin-top: 2px; max-width: 52ch; }
+
+/* Roster: each student becomes a compact card on phones */
+@media (max-width: 640px) {
+  .roster-table-wrap { overflow-x: visible; }
+  .roster-table,
+  .roster-table tbody { display: block; }
+  .roster-table thead { display: none; }
+  .roster-table tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name actions"
+      "email email"
+      "meta meta"
+      "identity identity";
+    gap: 4px 10px;
+    padding: 12px;
+    margin-bottom: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .roster-table tbody tr:hover { background: var(--surface); }
+  .roster-table td { display: block; padding: 0; border: 0; }
+  .roster-table__name { grid-area: name; font-weight: 700; font-size: 15px; align-self: center; }
+  .roster-table__actions { grid-area: actions; width: auto; }
+  .roster-table__email { grid-area: email; font-size: 13px; color: var(--text-soft); }
+  .roster-table__roll { grid-area: meta; font-size: 12.5px; color: var(--text-faint); }
+  .roster-table__roll::before { content: "Roll "; }
+  .roster-table__batch { display: none !important; }
+  .roster-table__identity { grid-area: identity; margin-top: 6px; }
+}

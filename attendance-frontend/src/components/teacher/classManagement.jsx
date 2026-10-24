@@ -7,7 +7,9 @@ import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
+import Icon from "../../ui/Icon";
 import PageHeader from "../../ui/PageHeader";
+import Sheet from "../../ui/Sheet";
 import Field from "../../ui/Field";
 import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
@@ -30,6 +32,7 @@ const ClassManagement = () => {
   const [formData, setFormData] = useState(blankClass);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const loadData = useCallback(async () => {
     const [classesResponse, roomsResponse] = await Promise.all([
@@ -75,10 +78,10 @@ const ClassManagement = () => {
       <PageHeader
         title="Classes & rosters"
         subtitle="Create a class once, add its students, and reuse the roster for every check-in."
+        actions={<Button onClick={() => setCreating(true)}><Icon name="classes" /> New class</Button>}
       />
 
-      <div className="classes-grid">
-        <Card title="Your classes" subtitle="Open a class to manage its roster."
+      <Card title="Your classes" subtitle="Open a class to manage its roster."
           actions={
             <label className="classes-toggle">
               <input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />
@@ -90,7 +93,8 @@ const ClassManagement = () => {
             <EmptyState
               icon="classes"
               title={showArchived ? "No classes yet" : "No active classes"}
-              text="Create your first class with the form — it takes a few seconds."
+              text="Create your first class — it takes a few seconds."
+              action={<Button variant="soft" onClick={() => setCreating(true)}>New class</Button>}
             />
           ) : (
             <ul className="class-cards">
@@ -122,8 +126,21 @@ const ClassManagement = () => {
           )}
         </Card>
 
-        <Card title="Create a class" subtitle="Students are added on the next screen.">
-          <form className="ui-stack" onSubmit={handleCreateClass}>
+      {creating && (
+        <Sheet
+          title="Create a class"
+          subtitle="Students are added on the next screen."
+          onClose={() => setCreating(false)}
+          footer={
+            <>
+              <Button variant="secondary" onClick={() => setCreating(false)}>Cancel</Button>
+              <Button type="submit" form="create-class-form" loading={saving} disabled={!formData.courseCode.trim() || !formData.title.trim() || !formData.roomId}>
+                Create class
+              </Button>
+            </>
+          }
+        >
+          <form id="create-class-form" className="ui-stack" onSubmit={handleCreateClass}>
             <Field label="Course code" htmlFor="courseCode">
               <input id="courseCode" className="ui-input" required maxLength={40} value={formData.courseCode} onChange={setField("courseCode")} placeholder="CS1501" />
             </Field>
@@ -144,16 +161,9 @@ const ClassManagement = () => {
               />
             </Field>
             {formError && <p className="ui-field__error">{formError}</p>}
-            <Button type="submit" loading={saving} disabled={!formData.courseCode.trim() || !formData.title.trim() || !formData.roomId}>
-              Create class
-            </Button>
           </form>
-        </Card>
-      </div>
-
-      <Card className="classes-section" title="Reviews" subtitle="New-phone requests and identity checks now live on the Reviews page.">
-        <Button variant="soft" onClick={() => navigate("/teacher/reviews")}>Open reviews</Button>
-      </Card>
+        </Sheet>
+      )}
     </AppShell>
   );
 };

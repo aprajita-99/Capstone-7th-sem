@@ -10,7 +10,7 @@ import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
 import PageHeader from "../../ui/PageHeader";
 import Icon from "../../ui/Icon";
-import { PageLoader } from "../../ui/Spinner";
+import { PageLoader, Skeleton } from "../../ui/Spinner";
 import StatCard from "../../ui/StatCard";
 import { useToast } from "../../ui/Toast";
 import { roomLabel } from "../../utils/rooms";
@@ -18,6 +18,11 @@ import { fetchReviewCounts, teacherLinks } from "./teacherSession";
 import "./teacherDashboard.css";
 
 const requestConfig = { withCredentials: true };
+
+const formatClock = (ms) => {
+    const total = Math.max(0, Math.round(ms / 1000));
+    return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
 
 // "3 attendance · 1 identity · 2 phones"
 const reviewHint = (counts) =>
@@ -34,6 +39,40 @@ const TeacherDashboard = () => {
     const [classes, setClasses] = useState([]);
     const [reviewCounts, setReviewCounts] = useState(null);
     const pendingReviews = reviewCounts?.total || 0;
+    const [today, setToday] = useState(null); // { running: [...], done: [...] }
+    const [now, setNow] = useState(Date.now());
+
+    // Clock for the running check-in countdown.
+    useEffect(() => {
+        const timer = window.setInterval(() => setNow(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, []);
+
+    // Today's check-ins across active classes (same list the class page shows), refreshed every 30 s.
+    useEffect(() => {
+        if (!user) return undefined;
+        const activeClasses = classes.filter((courseClass) => !courseClass.archived);
+        const loadToday = async () => {
+            const results = await Promise.all(activeClasses.map((courseClass) =>
+                axios.get(`${SERVER_URL}/classes/${courseClass._id}/sessions`, requestConfig)
+                    .then((response) => ({ courseClass, data: response.data }))
+                    .catch(() => null)));
+            const isToday = (value) => new Date(value).toDateString() === new Date().toDateString();
+            const running = [];
+            const done = [];
+            results.filter(Boolean).forEach(({ courseClass, data }) => {
+                if (data.openSession) running.push({ courseClass, session: data.openSession });
+                data.sessions
+                    .filter((session) => session.status !== "open" && isToday(session.startedAt))
+                    .forEach((session) => done.push({ courseClass, session }));
+            });
+            done.sort((left, right) => new Date(right.session.startedAt) - new Date(left.session.startedAt));
+            setToday({ running, done });
+        };
+        loadToday();
+        const timer = window.setInterval(loadToday, 30000);
+        return () => window.clearInterval(timer);
+    }, [user, classes]);
 
     useEffect(() => {
         const load = async () => {
@@ -98,6 +137,54 @@ const TeacherDashboard = () => {
                 subtitle="Run your classes, keep rosters current, and approve student devices before check-ins begin."
                 actions={<Button onClick={() => navigate("/teacher/classes")}>Manage classes & rosters</Button>}
             />
+
+            <section className="today" aria-label="Today">
+                <h2 className="today__title">Today</h2>
+                {today === null ? (
+                    <Skeleton height={84} card />
+                ) : (
+                    <>
+                        {today.running.map(({ courseClass, session }) => (
+                            <div key={session._id} className="today-live">
+                                <div className="today-live__text">
+                                    <span className="today-live__state"><span className="today-live__dot" aria-hidden="true" />Check-in running</span>
+                                    <strong>{courseClass.courseCode}{courseClass.section ? ` · ${courseClass.section}` : ""}</strong>
+                                    <span className="today-live__sub">
+                                        {courseClass.title}
+                                        {new Date(session.closesAt).getTime() > now ? ` · closes in ${formatClock(new Date(session.closesAt).getTime() - now)}` : ""}
+                                    </span>
+                                </div>
+                                <Button className="today-live__resume" onClick={() => navigate(`/teacher/classes/${courseClass._id}/live`)}>Resume</Button>
+                            </div>
+                        ))}
+                        {today.done.length > 0 && (
+                            <ul className="today-list">
+                                {today.done.map(({ courseClass, session }) => (
+                                    <li key={session._id}>
+                                        <button type="button" className="today-row" onClick={() => navigate(`/teacher/sessions/${session._id}`)}>
+                                            <span className="today-row__when">
+                                                <strong>{courseClass.courseCode}{courseClass.section ? ` · ${courseClass.section}` : ""}</strong>
+                                                <span>{new Date(session.startedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+                                            </span>
+                                            <span className="today-row__stats">
+                                                <Badge variant="success">{session.stats?.present ?? 0} present</Badge>
+                                                {(session.stats?.review ?? 0) > 0 && <Badge variant="warning">{session.stats.review} review</Badge>}
+                                                <Badge variant="neutral">{session.stats?.absent ?? 0} absent</Badge>
+                                            </span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        {today.running.length === 0 && today.done.length === 0 && (
+                            <div className="today-empty">
+                                <span className="today-empty__icon" aria-hidden="true"><Icon name="clock" /></span>
+                                <p>No check-ins yet today. Start one from a class when you’re ready.</p>
+                            </div>
+                        )}
+                    </>
+                )}
+            </section>
 
             <div className="ui-grid ui-grid--stats">
                 <StatCard icon={<FaChalkboardTeacher />} tone="indigo" label="Classes" value={classes.length} hint="Created by you" />

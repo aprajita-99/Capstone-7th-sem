@@ -362,92 +362,106 @@ const LiveCheckin = () => {
 
       {(phase === "live" || phase === "closed") && session && (
         <>
-          <Card className="checkin-status">
-            <div className="checkin-status__main">
-              {phase === "live" ? (
-                <>
-                  <span className={`checkin-hero__icon ${playing ? "checkin-pulse" : ""}`}><Icon name="sound" /></span>
-                  <div>
-                    <div className="checkin-timer">{formatClock(remainingMs)}</div>
-                    <p className="ui-muted">
-                      {playing ? "Playing the key — keep this phone face-up with the screen on." : "Open, but this phone is not playing the key."}
-                    </p>
-                  </div>
-                  <div className="checkin-status__actions">
-                    {!playing && <Button onClick={resumePlaying} loading={busy}>Play key on this phone</Button>}
-                    <Button variant="danger" onClick={closeCheckin} disabled={busy}>Close check-in</Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <span className="checkin-hero__icon checkin-hero__icon--success"><Icon name="check" /></span>
-                  <div>
-                    <h2 className="checkin-hero__title">Check-in closed</h2>
-                    <p className="ui-muted">
-                      {inGrace
-                        ? `Students who heard the key can finish their face check for ${formatClock(graceEndsAt - now)} more.`
-                        : locked
-                          ? "Locked — nothing can change now. Undecided review cases were marked absent and check-in photos were deleted."
-                          : `Decide the review cases below. ${lockLabel(session.lockAt, now)} — undecided cases are then marked absent.`}
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="checkin-stats">
-              <div className="checkin-stat checkin-stat--present"><strong>{counts.present}</strong><span>Present</span></div>
-              <div className="checkin-stat checkin-stat--review"><strong>{counts.review}</strong><span>Review</span></div>
-              <div className="checkin-stat"><strong>{(counts.joined || 0) + (counts.heard || 0)}</strong><span>Listening</span></div>
-              <div className="checkin-stat"><strong>{counts.absent}</strong><span>Absent</span></div>
-              <div className="checkin-stat"><strong>{live?.rosterSize ?? "—"}</strong><span>On roster</span></div>
-            </div>
-            {!locked && (
-              <div className="checkin-tools">
-                <form className="headcount" onSubmit={saveHeadcount}>
-                  <label htmlFor="headcount-input" className="headcount__label">
-                    Head count
-                    {headcount !== null && <span className="ui-muted"> · counted {headcount}</span>}
-                  </label>
-                  <div className="headcount__row">
-                    <input
-                      id="headcount-input"
-                      className="ui-input headcount__input"
-                      type="number"
-                      inputMode="numeric"
-                      min="0"
-                      max="500"
-                      placeholder={headcount !== null ? String(headcount) : "Heads in the room"}
-                      value={headcountInput}
-                      onChange={(event) => setHeadcountInput(event.target.value)}
-                    />
-                    <Button type="submit" variant="secondary" loading={headcountSaving} disabled={headcountInput === ""}>Save</Button>
-                  </div>
-                </form>
-                <Button variant="soft" className="checkin-tools__spot" onClick={() => setSpotOpen(true)} disabled={counts.present === 0}>
+          {phase === "live" ? (
+            <section className="live-bar" aria-label="Live check-in status">
+              <div className="live-bar__top">
+                <span className="live-bar__state">
+                  <span className={`live-bar__dot ${playing ? "is-on" : ""}`} aria-hidden="true" />
+                  {playing ? "Playing key" : "Not playing on this phone"}
+                </span>
+                <strong className="live-bar__timer" aria-label="Time left">{formatClock(remainingMs)}</strong>
+              </div>
+              <div className="live-bar__stats">
+                <div className="live-bar__stat live-bar__stat--present"><strong>{counts.present}<small>/{live?.rosterSize ?? "—"}</small></strong><span>Present</span></div>
+                <div className="live-bar__stat live-bar__stat--review"><strong>{counts.review}</strong><span>Review</span></div>
+                <div className="live-bar__stat"><strong>{(counts.joined || 0) + (counts.heard || 0)}</strong><span>Listening</span></div>
+              </div>
+              <div className="live-bar__actions">
+                {!playing && <Button onClick={resumePlaying} loading={busy}><Icon name="sound" /> Play key on this phone</Button>}
+                <Button variant="secondary" className="live-bar__spot" onClick={() => setSpotOpen(true)} disabled={counts.present === 0 || locked}>
                   <Icon name="target" /> Spot-check 5
                 </Button>
+                <Button className="live-bar__close" onClick={closeCheckin} disabled={busy}>Close check-in</Button>
               </div>
-            )}
-            {overCount && (
-              <Badge variant="danger" dot>
-                {counts.present} marked present but you counted {headcount} — run a spot-check
-              </Badge>
-            )}
-            {live?.byWave && Object.keys(live.byWave).length > 0 && (
-              <div className="wave-bars" aria-label="Present students by wave">
-                {Object.entries(live.byWave).map(([wave, count]) => {
-                  const most = Math.max(...Object.values(live.byWave));
-                  return (
-                    <div key={wave} className="wave-bar">
-                      <span className="wave-bar__label">Wave {wave}</span>
-                      <span className="wave-bar__track"><span style={{ width: `${(count / most) * 100}%` }} /></span>
-                      <strong>{count}</strong>
+              <p className="live-bar__hint">{playing ? "Keep this phone face-up with the screen on." : "Open, but this phone is not playing the key."}</p>
+            </section>
+          ) : (
+            <Card className="checkin-status">
+              <div className="checkin-status__main">
+                <span className="checkin-hero__icon checkin-hero__icon--success"><Icon name="check" /></span>
+                <div>
+                  <h2 className="checkin-hero__title">Check-in closed</h2>
+                  <p className="ui-muted">
+                    {inGrace
+                      ? `Students who heard the key can finish their face check for ${formatClock(graceEndsAt - now)} more.`
+                      : locked
+                        ? "Locked — nothing can change now. Undecided review cases were marked absent and check-in photos were deleted."
+                        : `Decide the review cases below. ${lockLabel(session.lockAt, now)} — undecided cases are then marked absent.`}
+                  </p>
+                </div>
+              </div>
+              <div className="checkin-stats">
+                <div className="checkin-stat checkin-stat--present"><strong>{counts.present}</strong><span>Present</span></div>
+                <div className="checkin-stat checkin-stat--review"><strong>{counts.review}</strong><span>Review</span></div>
+                <div className="checkin-stat"><strong>{(counts.joined || 0) + (counts.heard || 0)}</strong><span>Listening</span></div>
+                <div className="checkin-stat"><strong>{counts.absent}</strong><span>Absent</span></div>
+                <div className="checkin-stat"><strong>{live?.rosterSize ?? "—"}</strong><span>On roster</span></div>
+              </div>
+            </Card>
+          )}
+
+          {(!locked || (live?.byWave && Object.keys(live.byWave).length > 0)) && (
+            <Card className="classes-section room-check" title={phase === "live" ? "Room check" : "Room check & waves"}>
+              {!locked && (
+                <div className="checkin-tools">
+                  <form className="headcount" onSubmit={saveHeadcount}>
+                    <label htmlFor="headcount-input" className="headcount__label">
+                      Head count
+                      {headcount !== null && <span className="ui-muted"> · counted {headcount}</span>}
+                    </label>
+                    <div className="headcount__row">
+                      <input
+                        id="headcount-input"
+                        className="ui-input headcount__input"
+                        type="number"
+                        inputMode="numeric"
+                        min="0"
+                        max="500"
+                        placeholder={headcount !== null ? String(headcount) : "Heads in the room"}
+                        value={headcountInput}
+                        onChange={(event) => setHeadcountInput(event.target.value)}
+                      />
+                      <Button type="submit" variant="secondary" loading={headcountSaving} disabled={headcountInput === ""}>Save</Button>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
+                  </form>
+                  {phase !== "live" && (
+                    <Button variant="soft" className="checkin-tools__spot" onClick={() => setSpotOpen(true)} disabled={counts.present === 0}>
+                      <Icon name="target" /> Spot-check 5
+                    </Button>
+                  )}
+                </div>
+              )}
+              {overCount && (
+                <Badge variant="danger" dot>
+                  {counts.present} marked present but you counted {headcount} — run a spot-check
+                </Badge>
+              )}
+              {live?.byWave && Object.keys(live.byWave).length > 0 && (
+                <div className="wave-bars" aria-label="Present students by wave">
+                  {Object.entries(live.byWave).map(([wave, count]) => {
+                    const most = Math.max(...Object.values(live.byWave));
+                    return (
+                      <div key={wave} className="wave-bar">
+                        <span className="wave-bar__label">Wave {wave}</span>
+                        <span className="wave-bar__track"><span style={{ width: `${(count / most) * 100}%` }} /></span>
+                        <strong>{count}</strong>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          )}
 
           <Card className="classes-section" title="Students" subtitle={phase === "live" ? "Updates every 2 seconds. Tap a student for their frames and timeline." : "Tap a student for their frames and timeline."}>
             <CheckinStudents records={live?.records || []} locked={locked} busy={busy} onDecide={decide} initialStudent={initialStudent} />
