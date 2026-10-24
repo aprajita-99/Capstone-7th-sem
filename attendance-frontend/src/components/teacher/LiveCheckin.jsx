@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import fsk from "../../acoustic/fsk";
@@ -15,6 +15,7 @@ import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { teacherLinks, useTeacherSession } from "./teacherSession";
 import CheckinStudents from "./CheckinStudents";
+import { downloadFile } from "../../utils/download";
 import { lockLabel } from "../../utils/lockTime";
 import "./classes.css";
 import "./reviews.css";
@@ -48,6 +49,9 @@ const LiveCheckin = () => {
   const toast = useToast();
   const { user, logout, counts: reviewCounts, refreshCounts } = useTeacherSession();
   const summaryMode = Boolean(params.sessionId);
+  const [searchParams] = useSearchParams();
+  const initialStudent = searchParams.get("student");
+  const [exporting, setExporting] = useState(false);
   const [headcountInput, setHeadcountInput] = useState("");
   const [headcountSaving, setHeadcountSaving] = useState(false);
   const [spotOpen, setSpotOpen] = useState(false);
@@ -265,6 +269,17 @@ const LiveCheckin = () => {
     }
   };
 
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      await downloadFile(`${SERVER_URL}/sessions/${session._id}/export.csv`, "checkin.csv");
+    } catch (requestError) {
+      toast("Could not download the CSV.", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const saveHeadcount = async (event) => {
     event.preventDefault();
     setHeadcountSaving(true);
@@ -295,12 +310,21 @@ const LiveCheckin = () => {
 
   return (
     <AppShell role="teacher" name={user.name || user.email} email={user.email} onLogout={logout} links={teacherLinks("classes", reviewCounts)}>
-      {classId && <Link to={`/teacher/classes/${classId}`} className="class-back">← Back to class</Link>}
+      {classId && (
+        <Link to={`/teacher/classes/${classId}${initialStudent ? "?tab=attendance" : ""}`} className="class-back">
+          {initialStudent ? "← Back to attendance" : "← Back to class"}
+        </Link>
+      )}
       <div className="ui-page-head">
         <div>
           <h1 className="ui-page-head__title">{phase === "closed" ? "Check-in summary" : "Live check-in"} — {title}</h1>
           <p className="ui-page-head__sub">{courseClass?.title}{startedLabel ? ` · ${startedLabel}` : ""}</p>
         </div>
+        {phase === "closed" && session && (
+          <div className="ui-page-head__actions">
+            <Button variant="secondary" loading={exporting} onClick={exportCsv}>⬇ Export CSV</Button>
+          </div>
+        )}
       </div>
 
       {phase === "precheck" && (
@@ -424,7 +448,7 @@ const LiveCheckin = () => {
           </Card>
 
           <Card className="classes-section" title="Students" subtitle={phase === "live" ? "Updates every 2 seconds. Tap a student for their frames and timeline." : "Tap a student for their frames and timeline."}>
-            <CheckinStudents records={live?.records || []} locked={locked} busy={busy} onDecide={decide} />
+            <CheckinStudents records={live?.records || []} locked={locked} busy={busy} onDecide={decide} initialStudent={initialStudent} />
           </Card>
         </>
       )}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import EmptyState from "../../ui/EmptyState";
@@ -129,11 +129,22 @@ const StudentPanel = ({ record, locked, busy, onDecide, onClose }) => {
  * Student list for a check-in (live or closed): tabs, search, review cards
  * with frames and same-day decisions, and a side panel per student.
  */
-const CheckinStudents = ({ records = [], locked, busy, onDecide }) => {
+const CheckinStudents = ({ records = [], locked, busy, onDecide, initialStudent = null }) => {
   const reviewCount = records.filter(TABS[0].match).length;
   const [tab, setTab] = useState(null);
   const [query, setQuery] = useState("");
   const [openRecord, setOpenRecord] = useState(null);
+  const appliedInitial = useRef(false);
+
+  // Opened from the class attendance grid (?student=email): show that student's panel once.
+  useEffect(() => {
+    if (!initialStudent || appliedInitial.current) return;
+    const match = records.find((record) => record.email === initialStudent);
+    if (!match) return;
+    appliedInitial.current = true;
+    setTab(TABS.find((item) => item.match(match))?.id || null);
+    setOpenRecord(match);
+  }, [initialStudent, records]);
   const activeTab = tab || (reviewCount > 0 ? "review" : "present");
 
   const visible = useMemo(() => {

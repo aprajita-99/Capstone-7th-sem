@@ -114,3 +114,70 @@
 .identity-card--pending { border-left-color: var(--warning); }
 .identity-card--none,
 .identity-card--rejected { border-left-color: var(--indigo-500); }
+
+/* ---------- Phase 11: student attendance ---------- */
+.student-class__pct {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  background: var(--slate-100);
+  color: var(--slate-700);
+}
+.student-class__pct--ok { background: var(--success-soft); color: #047857; }
+.student-class__pct--warn { background: var(--warning-soft); color: #b45309; }
+.student-class__pct--low { background: var(--danger-soft); color: var(--danger); }
+
+.my-att-list { display: flex; flex-direction: column; gap: 12px; }
+.my-att { border-left: 4px solid var(--slate-200); }
+.my-att--ok { border-left-color: var(--success); }
+.my-att--warn { border-left-color: var(--warning); }
+.my-att--low { border-left-color: var(--danger); }
+.my-att__head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 44px;
+}
+.my-att__class { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.my-att__class strong { font-size: 16px; }
+.my-att__class span { font-size: 13px; }
+.my-att__pct { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--slate-700); }
+.my-att--ok .my-att__pct { color: #047857; }
+.my-att--warn .my-att__pct { color: #b45309; }
+.my-att--low .my-att__pct { color: var(--danger); }
+.my-att__bar { position: relative; height: 10px; margin-top: 10px; border-radius: 999px; background: var(--slate-100); overflow: visible; }
+.my-att__fill { display: block; height: 100%; border-radius: 999px; background: var(--slate-300); }
+.my-att--ok .my-att__fill { background: var(--success); }
+.my-att--warn .my-att__fill { background: var(--warning); }
+.my-att--low .my-att__fill { background: var(--danger); }
+.my-att__mark { position: absolute; top: -4px; width: 2px; height: 18px; background: var(--slate-700); border-radius: 2px; }
+.my-att__outlook { margin-top: 10px; font-size: 14px; font-weight: 600; color: var(--slate-800); }
+.my-att__counts { font-size: 12.5px; margin-top: 2px; }
+.my-att__list { margin-top: 12px; }
+.my-att__toggle {
+  margin-top: 10px;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--indigo-700);
+  cursor: pointer;
+  min-height: 40px;
+}
+.recent-row__main--static { cursor: default; }
+.my-att-past { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+.my-att-past__title { font-size: 16px; font-weight: 700; }
