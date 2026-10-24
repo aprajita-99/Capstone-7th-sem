@@ -15,6 +15,7 @@ const {
   requestRelay,
   getEvidenceFrame,
   setHeadcount,
+  teacherToday,
   spotCheck,
 } = require("../controllers/sessionController");
 
@@ -26,6 +27,7 @@ const student = [isAuthenticated, isAuthenticated.authorizeRoles("student")];
 // /sessions/active must stay above /sessions/:sessionId.
 router.route("/classes/:classId/sessions").get(teacher, listClassSessions).post(teacher, startSession);
 router.get("/sessions/active", student, listActiveSessions);
+router.get("/sessions/today", teacher, teacherToday);
 router.get("/sessions/:sessionId", teacher, getSession);
 router.get("/sessions/:sessionId/beacon", teacher, getBeacon);
 router.post("/sessions/:sessionId/close", teacher, closeSession);

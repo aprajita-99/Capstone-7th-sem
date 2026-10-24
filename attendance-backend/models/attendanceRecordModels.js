@@ -53,5 +53,7 @@ const attendanceRecordSchema = new mongoose.Schema(
 
 attendanceRecordSchema.index({ session: 1, email: 1 }, { unique: true });
 attendanceRecordSchema.index({ class: 1, email: 1 });
+// Student attendance across classes.
+attendanceRecordSchema.index({ email: 1 });
 
 module.exports = mongoose.model("AttendanceRecord", attendanceRecordSchema);

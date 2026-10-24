@@ -12,7 +12,7 @@ const AuditLog = require("../models/auditLogModels");
 const faceClient = require("../utils/faceClient");
 const { currentKey, findKey } = require("../utils/keys");
 const { decide, faceStatusFrom } = require("../utils/attendanceDecision");
-const { lockTimeFor } = require("../utils/clock");
+const { endOfDay, lockTimeFor } = require("../utils/clock");
 const { isLocked, canQuery, lockOutcome } = require("../utils/reviewRules");
 const { verifyDeviceProof } = require("../utils/deviceProof");
 const { consumeFaceSession } = require("../utils/faceSessions");
@@ -172,10 +172,32 @@ const settleSession = async (session) => {
 exports.settleSession = settleSession;
 exports.refreshStats = refreshStats;
 
+/**
+ * Settle a list of sessions with as few database round trips as possible.
+ * Same outcome as calling settleSession on each, but sessions with nothing
+ * due are returned as they are: one query finds which closed sessions still
+ * have students waiting on the face step, and only the sessions that need it
+ * (window ended, grace over with someone waiting, or lock due) are settled.
+ */
+const settleSessions = async (sessions) => {
+  const now = Date.now();
+  const graceOver = sessions.filter((session) => session.status === "closed" && !faceStepOpen(session, now));
+  const waiting = graceOver.length
+    ? new Set((await AttendanceRecord.distinct("session", { session: { $in: graceOver.map((session) => session._id) }, status: "heard" })).map(String))
+    : new Set();
+  const needsWork = (session) =>
+    (session.status === "open" && (session.closesAt.getTime() <= now || session.lockAt.getTime() <= now)) ||
+    (session.status === "closed" && (session.lockAt.getTime() <= now || waiting.has(String(session._id))));
+  const settled = [];
+  for (const session of sessions) settled.push(needsWork(session) ? await settleSession(session) : session);
+  return settled;
+};
+exports.settleSessions = settleSessions;
+
 // Locks every check-in whose lockAt has passed (jobs run + index.js interval).
 exports.lockDueSessions = async () => {
   const due = await AttendanceSession.find({ status: { $in: ["open", "closed"] }, lockAt: { $lte: new Date() } });
-  for (const session of due) await settleSession(session);
+  await settleSessions(due);
   return due.length;
 };
 
@@ -347,8 +369,7 @@ exports.listClassSessions = catchAsyncError(async (req, res, next) => {
   if (!courseClass) return;
 
   const sessions = await AttendanceSession.find({ class: courseClass._id }).sort({ startedAt: -1 }).limit(20);
-  const current = [];
-  for (const session of sessions) current.push(await settleSession(session));
+  const current = await settleSessions(sessions);
   const open = current.find((session) => session.status === "open");
   const { profile, windowMin } = defaultSettings();
   res.status(200).json({
@@ -357,6 +378,25 @@ exports.listClassSessions = catchAsyncError(async (req, res, next) => {
     sessions: current.map(publicSession),
     defaults: { profile, windowMin }, // lets the teacher's speaker check use the session band
     faceService: faceClient.isConfigured(),
+  });
+});
+
+// Teacher home "Today": running check-ins and today's finished ones across the
+// teacher's active classes, in one request (instead of one request per class).
+exports.teacherToday = catchAsyncError(async (req, res) => {
+  const classes = await CourseClass.find({ teacher: req.user._id, archived: { $ne: true } }).select("courseCode title section");
+  const startOfToday = new Date(endOfDay().getTime() + 1 - 24 * 60 * 60 * 1000);
+  const sessions = await AttendanceSession.find({
+    class: { $in: classes.map((courseClass) => courseClass._id) },
+    $or: [{ status: "open" }, { startedAt: { $gte: startOfToday } }],
+  }).sort({ startedAt: -1 });
+  const settled = await settleSessions(sessions);
+  const classById = new Map(classes.map((courseClass) => [String(courseClass._id), courseClass]));
+  const entry = (session) => ({ class: classById.get(String(session.class)) || null, session: publicSession(session) });
+  res.status(200).json({
+    success: true,
+    running: settled.filter((session) => session.status === "open").map(entry),
+    done: settled.filter((session) => session.status !== "open" && session.startedAt >= startOfToday).map(entry),
   });
 });
 

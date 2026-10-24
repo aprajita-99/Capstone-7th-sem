@@ -11,7 +11,7 @@ const AuditLog = require("../models/auditLogModels");
 const { MAX_ATTEMPTS } = require("../utils/enrollment");
 const { reviewableStudentEmails } = require("../utils/teacherAccess");
 const { canDecide, canQuery, cleanQuery, isLocked } = require("../utils/reviewRules");
-const { settleSession, refreshStats, recordViews, studentDecision, studentQuery } = require("./sessionController");
+const { settleSession, settleSessions, refreshStats, recordViews, studentDecision, studentQuery } = require("./sessionController");
 
 const MAX_BULK = 100;
 
@@ -26,9 +26,7 @@ const DECIDE_ERRORS = {
 // Unlocked check-ins of this teacher (settled first, so ones due to lock lock now).
 const unlockedSessions = async (teacherId) => {
   const candidates = await AttendanceSession.find({ teacher: teacherId, status: { $in: ["open", "closed"] } }).sort({ startedAt: 1 });
-  const settled = [];
-  for (const session of candidates) settled.push(await settleSession(session));
-  return settled.filter((session) => !isLocked(session));
+  return (await settleSessions(candidates)).filter((session) => !isLocked(session));
 };
 
 // ---------- teacher ----------
@@ -36,8 +34,10 @@ const unlockedSessions = async (teacherId) => {
 // GET /reviews?type=attendance → review records of unlocked check-ins, grouped by check-in, oldest first.
 exports.listAttendanceReviews = catchAsyncError(async (req, res) => {
   const sessions = await unlockedSessions(req.user._id);
-  const records = await AttendanceRecord.find({ session: { $in: sessions.map((session) => session._id) }, status: "review" }).sort({ updatedAt: 1 });
-  const classes = await CourseClass.find({ _id: { $in: sessions.map((session) => session.class) } }).select("courseCode title section");
+  const [records, classes] = await Promise.all([
+    AttendanceRecord.find({ session: { $in: sessions.map((session) => session._id) }, status: "review" }).sort({ updatedAt: 1 }),
+    CourseClass.find({ _id: { $in: sessions.map((session) => session.class) } }).select("courseCode title section"),
+  ]);
   const classById = new Map(classes.map((courseClass) => [String(courseClass._id), courseClass]));
   const views = await recordViews(records);
 
@@ -53,17 +53,17 @@ exports.listAttendanceReviews = catchAsyncError(async (req, res) => {
 
 // GET /reviews/counts → badge numbers for the nav and the dashboard.
 exports.reviewCounts = catchAsyncError(async (req, res) => {
-  const sessions = await unlockedSessions(req.user._id);
+  // Independent lookups run side by side: each sequential step costs a full database round trip.
+  const [sessions, emails] = await Promise.all([unlockedSessions(req.user._id), reviewableStudentEmails(req.user._id)]);
   const sessionIds = sessions.map((session) => session._id);
-  const emails = await reviewableStudentEmails(req.user._id);
-  const students = await User.find({ email: { $in: emails }, role: "student" }).select("_id");
-  const [attendance, queries, enrollments, blocked, devices] = await Promise.all([
+  const [attendance, queries, enrollments, blocked, students] = await Promise.all([
     AttendanceRecord.countDocuments({ session: { $in: sessionIds }, status: "review" }),
     AttendanceRecord.countDocuments({ session: { $in: sessionIds }, status: "review", "query.raisedAt": { $exists: true } }),
     User.countDocuments({ email: { $in: emails }, role: "student", "enrollment.status": "pending" }),
     User.countDocuments({ email: { $in: emails }, role: "student", "enrollment.status": { $in: ["none", "rejected"] }, "enrollment.attempts": { $gte: MAX_ATTEMPTS } }),
-    DeviceBindingRequest.countDocuments({ student: { $in: students.map((student) => student._id) }, status: "pending" }),
+    User.find({ email: { $in: emails }, role: "student" }).select("_id"),
   ]);
+  const devices = await DeviceBindingRequest.countDocuments({ student: { $in: students.map((student) => student._id) }, status: "pending" });
   const identity = enrollments + blocked;
   res.status(200).json({ success: true, counts: { attendance, queries, enrollments: identity, devices, total: attendance + identity + devices } });
 });
@@ -173,9 +173,7 @@ exports.raiseQuery = catchAsyncError(async (req, res, next) => {
 exports.recentCheckins = catchAsyncError(async (req, res) => {
   const classIds = await Enrollment.distinct("class", { email: req.user.email, status: "active" });
   const candidates = await AttendanceSession.find({ class: { $in: classIds }, status: { $in: ["open", "closed"] } }).sort({ startedAt: -1 }).limit(20);
-  const sessions = [];
-  for (const session of candidates) sessions.push(await settleSession(session));
-  const unlocked = sessions.filter((session) => !isLocked(session));
+  const unlocked = (await settleSessions(candidates)).filter((session) => !isLocked(session));
   const [records, classes] = await Promise.all([
     AttendanceRecord.find({ session: { $in: unlocked.map((session) => session._id) }, email: req.user.email }),
     CourseClass.find({ _id: { $in: unlocked.map((session) => session.class) } }).select("courseCode title section"),

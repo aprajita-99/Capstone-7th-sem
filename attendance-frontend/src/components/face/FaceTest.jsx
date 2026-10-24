@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import SERVER_URL from "../../config/api";
+import SERVER_URL from "../../config/api";
+import { fetchSessionUser } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -39,8 +40,7 @@ const FaceTest = () => {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    axios
-      .get(`${SERVER_URL}/islogin`, requestConfig)
+    fetchSessionUser()
       .then((response) => setUser(response.data.user))
       .catch(() => navigate("/login"));
   }, [navigate]);

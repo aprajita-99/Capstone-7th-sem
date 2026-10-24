@@ -8,7 +8,7 @@ const AttendanceRecord = require("../models/attendanceRecordModels");
 const { startOfWeek } = require("../utils/clock");
 const { canQuery, isLocked } = require("../utils/reviewRules");
 const report = require("../utils/attendanceReport");
-const { settleSession, studentDecision, studentQuery } = require("./sessionController");
+const { settleSession, settleSessions, studentDecision, studentQuery } = require("./sessionController");
 
 // Plain words for reasons in CSV exports (same meaning as the teacher UI labels).
 const REASON_WORDS = {
@@ -28,9 +28,7 @@ const FACE_WORDS = { passed: "Matched", unsure: "Unsure", mismatch: "Mismatch", 
 // Every check-in of these classes, brought up to date (close / face grace / lock) first.
 const settledSessions = async (filter) => {
   const sessions = await AttendanceSession.find(filter).sort({ startedAt: 1 });
-  const settled = [];
-  for (const session of sessions) settled.push(session.status === "locked" ? session : await settleSession(session));
-  return settled;
+  return settleSessions(sessions);
 };
 
 const isCounted = (session) => report.COUNTED_SESSION_STATUSES.includes(session.status);
@@ -161,14 +159,19 @@ exports.myAttendance = catchAsyncError(async (req, res) => {
   ]);
   const activeIn = new Set(enrollments.filter((entry) => entry.status === "active").map((entry) => String(entry.class)));
   const classIds = [...new Set([...enrollments.map((entry) => String(entry.class)), ...recordClassIds.map(String)])];
-  const classes = await CourseClass.find({ _id: { $in: classIds } }).select("courseCode title section archived").sort({ courseCode: 1 });
+  // All classes at once: one query for the classes and their check-ins, one for the student's records.
+  const [classes, allSessions] = await Promise.all([
+    CourseClass.find({ _id: { $in: classIds } }).select("courseCode title section archived").sort({ courseCode: 1 }),
+    settledSessions({ class: { $in: classIds } }),
+  ]);
+  const allRecords = await AttendanceRecord.find({ session: { $in: allSessions.map((session) => session._id) }, email });
+  const recordBySession = new Map(allRecords.map((record) => [String(record.session), record]));
 
   const result = [];
   for (const courseClass of classes) {
     const onRoster = activeIn.has(String(courseClass._id));
-    const sessions = await settledSessions({ class: courseClass._id });
-    const records = await AttendanceRecord.find({ session: { $in: sessions.map((session) => session._id) }, email });
-    const recordBySession = new Map(records.map((record) => [String(record.session), record]));
+    const sessions = allSessions.filter((session) => String(session.class) === String(courseClass._id));
+    const records = sessions.map((session) => recordBySession.get(String(session._id))).filter(Boolean);
     const counted = sessions.filter(isCounted);
     const cells = counted.map((session) => report.cellStatus(recordBySession.get(String(session._id)), { current: onRoster }));
     const summary = report.summarise(cells);

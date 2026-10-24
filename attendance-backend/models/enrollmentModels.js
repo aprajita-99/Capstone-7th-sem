@@ -41,5 +41,7 @@ const enrollmentSchema = new mongoose.Schema(
 );
 
 enrollmentSchema.index({ class: 1, email: 1 }, { unique: true });
+// Student-side lookups (my classes, open check-ins) filter by email.
+enrollmentSchema.index({ email: 1, status: 1 });
 
 module.exports = mongoose.model("Enrollment", enrollmentSchema);

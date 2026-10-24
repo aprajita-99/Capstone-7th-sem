@@ -1,7 +1,8 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
-import SERVER_URL from "../../config/api";
+import SERVER_URL from "../../config/api";
+import { fetchSessionUser } from "../../utils/session";
 import fsk from "../../acoustic/fsk";
 import receiverModule from "../../acoustic/receiver";
 import { createAudioContext, levelDb, openMic } from "../../acoustic/mic";
@@ -133,8 +134,7 @@ const CheckIn = () => {
   }, [stopEverything, loadStatus]);
 
   useEffect(() => {
-    axios
-      .get(`${SERVER_URL}/islogin`, requestConfig)
+    fetchSessionUser()
       .then(async (response) => {
         if (response.data.user.role !== "student") {
           navigate("/teacher-dashboard");

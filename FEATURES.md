@@ -293,13 +293,13 @@ Measured so far (1 m, mid band): a weak-speaker sender reached ~67–90% of fram
 
 | Area | Endpoints | Phase |
 | --- | --- | --- |
-| Health / auth | `GET /health` · `POST /auth/google` · `GET /islogin` · `GET /logout` · `GET /time` | 1 (+6) |
+| Health / auth | `GET /health` (`?db=1` adds the server→database ping) · `POST /auth/google` · `GET /islogin` · `GET /logout` · `GET /time` | 1 (+6) |
 | Rooms | `GET /rooms` · `POST /rooms` | 2 |
 | Classes | `GET /classes` · `POST /classes` · `GET /classes/:classId` · `PATCH /classes/:classId` · `POST /classes/:classId/archive` | 2 |
 | Roster | `POST /classes/:classId/roster/preview` · `PUT /classes/:classId/roster` · `GET /classes/:classId/roster` · `POST /classes/:classId/roster/students` · `DELETE /classes/:classId/roster/students/:email` | 2 |
 | Student classes | `GET /me/classes` | 2 |
 | Devices | `POST /device/challenge` · `POST /device-bindings/claim` · `GET /device-bindings/status` · `GET /device-reviews` · `POST /device-reviews/:reviewId` | 3 |
-| Sessions (teacher) | `POST /classes/:classId/sessions` · `GET /classes/:classId/sessions` · `GET /sessions/:sessionId` · `GET /sessions/:sessionId/beacon` · `POST /sessions/:sessionId/close` · `PATCH /sessions/:sessionId/headcount` · `GET /sessions/:sessionId/spot-check` | 5 (+10) |
+| Sessions (teacher) | `POST /classes/:classId/sessions` · `GET /classes/:classId/sessions` · `GET /sessions/today` (teacher home) · `GET /sessions/:sessionId` · `GET /sessions/:sessionId/beacon` · `POST /sessions/:sessionId/close` · `PATCH /sessions/:sessionId/headcount` · `GET /sessions/:sessionId/spot-check` | 5 (+10) |
 | Sessions (student) | `GET /sessions/active` · `POST /sessions/:sessionId/join` · `POST /sessions/:sessionId/claims` · `GET /sessions/:sessionId/me` | 5 (+6) |
 | Face (any signed-in user) | `POST /face/liveness-session` (`purpose: "test"` in Phase 7) · `POST /face/test-result` | 7 |
 | Enrollment (student) | `GET /enrollment/status` · `POST /enrollment/consent` · `POST /enrollment/id-card` · `POST /face/liveness-session` · `POST /enrollment/selfie` · `POST /device-bindings/face-verify` | 8 |

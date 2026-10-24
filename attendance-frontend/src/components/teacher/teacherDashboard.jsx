@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { FaChalkboardTeacher, FaUserGraduate, FaMobileAlt } from "react-icons/fa";
 import SERVER_URL from "../../config/api";
+import { fetchSessionUser } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -48,36 +49,24 @@ const TeacherDashboard = () => {
         return () => window.clearInterval(timer);
     }, []);
 
-    // Today's check-ins across active classes (same list the class page shows), refreshed every 30 s.
+    // Today's check-ins across active classes, in one request; refreshed every 30 s.
     useEffect(() => {
         if (!user) return undefined;
-        const activeClasses = classes.filter((courseClass) => !courseClass.archived);
-        const loadToday = async () => {
-            const results = await Promise.all(activeClasses.map((courseClass) =>
-                axios.get(`${SERVER_URL}/classes/${courseClass._id}/sessions`, requestConfig)
-                    .then((response) => ({ courseClass, data: response.data }))
-                    .catch(() => null)));
-            const isToday = (value) => new Date(value).toDateString() === new Date().toDateString();
-            const running = [];
-            const done = [];
-            results.filter(Boolean).forEach(({ courseClass, data }) => {
-                if (data.openSession) running.push({ courseClass, session: data.openSession });
-                data.sessions
-                    .filter((session) => session.status !== "open" && isToday(session.startedAt))
-                    .forEach((session) => done.push({ courseClass, session }));
-            });
-            done.sort((left, right) => new Date(right.session.startedAt) - new Date(left.session.startedAt));
-            setToday({ running, done });
-        };
+        const toEntries = (list) => list.filter((entry) => entry.class).map((entry) => ({ courseClass: entry.class, session: entry.session }));
+        const loadToday = () =>
+            axios
+                .get(`${SERVER_URL}/sessions/today`, requestConfig)
+                .then((response) => setToday({ running: toEntries(response.data.running), done: toEntries(response.data.done) }))
+                .catch(() => setToday((current) => current || { running: [], done: [] }));
         loadToday();
         const timer = window.setInterval(loadToday, 30000);
         return () => window.clearInterval(timer);
-    }, [user, classes]);
+    }, [user]);
 
     useEffect(() => {
         const load = async () => {
             try {
-                const userResponse = await axios.get(`${SERVER_URL}/islogin`, requestConfig);
+                const userResponse = await fetchSessionUser();
                 if (userResponse.data.user.role !== "teacher") {
                     navigate("/student-dashboard");
                     return;

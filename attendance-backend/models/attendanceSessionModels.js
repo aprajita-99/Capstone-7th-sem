@@ -32,6 +32,10 @@ const attendanceSessionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Teacher lists (reviews, today) and per-class history, newest first.
+attendanceSessionSchema.index({ teacher: 1, status: 1 });
+attendanceSessionSchema.index({ class: 1, startedAt: -1 });
+
 // At most one open check-in per class.
 attendanceSessionSchema.index({ class: 1 }, { unique: true, partialFilterExpression: { status: "open" }, name: "one_open_session_per_class" });
 
