@@ -7,6 +7,7 @@ import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
+import PageHeader from "../../ui/PageHeader";
 import Field from "../../ui/Field";
 import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
@@ -71,14 +72,10 @@ const ClassManagement = () => {
       onLogout={logout}
       links={teacherLinks("classes", counts)}
     >
-      <div className="ui-page-head">
-        <div>
-          <h1 className="ui-page-head__title">Classes & rosters</h1>
-          <p className="ui-page-head__sub">
-            Create a class once, add its students, and reuse the roster for every check-in.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Classes & rosters"
+        subtitle="Create a class once, add its students, and reuse the roster for every check-in."
+      />
 
       <div className="classes-grid">
         <Card title="Your classes" subtitle="Open a class to manage its roster."
@@ -91,7 +88,7 @@ const ClassManagement = () => {
         >
           {classes.length === 0 ? (
             <EmptyState
-              icon="🏫"
+              icon="classes"
               title={showArchived ? "No classes yet" : "No active classes"}
               text="Create your first class with the form — it takes a few seconds."
             />

@@ -6,7 +6,10 @@ import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
+import PageHeader from "../../ui/PageHeader";
 import { PageLoader, Spinner } from "../../ui/Spinner";
+import { teacherLinks } from "../teacher/teacherSession";
+import { studentLinks } from "../student/studentLinks";
 import FaceCheck from "./FaceCheck";
 import "./faceCheck.css";
 
@@ -80,17 +83,12 @@ const FaceTest = () => {
       name={user.name || user.email}
       email={user.email}
       onLogout={logout}
-      links={[{ to: user.role === "teacher" ? "/teacher-dashboard" : "/student-dashboard", label: "Dashboard" }]}
+      links={user.role === "teacher" ? teacherLinks() : studentLinks()}
     >
-      <div className="ui-page-head">
-        <div>
-          <h1 className="ui-page-head__title">Face check test</h1>
-          <p className="ui-page-head__sub">
-            Tries the AWS liveness check on this phone. Run it once to see the liveness score, then again — yourself or someone else — to see the face match.
-            Nothing here marks attendance; the captured frame is deleted within minutes.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Face check test"
+        subtitle="Tries the AWS liveness check on this phone. Run it once to see the liveness score, then again — yourself or someone else — to see the face match. Nothing here marks attendance; the captured frame is deleted within minutes."
+      />
 
       {error && <p className="ui-field__error">{error}</p>}
 

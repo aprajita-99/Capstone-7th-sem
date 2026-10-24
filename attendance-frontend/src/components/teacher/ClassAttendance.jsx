@@ -5,6 +5,7 @@ import SERVER_URL from "../../config/api";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import EmptyState from "../../ui/EmptyState";
+import Icon from "../../ui/Icon";
 import Sheet from "../../ui/Sheet";
 import Spinner from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
@@ -14,7 +15,7 @@ import useMediaQuery from "../../utils/useMediaQuery";
 const CELL = {
   P: { label: "Present", short: "P" },
   A: { label: "Absent", short: "A" },
-  R: { label: "In review — not counted yet", short: "⚠" },
+  R: { label: "In review — not counted yet", short: "R" },
   "-": { label: "Not on the roster", short: "" },
 };
 const SORTS = {
@@ -64,7 +65,7 @@ const Matrix = ({ rows, sessions, onCell }) => (
           {sessions.map((session) => (
             <th key={session._id} scope="col" className="att-matrix__date">
               <span>{dateLabel(session.startedAt)}</span>
-              <small>{timeLabel(session.startedAt)}{session.locked ? " 🔒" : ""}</small>
+              <small>{timeLabel(session.startedAt)}{session.locked ? <Icon name="lock" size={11} label="Locked" className="att-matrix__lock" /> : null}</small>
             </th>
           ))}
         </tr>
@@ -167,7 +168,7 @@ const ClassAttendance = ({ classId }) => {
     }
   };
 
-  if (error) return <EmptyState icon="⚠" title="Attendance unavailable" text={error} action={<Button variant="soft" onClick={load}>Try again</Button>} />;
+  if (error) return <EmptyState icon="alert" title="Attendance unavailable" text={error} action={<Button variant="soft" onClick={load}>Try again</Button>} />;
   if (!data) return <div className="att-loading"><Spinner /> <span className="ui-muted">Loading attendance…</span></div>;
 
   const { summary, sessions, removed, minPercent } = data;
@@ -184,7 +185,7 @@ const ClassAttendance = ({ classId }) => {
       {data.openSession && <Badge variant="info" dot>A check-in is live now — it counts once it closes.</Badge>}
 
       {summary.counted === 0 ? (
-        <EmptyState icon="📊" title="No attendance yet" text="Closed check-ins appear here with each student's percentage." />
+        <EmptyState icon="chart" title="No attendance yet" text="Closed check-ins appear here with each student's percentage." />
       ) : (
         <>
           <div className="class-att__bar">
@@ -192,7 +193,7 @@ const ClassAttendance = ({ classId }) => {
             <select className="ui-input class-att__sort" value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Sort students">
               {Object.entries(SORTS).map(([id, item]) => <option key={id} value={id}>{item.label}</option>)}
             </select>
-            <Button variant="secondary" loading={exporting} onClick={exportCsv}>⬇ Export CSV</Button>
+            <Button variant="secondary" loading={exporting} onClick={exportCsv}><Icon name="download" /> Export CSV</Button>
           </div>
 
           {rows.length === 0 ? (
@@ -205,7 +206,7 @@ const ClassAttendance = ({ classId }) => {
 
           <p className="class-att__legend ui-muted">
             <span className="att-cell att-cell--P">P</span> present · <span className="att-cell att-cell--A">A</span> absent ·{" "}
-            <span className="att-cell att-cell--R">⚠</span> in review (not counted yet) · <span className="att-cell att-cell--A att-cell--implicit">–</span> before joining the roster (counts as absent).
+            <span className="att-cell att-cell--R">R</span> in review (not counted yet) · <span className="att-cell att-cell--A att-cell--implicit">–</span> before joining the roster (counts as absent).
             {" "}Below {minPercent}% is red, below 85% amber.
           </p>
 

@@ -174,7 +174,7 @@
 .import-row--valid .import-row__status { color: var(--success); font-weight: 700; }
 .import-row--header { color: var(--text-faint); }
 .import-row--error { background: var(--danger-soft); }
-.import-row--error .import-row__status { color: #b91c1c; font-weight: 600; }
+.import-row--error .import-row__status { color: var(--danger-strong); font-weight: 600; }
 
 @media (max-width: 640px) {
   .import-row { grid-template-columns: 36px 1fr; }
@@ -200,7 +200,7 @@
 .class-att__stat--low { background: var(--danger-soft); border-color: var(--danger-border); }
 .class-att__stat--low strong { color: var(--danger); }
 .class-att__stat--pending { background: var(--warning-soft); border-color: var(--warning-border); }
-.class-att__stat--pending strong { color: #b45309; }
+.class-att__stat--pending strong { color: var(--warning-strong); }
 @media (max-width: 560px) { .class-att__summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 .class-att__bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -225,7 +225,7 @@
 .att-pct--warn .att-pct__track span { background: var(--warning); }
 .att-pct--low .att-pct__track span { background: var(--danger); }
 .att-pct--low strong { color: var(--danger); }
-.att-pct--warn strong { color: #b45309; }
+.att-pct--warn strong { color: var(--warning-strong); }
 
 /* Phone list */
 .att-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
@@ -247,7 +247,7 @@
 }
 .att-row--ok { border-left-color: var(--success); }
 .att-row--warn { border-left-color: var(--warning); }
-.att-row--low { border-left-color: var(--danger); background: #fffafa; }
+.att-row--low { border-left-color: var(--danger); background: var(--surface-tint); }
 .att-row__who { grid-area: who; display: flex; flex-direction: column; min-width: 0; font-size: 14px; }
 .att-row__who span { font-size: 12px; overflow-wrap: anywhere; }
 .att-row .att-pct { grid-area: pct; min-width: 132px; }
@@ -301,9 +301,9 @@ tbody .att-matrix__name span { display: block; font-size: 11.5px; color: var(--t
 }
 button.att-cell { cursor: pointer; }
 button.att-cell:hover { outline: 2px solid var(--indigo-300); }
-.att-cell--P { background: var(--success-soft); color: #047857; }
+.att-cell--P { background: var(--success-soft); color: var(--success-strong); }
 .att-cell--A { background: var(--danger-soft); color: var(--danger); }
-.att-cell--R { background: var(--warning-soft); color: #b45309; }
+.att-cell--R { background: var(--warning-soft); color: var(--warning-strong); }
 .att-cell--none { background: transparent; }
 .att-cell--implicit { background: transparent; border: 1.5px dashed var(--danger-border); }
 .class-att__legend .att-cell { width: 22px; height: 22px; font-size: 11px; vertical-align: middle; }

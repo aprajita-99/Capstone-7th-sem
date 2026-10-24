@@ -7,8 +7,10 @@ import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
+import PageHeader from "../../ui/PageHeader";
 import Spinner, { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
+import { useConfirm } from "../../ui/Confirm";
 import { teacherLinks, useTeacherSession } from "./teacherSession";
 import "./classes.css";
 import "./reviews.css";
@@ -84,6 +86,7 @@ const EnrollmentCard = ({ row, busy, onDecide, onReset, onForce }) => {
  */
 const Reviews = () => {
   const toast = useToast();
+  const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, logout, counts, refreshCounts } = useTeacherSession();
   const requestedTab = TAB_IDS.includes(searchParams.get("tab")) ? searchParams.get("tab") : null;
@@ -150,8 +153,12 @@ const Reviews = () => {
     run(() => axios.post(`${SERVER_URL}/enrollment-reviews/${row.userId}`, { decision, reason }, requestConfig), decision === "approved" ? `${row.name} verified.` : `${row.name} rejected.`);
   const resetAttempts = (row) =>
     run(() => axios.post(`${SERVER_URL}/enrollment-reviews/${row.userId}/reset-attempts`, {}, requestConfig), `${row.name} can try again.`);
-  const forceReenroll = (row) => {
-    if (!window.confirm(`Clear ${row.name}'s identity check? Their ID and face photos are deleted and they must enroll again.`)) return;
+  const forceReenroll = async (row) => {
+    if (!(await confirm({
+      title: `Clear ${row.name}'s identity check?`,
+      message: "Their ID and face photos are deleted and they must enroll again.",
+      confirmLabel: "Clear and re-enroll",
+    }))) return;
     run(() => axios.post(`${SERVER_URL}/enrollment-reviews/${row.userId}/force-reenroll`, {}, requestConfig), `${row.name} must enroll again.`);
   };
 
@@ -162,12 +169,10 @@ const Reviews = () => {
 
   return (
     <AppShell role="teacher" name={user.name || user.email} email={user.email} onLogout={logout} links={teacherLinks("reviews", counts)}>
-      <div className="ui-page-head">
-        <div>
-          <h1 className="ui-page-head__title">Reviews</h1>
-          <p className="ui-page-head__sub">Cases the system could not decide on its own. Check-ins lock at 09:00 the next morning; anything still undecided is then marked absent.</p>
-        </div>
-      </div>
+      <PageHeader
+        title="Reviews"
+        subtitle="Cases the system could not decide on its own. Check-ins lock at 09:00 the next morning; anything still undecided is then marked absent."
+      />
 
       <div className="review-tabs" role="tablist">
         <button type="button" role="tab" aria-selected={tab === "attendance"} className={tab === "attendance" ? "is-active" : ""} onClick={() => setTab("attendance")}>
@@ -191,7 +196,7 @@ const Reviews = () => {
         <>
           <Card title="Waiting for you" subtitle="Compare the ID card with the live selfie and the roll number.">
             {enrollments.reviews.length === 0 ? (
-              <EmptyState icon="🪪" title="Nothing to review" text="Identity checks that match strongly are verified automatically." />
+              <EmptyState icon="idcard" title="Nothing to review" text="Identity checks that match strongly are verified automatically." />
             ) : (
               <div className="enroll-review-list">
                 {enrollments.reviews.map((row) => (

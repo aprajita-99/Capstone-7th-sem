@@ -1,7 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 
-// Gradient brand mark + wordmark, shared by the public navbar and the app shell.
+// Navy brand mark + wordmark, shared by the public navbar and the app shell.
 const Brand = ({ to = "/" }) => (
   <Link to={to} className="ui-brand">
     <span className="ui-brand__mark" aria-hidden="true">

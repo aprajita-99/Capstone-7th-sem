@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import fsk from "../../acoustic/fsk";
@@ -11,8 +11,11 @@ import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
+import PageHeader from "../../ui/PageHeader";
+import Icon from "../../ui/Icon";
 import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
+import { useConfirm } from "../../ui/Confirm";
 import { teacherLinks, useTeacherSession } from "./teacherSession";
 import CheckinStudents from "./CheckinStudents";
 import { downloadFile } from "../../utils/download";
@@ -47,6 +50,7 @@ const LiveCheckin = () => {
   const params = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const confirm = useConfirm();
   const { user, logout, counts: reviewCounts, refreshCounts } = useTeacherSession();
   const summaryMode = Boolean(params.sessionId);
   const [searchParams] = useSearchParams();
@@ -236,7 +240,12 @@ const LiveCheckin = () => {
   };
 
   const closeCheckin = async () => {
-    if (!window.confirm("Close this check-in? Students who joined but were not heard go to review; students still finishing their face check get 2 more minutes; the rest of the roster is marked absent.")) return;
+    const confirmed = await confirm({
+      title: "Close this check-in?",
+      message: "Students who joined but were not heard go to review; students still finishing their face check get 2 more minutes; the rest of the roster is marked absent.",
+      confirmLabel: "Close check-in",
+    });
+    if (!confirmed) return;
     setBusy(true);
     try {
       await stopAudio();
@@ -310,27 +319,20 @@ const LiveCheckin = () => {
 
   return (
     <AppShell role="teacher" name={user.name || user.email} email={user.email} onLogout={logout} links={teacherLinks("classes", reviewCounts)}>
-      {classId && (
-        <Link to={`/teacher/classes/${classId}${initialStudent ? "?tab=attendance" : ""}`} className="class-back">
-          {initialStudent ? "← Back to attendance" : "← Back to class"}
-        </Link>
-      )}
-      <div className="ui-page-head">
-        <div>
-          <h1 className="ui-page-head__title">{phase === "closed" ? "Check-in summary" : "Live check-in"} — {title}</h1>
-          <p className="ui-page-head__sub">{courseClass?.title}{startedLabel ? ` · ${startedLabel}` : ""}</p>
-        </div>
-        {phase === "closed" && session && (
-          <div className="ui-page-head__actions">
-            <Button variant="secondary" loading={exporting} onClick={exportCsv}>⬇ Export CSV</Button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        back={classId ? { to: `/teacher/classes/${classId}${initialStudent ? "?tab=attendance" : ""}`, label: initialStudent ? "Back to attendance" : "Back to class" } : null}
+        eyebrow={title}
+        title={phase === "closed" ? "Check-in summary" : "Live check-in"}
+        subtitle={`${courseClass?.title || ""}${startedLabel ? ` · ${startedLabel}` : ""}`}
+        actions={phase === "closed" && session ? (
+          <Button variant="secondary" loading={exporting} onClick={exportCsv}><Icon name="download" /> Export CSV</Button>
+        ) : null}
+      />
 
       {phase === "precheck" && (
         <Card>
           <div className="checkin-hero">
-            <span className="checkin-hero__icon">🔊</span>
+            <span className="checkin-hero__icon"><Icon name="sound" /></span>
             <h2 className="checkin-hero__title">Before you start</h2>
             <ol className="checkin-steps">
               <li><span className="checkin-steps__num">1</span><span><strong>Turn this phone’s media volume to maximum.</strong> The key is near-silent; volume decides how far it reaches.</span></li>
@@ -364,7 +366,7 @@ const LiveCheckin = () => {
             <div className="checkin-status__main">
               {phase === "live" ? (
                 <>
-                  <span className={`checkin-hero__icon ${playing ? "checkin-pulse" : ""}`}>🔊</span>
+                  <span className={`checkin-hero__icon ${playing ? "checkin-pulse" : ""}`}><Icon name="sound" /></span>
                   <div>
                     <div className="checkin-timer">{formatClock(remainingMs)}</div>
                     <p className="ui-muted">
@@ -378,7 +380,7 @@ const LiveCheckin = () => {
                 </>
               ) : (
                 <>
-                  <span className="checkin-hero__icon checkin-hero__icon--success">✓</span>
+                  <span className="checkin-hero__icon checkin-hero__icon--success"><Icon name="check" /></span>
                   <div>
                     <h2 className="checkin-hero__title">Check-in closed</h2>
                     <p className="ui-muted">
@@ -422,7 +424,7 @@ const LiveCheckin = () => {
                   </div>
                 </form>
                 <Button variant="soft" className="checkin-tools__spot" onClick={() => setSpotOpen(true)} disabled={counts.present === 0}>
-                  🎯 Spot-check 5
+                  <Icon name="target" /> Spot-check 5
                 </Button>
               </div>
             )}

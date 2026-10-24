@@ -18,6 +18,7 @@ import { useToast } from "../../ui/Toast";
 import { untilLabel } from "../../utils/lockTime";
 import { decisionText, explain, queryReasonLabel } from "./attendanceText";
 import { studentLinks } from "./studentLinks";
+import Icon from "../../ui/Icon";
 import "../checkin.css";
 
 // The AWS liveness component is large: load it only when the face step starts.
@@ -341,50 +342,50 @@ const CheckIn = () => {
     const decided = decisionText(record);
     if (status === "present") {
       return {
-        icon: "✓", tone: "success", title: "You’re marked present",
+        icon: "check", tone: "success", title: "You’re marked present",
         text: decided || (relayed ? "Done. Your phone also passed the key on to classmates further back." : "Done. You can close this page."),
       };
     }
     if (status === "review" || status === "heard") {
-      if (record?.query) return { icon: "💬", tone: "warning", title: "Query sent", text: "Your teacher will look at this check-in again before it locks at 09:00 the next morning." };
-      return { icon: "⌛", tone: "warning", title: "In review", text: `Your teacher will check this before 09:00 tomorrow because ${explain(record.reasons) || "the check was not complete"}.` };
+      if (record?.query) return { icon: "message", tone: "warning", title: "Query sent", text: "Your teacher will look at this check-in again before it locks at 09:00 the next morning." };
+      return { icon: "clock", tone: "warning", title: "In review", text: `Your teacher will check this before 09:00 tomorrow because ${explain(record.reasons) || "the check was not complete"}.` };
     }
     if (status === "absent") {
-      return { icon: "✕", tone: "danger", title: "Marked absent", text: decided || (explain(record?.reasons) ? `This check-in has closed: ${explain(record.reasons)}.` : "This check-in has closed and you were not checked in.") };
+      return { icon: "close", tone: "danger", title: "Marked absent", text: decided || (explain(record?.reasons) ? `This check-in has closed: ${explain(record.reasons)}.` : "This check-in has closed and you were not checked in.") };
     }
-    return { icon: "⏹", tone: "warning", title: "Check-in closed", text: "This check-in is no longer open." };
+    return { icon: "stop", tone: "warning", title: "Check-in closed", text: "This check-in is no longer open." };
   };
 
   const VIEW = {
-    identity: { icon: "🪪", tone: "warning", title: "Finish your identity check first", text: "Check-ins confirm your face against your enrolled photo. It takes about two minutes, once." },
-    ready: { icon: "🎧", title: "Ready to check in", text: "Tap Join, allow the microphone and camera, and keep this page open with the screen on." },
-    listening: { icon: "👂", title: "Listening for the key…", text: "Keep the phone out of your pocket, face-up. This usually takes a few seconds." },
-    submitting: { icon: "🔐", title: "Key heard — confirming…", text: "Your phone is signing the key so the server knows it came from you." },
-    "face-intro": { icon: "🙂", title: "Key heard ✓ — now a quick face check", text: "Hold the phone at eye level in good light and follow the oval. It takes a few seconds." },
+    identity: { icon: "idcard", tone: "warning", title: "Finish your identity check first", text: "Check-ins confirm your face against your enrolled photo. It takes about two minutes, once." },
+    ready: { icon: "headphones", title: "Ready to check in", text: "Tap Join, allow the microphone and camera, and keep this page open with the screen on." },
+    listening: { icon: "mic", title: "Listening for the key…", text: "Keep the phone out of your pocket, face-up. This usually takes a few seconds." },
+    submitting: { icon: "lock", title: "Key heard — confirming…", text: "Your phone is signing the key so the server knows it came from you." },
+    "face-intro": { icon: "face", title: "Key heard — now a quick face check", text: "Hold the phone at eye level in good light and follow the oval. It takes a few seconds." },
     face: null,
-    "face-checking": { icon: "🔎", title: "Checking your face…", text: "Comparing with your enrolled photo." },
+    "face-checking": { icon: "search", title: "Checking your face…", text: "Comparing with your enrolled photo." },
     "face-retry": {
-      icon: "↻", tone: "warning", title: "Let’s try that once more",
+      icon: "retry", tone: "warning", title: "Let’s try that once more",
       text: faceResult?.face?.status === "not_live"
         ? "The camera couldn’t confirm a live face. Use your real face in good light — not a photo or screen."
         : "The match wasn’t certain. Face a light source, remove anything covering your face, and try again.",
     },
-    relaying: { icon: "📣", tone: "success", title: "Helping classmates…", text: "Your phone is passing the key on to students further back (about 8 seconds). Keep this page open." },
+    relaying: { icon: "sound", tone: "success", title: "Helping classmates…", text: "Your phone is passing the key on to students further back (about 8 seconds). Keep this page open." },
     done: doneView(),
-    device: { icon: "📱", tone: "danger", title: "This phone isn’t approved", text: "Check-ins only count from your approved phone. Sign in again to confirm this phone with your face, or ask your teacher." },
-    error: { icon: "⚠", tone: "danger", title: "Something went wrong", text: errorText },
+    device: { icon: "phone", tone: "danger", title: "This phone isn’t approved", text: "Check-ins only count from your approved phone. Sign in again to confirm this phone with your face, or ask your teacher." },
+    error: { icon: "alert", tone: "danger", title: "Something went wrong", text: errorText },
   };
   const view = VIEW[state] || VIEW.error;
 
   return (
     <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={handleLogout} links={studentLinks()}>
-      <Link to="/student-dashboard" className="ui-btn ui-btn--ghost ui-btn--sm">← Dashboard</Link>
+      <Link to="/student-dashboard" className="ui-page-head__back"><Icon name="back" />Dashboard</Link>
 
       {showTracker && (
         <ol className="checkin-tracker" aria-label="Check-in progress">
           {STEPS.map((label, index) => (
             <li key={label} className={index < stepIndex || (state === "done" && index === 3) ? "is-done" : index === stepIndex ? "is-current" : ""}>
-              <span className="checkin-tracker__dot">{index < stepIndex || (state === "done" && index === 3) ? "✓" : index + 1}</span>
+              <span className="checkin-tracker__dot">{index < stepIndex || (state === "done" && index === 3) ? <Icon name="check" size={14} /> : index + 1}</span>
               <span className="checkin-tracker__label">{label}</span>
             </li>
           ))}
@@ -400,7 +401,7 @@ const CheckIn = () => {
           </Suspense>
         ) : (
           <div className="checkin-hero">
-            <span className={`checkin-hero__icon ${view.tone ? `checkin-hero__icon--${view.tone}` : ""} ${["listening", "relaying"].includes(state) ? "checkin-pulse" : ""}`}>{view.icon}</span>
+            <span className={`checkin-hero__icon ${view.tone ? `checkin-hero__icon--${view.tone}` : ""} ${["listening", "relaying"].includes(state) ? "checkin-pulse" : ""}`}><Icon name={view.icon} /></span>
             <h1 className="checkin-hero__title">{view.title}</h1>
             <p className="checkin-hero__text">{view.text}</p>
 

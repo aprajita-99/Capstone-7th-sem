@@ -1,60 +1,80 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 /* ============================================================
-   Design tokens — Indigo modern SaaS, light theme.
-   Kept dark-theme-ready: semantic names, not raw colors, in use.
+   Design tokens — "bold monochrome" (redesign 2026-10-25).
+   One blue scale from navy ink to pale tint; status is told apart
+   by fill / outline / icon, not by different colours. Light only.
+   Variable names are kept from the first kit so every page restyles
+   through them; the values are what changed.
    ============================================================ */
 :root {
-  /* Indigo brand scale */
+  /* Blue scale (kept under the old "indigo" names) */
   --indigo-50: #eef2ff;
-  --indigo-100: #e0e7ff;
-  --indigo-200: #c7d2fe;
-  --indigo-300: #a5b4fc;
-  --indigo-400: #818cf8;
-  --indigo-500: #6366f1;
-  --indigo-600: #4f46e5;
-  --indigo-700: #4338ca;
-  --indigo-800: #3730a3;
+  --indigo-100: #dce4ff;
+  --indigo-200: #c3cfff;
+  --indigo-300: #9db2ff;
+  --indigo-400: #6f8cff;
+  --indigo-500: #4a6bff;
+  --indigo-600: #2f5bff;
+  --indigo-700: #1f3fb8;
+  --indigo-800: #13235c;
+  --ink: #0b1533;
 
-  /* Slate neutrals */
-  --slate-50: #f8fafc;
-  --slate-100: #f1f5f9;
-  --slate-200: #e2e8f0;
-  --slate-300: #cbd5e1;
-  --slate-400: #94a3b8;
-  --slate-500: #64748b;
-  --slate-600: #475569;
-  --slate-700: #334155;
-  --slate-800: #1e293b;
-  --slate-900: #0f172a;
+  /* Blue-grey neutrals (kept under the old "slate" names) */
+  --slate-50: #f3f5fb;
+  --slate-100: #e8ecf7;
+  --slate-200: #dce2f0;
+  --slate-300: #bcc5dd;
+  --slate-400: #8e9acb;
+  --slate-500: #5b6788;
+  --slate-600: #4b5677;
+  --slate-700: #2e3a5c;
+  --slate-800: #1a2547;
+  --slate-900: #0b1533;
 
   /* Semantic */
   --bg: var(--slate-50);
   --surface: #ffffff;
+  --surface-tint: #f7f9fe;
   --border: var(--slate-200);
-  --text: var(--slate-900);
+  --text: var(--ink);
   --text-soft: var(--slate-600);
   --text-faint: var(--slate-500);
-  --success: #059669;
-  --success-soft: #ecfdf5;
-  --success-border: #a7f3d0;
-  --warning: #d97706;
-  --warning-soft: #fffbeb;
-  --warning-border: #fde68a;
-  --danger: #dc2626;
-  --danger-soft: #fef2f2;
-  --danger-border: #fecaca;
-  --info: #0284c7;
-  --info-soft: #f0f9ff;
-  --info-border: #bae6fd;
+
+  /* Status, all in the one blue scale:
+     success = present (solid blue), warning = review (tint),
+     danger = absent / destructive (navy ink, outline), info = deep blue */
+  --success: var(--indigo-600);
+  --success-strong: var(--indigo-700);
+  --success-soft: var(--indigo-50);
+  --success-border: var(--indigo-200);
+  --warning: var(--indigo-700);
+  --warning-strong: var(--indigo-800);
+  --warning-soft: var(--indigo-100);
+  --warning-border: var(--indigo-300);
+  --danger: var(--ink);
+  --danger-strong: var(--ink);
+  --danger-soft: var(--slate-100);
+  --danger-border: var(--ink);
+  --info: var(--indigo-700);
+  --info-soft: var(--indigo-50);
+  --info-border: var(--indigo-200);
+
+  /* Type */
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
 
   /* Shape and depth */
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 16px;
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 10px 30px -18px rgba(15, 23, 42, 0.35);
-  --shadow-lg: 0 16px 40px -16px rgba(15, 23, 42, 0.28);
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --shadow-sm: 0 1px 2px rgba(11, 21, 51, 0.05);
+  --shadow: 0 1px 3px rgba(11, 21, 51, 0.06), 0 12px 30px -18px rgba(11, 21, 51, 0.35);
+  --shadow-lg: 0 18px 40px -16px rgba(11, 21, 51, 0.32);
+  --focus-ring: 0 0 0 3px rgba(47, 91, 255, 0.28);
+
+  /* Bottom tab bar height on phones (content keeps clear of it) */
+  --tabbar-space: 96px;
 }
 
 * {
@@ -68,7 +88,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
@@ -99,7 +119,9 @@ h1,
 h2,
 h3,
 h4 {
-  line-height: 1.25;
+  line-height: 1.2;
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
 }
 
 :focus-visible {

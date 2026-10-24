@@ -127,8 +127,8 @@
   background: var(--slate-100);
   color: var(--slate-700);
 }
-.student-class__pct--ok { background: var(--success-soft); color: #047857; }
-.student-class__pct--warn { background: var(--warning-soft); color: #b45309; }
+.student-class__pct--ok { background: var(--success-soft); color: var(--success-strong); }
+.student-class__pct--warn { background: var(--warning-soft); color: var(--warning-strong); }
 .student-class__pct--low { background: var(--danger-soft); color: var(--danger); }
 
 .my-att-list { display: flex; flex-direction: column; gap: 12px; }
@@ -154,8 +154,8 @@
 .my-att__class strong { font-size: 16px; }
 .my-att__class span { font-size: 13px; }
 .my-att__pct { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; color: var(--slate-700); }
-.my-att--ok .my-att__pct { color: #047857; }
-.my-att--warn .my-att__pct { color: #b45309; }
+.my-att--ok .my-att__pct { color: var(--success-strong); }
+.my-att--warn .my-att__pct { color: var(--warning-strong); }
 .my-att--low .my-att__pct { color: var(--danger); }
 .my-att__bar { position: relative; height: 10px; margin-top: 10px; border-radius: 999px; background: var(--slate-100); overflow: visible; }
 .my-att__fill { display: block; height: 100%; border-radius: 999px; background: var(--slate-300); }

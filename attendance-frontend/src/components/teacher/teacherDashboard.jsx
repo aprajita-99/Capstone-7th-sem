@@ -8,6 +8,8 @@ import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
+import PageHeader from "../../ui/PageHeader";
+import Icon from "../../ui/Icon";
 import { PageLoader } from "../../ui/Spinner";
 import StatCard from "../../ui/StatCard";
 import { useToast } from "../../ui/Toast";
@@ -93,17 +95,12 @@ const TeacherDashboard = () => {
             onLogout={handleLogout}
             links={teacherLinks("dashboard", reviewCounts)}
         >
-            <div className="ui-page-head">
-                <div>
-                    <h1 className="ui-page-head__title">Welcome, {firstName}</h1>
-                    <p className="ui-page-head__sub">
-                        Run your classes, keep rosters current, and approve student devices before check-ins begin.
-                    </p>
-                </div>
-                <div className="ui-page-head__actions">
-                    <Button onClick={() => navigate("/teacher/classes")}>Manage classes & rosters</Button>
-                </div>
-            </div>
+            <PageHeader
+                eyebrow="Teacher"
+                title={`Welcome, ${firstName}`}
+                subtitle="Run your classes, keep rosters current, and approve student devices before check-ins begin."
+                actions={<Button onClick={() => navigate("/teacher/classes")}>Manage classes & rosters</Button>}
+            />
 
             <div className="ui-grid ui-grid--stats">
                 <StatCard icon={<FaChalkboardTeacher />} tone="indigo" label="Classes" value={classes.length} hint="Created by you" />
@@ -130,7 +127,7 @@ const TeacherDashboard = () => {
             {reviewCounts?.attendance > 0 && (
                 <Card className="review-alert">
                     <div className="review-alert__row">
-                        <span className="review-alert__icon" aria-hidden="true">⚠</span>
+                        <span className="review-alert__icon" aria-hidden="true"><Icon name="warning" /></span>
                         <span className="review-alert__text">
                             <strong>{reviewCounts.attendance} attendance review{reviewCounts.attendance === 1 ? "" : "s"} waiting</strong>
                             <span className="ui-muted">
@@ -151,7 +148,7 @@ const TeacherDashboard = () => {
                 >
                     {classes.length === 0 ? (
                         <EmptyState
-                            icon="🏫"
+                            icon="classes"
                             title="No classes yet"
                             text="Create your first class and paste its roster — check-ins will be attributed to these students."
                             action={<Button variant="soft" onClick={() => navigate("/teacher/classes")}>Create a class</Button>}
@@ -181,21 +178,21 @@ const TeacherDashboard = () => {
                 <Card title="Quick actions" subtitle="The things you’ll do most often.">
                     <div className="quick-actions">
                         <button type="button" className="quick-action" onClick={() => navigate("/teacher/reviews")}>
-                            <span className="quick-action__icon" aria-hidden="true">✅</span>
+                            <span className="quick-action__icon" aria-hidden="true"><Icon name="check" /></span>
                             <span className="quick-action__body">
                                 <strong>Reviews</strong>
                                 <small>Unsure check-ins, student queries, identity checks and new phones</small>
                             </span>
                         </button>
                         <button type="button" className="quick-action" onClick={() => navigate("/teacher/classes")}>
-                            <span className="quick-action__icon" aria-hidden="true">👥</span>
+                            <span className="quick-action__icon" aria-hidden="true"><Icon name="users" /></span>
                             <span className="quick-action__body">
                                 <strong>Classes & rosters</strong>
                                 <small>Create classes, paste rosters, start check-ins</small>
                             </span>
                         </button>
                         <button type="button" className="quick-action" onClick={() => navigate("/acoustic-lab")}>
-                            <span className="quick-action__icon" aria-hidden="true">🔊</span>
+                            <span className="quick-action__icon" aria-hidden="true"><Icon name="sound" /></span>
                             <span className="quick-action__body">
                                 <strong>Phone audio test</strong>
                                 <small>Check that a phone can play and hear the key tones</small>

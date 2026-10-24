@@ -6,9 +6,9 @@ import { useToast } from "../../ui/Toast";
 
 // counts: GET /reviews/counts → the Reviews link shows the number of open cases.
 export const teacherLinks = (active, counts) => [
-  { to: "/teacher-dashboard", label: "Dashboard", active: active === "dashboard" },
-  { to: "/teacher/classes", label: "Classes & rosters", active: active === "classes" },
-  { to: "/teacher/reviews", label: "Reviews", active: active === "reviews", count: counts?.total || 0 },
+  { to: "/teacher-dashboard", label: "Dashboard", tabLabel: "Home", icon: "home", tab: true, active: active === "dashboard" },
+  { to: "/teacher/classes", label: "Classes & rosters", tabLabel: "Classes", icon: "classes", tab: true, active: active === "classes" },
+  { to: "/teacher/reviews", label: "Reviews", icon: "check", tab: true, active: active === "reviews", count: counts?.total || 0 },
   { to: "/acoustic-lab", label: "Phone audio test" },
 ];
 

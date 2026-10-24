@@ -4,6 +4,7 @@ import SERVER_URL from "../../config/api";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import EmptyState from "../../ui/EmptyState";
+import Icon from "../../ui/Icon";
 import Sheet from "../../ui/Sheet";
 import Spinner from "../../ui/Spinner";
 import { FacePair, displayName } from "./recordParts";
@@ -61,7 +62,7 @@ const SpotCheckSheet = ({ sessionId, locked, onDecide, onClose }) => {
       {records === null ? (
         <div className="att-loading"><Spinner /> <span className="ui-muted">Picking students…</span></div>
       ) : records.length === 0 ? (
-        <EmptyState icon="👀" title={error ? "Spot-check unavailable" : "Nobody present yet"} text={error || "Students appear here once they are marked present."} />
+        <EmptyState icon="eye" title={error ? "Spot-check unavailable" : "Nobody present yet"} text={error || "Students appear here once they are marked present."} />
       ) : (
         <ul className="spot-list">
           {records.map((record) => {
@@ -77,7 +78,7 @@ const SpotCheckSheet = ({ sessionId, locked, onDecide, onClose }) => {
                 </div>
                 {!mark && (
                   <div className="spot-row__actions">
-                    <Button size="sm" variant="soft" onClick={() => setMarks((current) => ({ ...current, [record._id]: "here" }))}>Here ✓</Button>
+                    <Button size="sm" variant="soft" onClick={() => setMarks((current) => ({ ...current, [record._id]: "here" }))}><Icon name="check" /> Here</Button>
                     {!locked && (
                       <Button size="sm" variant="secondary" loading={busyId === record._id} disabled={Boolean(busyId)} onClick={() => notHere(record)}>
                         Not here

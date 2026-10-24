@@ -34,10 +34,7 @@
 }
 
 .hero__accent {
-  background: linear-gradient(120deg, var(--indigo-500), #8b5cf6);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--indigo-600);
 }
 
 .hero__sub {
@@ -120,7 +117,7 @@
   font-weight: 700;
   font-size: 15px;
   color: #fff;
-  background: linear-gradient(135deg, var(--indigo-500), var(--indigo-700));
+  background: var(--ink);
   margin-bottom: 16px;
 }
 
@@ -165,7 +162,7 @@
   padding: 56px 28px;
   border-radius: 24px;
   color: #fff;
-  background: linear-gradient(135deg, var(--indigo-600), var(--indigo-800));
+  background: var(--ink);
   box-shadow: var(--shadow-lg);
 }
 

@@ -6,7 +6,9 @@ import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
+import Icon from "../../ui/Icon";
 import EmptyState from "../../ui/EmptyState";
+import PageHeader from "../../ui/PageHeader";
 import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { roomLabel } from "../../utils/rooms";
@@ -77,28 +79,28 @@ const STATUS_VIEW = {
     approved: {
         badge: "Approved",
         variant: "success",
-        icon: "✓",
+        icon: "check",
         title: "This browser is approved for attendance",
         text: "When your teacher starts a check-in, this phone will play and listen for the key tones.",
     },
     review: {
         badge: "In review",
         variant: "warning",
-        icon: "⌛",
+        icon: "clock",
         title: "Waiting for teacher review",
         text: "This browser was added from a new device. A teacher needs to approve it before you can check in.",
     },
     unbound: {
         badge: "Not bound",
         variant: "danger",
-        icon: "⚠",
+        icon: "warning",
         title: "This browser isn’t bound yet",
         text: "Sign in again with your college Google account to bind this browser to your attendance.",
     },
     checking: {
         badge: "Checking…",
         variant: "neutral",
-        icon: "…",
+        icon: "clock",
         title: "Checking this device…",
         text: "One moment while we look up this browser’s binding.",
     },
@@ -242,14 +244,11 @@ const StudentDashboard = () => {
             onLogout={handleLogout}
             links={studentLinks("dashboard")}
         >
-            <div className="ui-page-head">
-                <div>
-                    <h1 className="ui-page-head__title">Hi {firstName} 👋</h1>
-                    <p className="ui-page-head__sub">
-                        This is your attendance home. Check-ins happen right here once your teacher starts a session.
-                    </p>
-                </div>
-            </div>
+            <PageHeader
+                eyebrow="Student"
+                title={`Hi ${firstName}`}
+                subtitle="This is your attendance home. Check-ins happen right here once your teacher starts a session."
+            />
 
             {openCheckins.length > 0 && (
                 <Card className="checkin-open-card" title="Check-in open now">
@@ -278,13 +277,13 @@ const StudentDashboard = () => {
             <div className="student-grid">
                 <Card className={`device-card device-card--${deviceStatus}`}>
                     <div className="device-card__top">
-                        <span className="device-card__icon" aria-hidden="true">{info.icon}</span>
+                        <span className="device-card__icon" aria-hidden="true"><Icon name={info.icon} /></span>
                         <Badge variant={info.variant} dot>{info.badge}</Badge>
                     </div>
                     <h2 className="device-card__title">{info.title}</h2>
                     <p className="device-card__text">{info.text}</p>
                     <div className="device-card__actions">
-                        <Button variant="soft" onClick={() => navigate("/acoustic-lab")}>🔊 Test phone audio</Button>
+                        <Button variant="soft" onClick={() => navigate("/acoustic-lab")}><Icon name="sound" /> Test phone audio</Button>
                     </div>
                 </Card>
 
@@ -322,7 +321,7 @@ const StudentDashboard = () => {
                     <p className="ui-muted">Loading…</p>
                 ) : classes.length === 0 ? (
                     <EmptyState
-                        icon="🏫"
+                        icon="classes"
                         title="No classes yet"
                         text="You’ll see a class here once your teacher adds your college email to its roster."
                     />

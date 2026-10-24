@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import AppShell from "../../ui/AppShell";
@@ -7,6 +7,7 @@ import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
+import PageHeader from "../../ui/PageHeader";
 import { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { shortWhen, untilLabel } from "../../utils/lockTime";
@@ -163,19 +164,15 @@ const StudentAttendance = () => {
 
   return (
     <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={logout} links={studentLinks("attendance")}>
-      <Link to="/student-dashboard" className="ui-btn ui-btn--ghost ui-btn--sm">← Dashboard</Link>
-      <div className="ui-page-head">
-        <div>
-          <h1 className="ui-page-head__title">Your attendance</h1>
-          <p className="ui-page-head__sub">
-            Counted over closed check-ins. Cases in review count once your teacher decides. You need at least {data.minPercent}%.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        back={{ to: "/student-dashboard", label: "Dashboard" }}
+        title="Your attendance"
+        subtitle={`Counted over closed check-ins. Cases in review count once your teacher decides. You need at least ${data.minPercent}%.`}
+      />
 
       {data.classes.length === 0 ? (
         <Card>
-          <EmptyState icon="📊" title="No attendance yet" text="Your classes appear here after their first check-in." />
+          <EmptyState icon="chart" title="No attendance yet" text="Your classes appear here after their first check-in." />
         </Card>
       ) : (
         <>

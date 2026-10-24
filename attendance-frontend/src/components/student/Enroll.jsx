@@ -6,6 +6,9 @@ import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
+import PageHeader from "../../ui/PageHeader";
+import { studentLinks } from "./studentLinks";
+import Icon from "../../ui/Icon";
 import { PageLoader, Spinner } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
 import { compressImage } from "../../utils/imageCompress";
@@ -143,13 +146,12 @@ const Enroll = () => {
   const stepIndex = { consent: 1, idcard: 2, "selfie-ready": 3, selfie: 3, submitting: 3, result: 4 }[step] || 1;
 
   return (
-    <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={logout} links={[{ to: "/student-dashboard", label: "Dashboard" }]}>
-      <div className="ui-page-head">
-        <div>
-          <h1 className="ui-page-head__title">Identity check</h1>
-          <p className="ui-page-head__sub">One time only. It links your face to your college ID so check-ins can confirm it is really you.</p>
-        </div>
-      </div>
+    <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={logout} links={studentLinks()}>
+      <PageHeader
+        back={{ to: "/student-dashboard", label: "Dashboard" }}
+        title="Identity check"
+        subtitle="One time only. It links your face to your college ID so check-ins can confirm it is really you."
+      />
 
       <ol className="enroll-steps" aria-label="Progress">
         {["Consent", "ID card", "Live selfie", "Done"].map((label, index) => (
@@ -230,21 +232,21 @@ const Enroll = () => {
           <div className="enroll-body enroll-result">
             {status.status === "verified" && (
               <>
-                <span className="enroll-result__icon enroll-result__icon--ok">✓</span>
+                <span className="enroll-result__icon enroll-result__icon--ok"><Icon name="check" /></span>
                 <h2 className="enroll-title">Identity verified</h2>
                 <p className="ui-muted">Your live face is now your reference for check-ins.</p>
               </>
             )}
             {status.status === "pending" && (
               <>
-                <span className="enroll-result__icon enroll-result__icon--wait">⌛</span>
+                <span className="enroll-result__icon enroll-result__icon--wait"><Icon name="clock" /></span>
                 <h2 className="enroll-title">Waiting for your teacher</h2>
                 <p className="ui-muted">A teacher will check it because {describeReasons(status.reasons)}.</p>
               </>
             )}
             {!["verified", "pending"].includes(status.status) && (
               <>
-                <span className="enroll-result__icon enroll-result__icon--fail">!</span>
+                <span className="enroll-result__icon enroll-result__icon--fail"><Icon name="alert" /></span>
                 <h2 className="enroll-title">{lastOutcome === "failed" ? "That didn't work" : "Identity check needed"}</h2>
                 {status.rejectReason && <p className="ui-muted">Your teacher said: “{status.rejectReason}”</p>}
                 {lastOutcome === "failed" && <p className="ui-muted">Reason: {describeReasons(status.reasons)}. Use your real face in good light — not a photo or screen.</p>}

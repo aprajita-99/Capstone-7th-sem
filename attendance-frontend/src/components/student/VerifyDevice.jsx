@@ -5,6 +5,9 @@ import SERVER_URL from "../../config/api";
 import AppShell from "../../ui/AppShell";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
+import PageHeader from "../../ui/PageHeader";
+import { studentLinks } from "./studentLinks";
+import Icon from "../../ui/Icon";
 import { PageLoader, Spinner } from "../../ui/Spinner";
 import { signDeviceChallenge } from "../../utils/deviceKey";
 import FaceCheck from "../face/FaceCheck";
@@ -63,13 +66,11 @@ const VerifyDevice = () => {
   if (!user || !requestId) return <PageLoader label="Loading…" />;
 
   return (
-    <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={logout} links={[{ to: "/student-dashboard", label: "Dashboard" }]}>
-      <div className="ui-page-head">
-        <div>
-          <h1 className="ui-page-head__title">New phone</h1>
-          <p className="ui-page-head__sub">You signed in on a phone that isn’t your approved one. Confirm it’s you with a quick face check, or wait for your teacher.</p>
-        </div>
-      </div>
+    <AppShell role="student" name={user.name || user.email} email={user.email} onLogout={logout} links={studentLinks()}>
+      <PageHeader
+        title="New phone"
+        subtitle="You signed in on a phone that isn’t your approved one. Confirm it’s you with a quick face check, or wait for your teacher."
+      />
       {error && <p className="ui-field__error enroll-error">{error}</p>}
       <Card>
         {step === "intro" && (
@@ -85,14 +86,14 @@ const VerifyDevice = () => {
         {step === "submitting" && <p className="enroll-busy"><Spinner /> Comparing with your reference face…</p>}
         {step === "approved" && (
           <div className="enroll-body enroll-result">
-            <span className="enroll-result__icon enroll-result__icon--ok">✓</span>
+            <span className="enroll-result__icon enroll-result__icon--ok"><Icon name="check" /></span>
             <h2 className="enroll-title">This phone is approved</h2>
             <div className="enroll-actions"><Button onClick={() => navigate("/student-dashboard")}>Go to dashboard</Button></div>
           </div>
         )}
         {step === "review" && (
           <div className="enroll-body enroll-result">
-            <span className="enroll-result__icon enroll-result__icon--wait">⌛</span>
+            <span className="enroll-result__icon enroll-result__icon--wait"><Icon name="clock" /></span>
             <h2 className="enroll-title">Waiting for your teacher</h2>
             <p className="ui-muted">The face check wasn’t conclusive, so your teacher will approve this phone.</p>
             <div className="enroll-actions"><Button variant="secondary" onClick={() => navigate("/student-dashboard")}>Back to dashboard</Button></div>

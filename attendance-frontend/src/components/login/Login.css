@@ -14,7 +14,7 @@
   gap: 40px;
   padding: 40px 48px 48px;
   color: #fff;
-  background: linear-gradient(150deg, var(--indigo-600), var(--indigo-800));
+  background: var(--ink);
   overflow: hidden;
 }
 
@@ -155,7 +155,7 @@
   border-radius: 10px;
   background: var(--danger-soft);
   border: 1px solid var(--danger-border);
-  color: #b91c1c;
+  color: var(--danger-strong);
   font-size: 13.5px;
   text-align: left;
 }

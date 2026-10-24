@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
+import Icon from "./Icon";
 
 const ToastContext = createContext(null);
 
@@ -10,7 +11,7 @@ export const useToast = () => {
   return context.push;
 };
 
-const ICONS = { success: "✓", error: "✕", info: "i" };
+const ICONS = { success: "check", error: "alert", info: "alert" };
 
 export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
@@ -36,10 +37,10 @@ export const ToastProvider = ({ children }) => {
       <div className="ui-toasts" role="status" aria-live="polite">
         {toasts.map((toast) => (
           <div key={toast.id} className={`ui-toast ui-toast--${toast.variant}`}>
-            <span className="ui-toast__icon" aria-hidden="true">{ICONS[toast.variant] || ICONS.info}</span>
+            <span className="ui-toast__icon"><Icon name={ICONS[toast.variant] || ICONS.info} /></span>
             <p className="ui-toast__message">{toast.message}</p>
             <button type="button" className="ui-toast__close" onClick={() => dismiss(toast.id)} aria-label="Dismiss">
-              ×
+              <Icon name="close" size={16} />
             </button>
           </div>
         ))}
