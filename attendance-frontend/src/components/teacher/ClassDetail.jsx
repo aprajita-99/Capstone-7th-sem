@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import AppShell from "../../ui/AppShell";
@@ -7,9 +7,12 @@ import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import Card from "../../ui/Card";
 import EmptyState from "../../ui/EmptyState";
+import PageHeader from "../../ui/PageHeader";
+import Icon from "../../ui/Icon";
 import Field from "../../ui/Field";
 import Spinner, { PageLoader } from "../../ui/Spinner";
 import { useToast } from "../../ui/Toast";
+import { useConfirm } from "../../ui/Confirm";
 import { downloadFile } from "../../utils/download";
 import { roomLabel } from "../../utils/rooms";
 import RoomPicker from "./RoomPicker";
@@ -83,6 +86,7 @@ const ClassDetail = () => {
   const { classId } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const confirm = useConfirm();
   const { user, logout, counts } = useTeacherSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = CLASS_TABS.some((item) => item.id === searchParams.get("tab")) ? searchParams.get("tab") : null;
@@ -166,7 +170,11 @@ const ClassDetail = () => {
 
   const toggleArchive = async () => {
     const archiving = !courseClass.archived;
-    if (archiving && !window.confirm(`Archive ${courseClass.courseCode}? It will be hidden from your class list and cannot start check-ins. You can restore it later.`)) return;
+    if (archiving && !(await confirm({
+      title: `Archive ${courseClass.courseCode}?`,
+      message: "It will be hidden from your class list and cannot start check-ins. You can restore it later.",
+      confirmLabel: "Archive class",
+    }))) return;
     setBusy(true);
     try {
       await axios.post(`${SERVER_URL}/classes/${classId}/archive`, { archived: archiving }, requestConfig);
@@ -196,7 +204,11 @@ const ClassDetail = () => {
   };
 
   const removeStudent = async (entry) => {
-    if (!window.confirm(`Remove ${entry.name || entry.email} from ${courseClass.courseCode}? Their past attendance stays recorded.`)) return;
+    if (!(await confirm({
+      title: `Remove ${entry.name || entry.email}?`,
+      message: `They will be removed from ${courseClass.courseCode}. Their past attendance stays recorded.`,
+      confirmLabel: "Remove student",
+    }))) return;
     setBusy(true);
     try {
       await axios.delete(`${SERVER_URL}/classes/${classId}/roster/students/${encodeURIComponent(entry.email)}`, requestConfig);
@@ -210,7 +222,11 @@ const ClassDetail = () => {
   };
 
   const identityAction = async (info, action) => {
-    if (action === "force" && !window.confirm("Clear this student's identity check? Their ID and face photos are deleted and they must enroll again.")) return;
+    if (action === "force" && !(await confirm({
+      title: "Clear this student's identity check?",
+      message: "Their ID and face photos are deleted and they must enroll again.",
+      confirmLabel: "Clear and re-enroll",
+    }))) return;
     setBusy(true);
     try {
       await axios.post(`${SERVER_URL}/enrollment-reviews/${info.userId}/${action === "force" ? "force-reenroll" : "reset-attempts"}`, {}, requestConfig);
@@ -286,35 +302,32 @@ const ClassDetail = () => {
       onLogout={logout}
       links={teacherLinks("classes", counts)}
     >
-      <Link to="/teacher/classes" className="class-back">← All classes</Link>
-
-      <div className="ui-page-head">
-        <div>
-          <p className="class-detail__code">
-            {courseClass.courseCode}
-            {courseClass.section ? ` · Section ${courseClass.section}` : ""}
-          </p>
-          <h1 className="ui-page-head__title">{courseClass.title}</h1>
-          <div className="class-detail__badges">
-            <Badge variant="neutral">{roomLabel(courseClass.defaultRoom)}</Badge>
-            <Badge variant={courseClass.activeStudentCount ? "primary" : "warning"}>
-              {courseClass.activeStudentCount} students
-            </Badge>
-            {courseClass.archived && <Badge variant="warning" dot>Archived</Badge>}
-          </div>
-        </div>
-        <div className="ui-page-head__actions class-detail__actions">
-          {!courseClass.archived && (sessions.openSession || courseClass.activeStudentCount > 0) && (
-            <Button onClick={() => navigate(`/teacher/classes/${classId}/live`)}>
-              {sessions.openSession ? "Open live check-in" : "Start check-in"}
+      <PageHeader
+        back={{ to: "/teacher/classes", label: "All classes" }}
+        eyebrow={`${courseClass.courseCode}${courseClass.section ? ` · Section ${courseClass.section}` : ""}`}
+        title={courseClass.title}
+        actions={
+          <>
+            {!courseClass.archived && (sessions.openSession || courseClass.activeStudentCount > 0) && (
+              <Button onClick={() => navigate(`/teacher/classes/${classId}/live`)}>
+                {sessions.openSession ? "Open live check-in" : "Start check-in"}
+              </Button>
+            )}
+            <Button variant="secondary" onClick={startEditing} disabled={busy}>Edit class</Button>
+            <Button variant={courseClass.archived ? "soft" : "ghost"} onClick={toggleArchive} disabled={busy}>
+              {courseClass.archived ? "Restore class" : "Archive"}
             </Button>
-          )}
-          <Button variant="secondary" onClick={startEditing} disabled={busy}>Edit class</Button>
-          <Button variant={courseClass.archived ? "soft" : "ghost"} onClick={toggleArchive} disabled={busy}>
-            {courseClass.archived ? "Restore class" : "Archive"}
-          </Button>
+          </>
+        }
+      >
+        <div className="class-detail__badges">
+          <Badge variant="neutral">{roomLabel(courseClass.defaultRoom)}</Badge>
+          <Badge variant={courseClass.activeStudentCount ? "primary" : "warning"}>
+            {courseClass.activeStudentCount} students
+          </Badge>
+          {courseClass.archived && <Badge variant="warning" dot>Archived</Badge>}
         </div>
-      </div>
+      </PageHeader>
 
       {editing && (
         <Card className="classes-section" title="Edit class" subtitle="The course code cannot be changed.">
@@ -376,7 +389,7 @@ const ClassDetail = () => {
         {addError && <p className="ui-field__error add-student__error">{addError}</p>}
 
         {roster.length === 0 ? (
-          <EmptyState icon="👥" title="No students yet" text="Add students one by one above, or import the whole class from a CSV below." />
+          <EmptyState icon="users" title="No students yet" text="Add students one by one above, or import the whole class from a CSV below." />
         ) : (
           <div className="roster-table-wrap">
             <table className="roster-table">
@@ -439,7 +452,7 @@ const ClassDetail = () => {
                     <span className="import-row__num">{row.row}</span>
                     <span className="import-row__text">{row.text}</span>
                     <span className="import-row__status">
-                      {row.status === "valid" && "✓"}
+                      {row.status === "valid" && <Icon name="check" size={14} label="Valid" />}
                       {row.status === "header" && "header"}
                       {row.status === "error" && row.message}
                     </span>
@@ -465,7 +478,7 @@ const ClassDetail = () => {
       >
         {courseClass.activeStudentCount === 0 && !sessions.openSession && <p className="ui-muted">Add students to the roster before taking attendance.</p>}
         {sessions.sessions.length === 0 ? (
-          <EmptyState icon="🔊" title="No check-ins yet" text="Each check-in you run appears here with its present, review and absent counts." />
+          <EmptyState icon="sound" title="No check-ins yet" text="Each check-in you run appears here with its present, review and absent counts." />
         ) : (
           <ul className="session-list">
             {sessions.sessions.map((session) => (

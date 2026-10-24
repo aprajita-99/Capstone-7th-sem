@@ -13,7 +13,7 @@
   text-align: center;
 }
 .enroll-steps li.is-current { background: var(--indigo-50); color: var(--indigo-700); }
-.enroll-steps li.is-done { background: var(--success-soft); color: #047857; }
+.enroll-steps li.is-done { background: var(--success-soft); color: var(--success-strong); }
 
 .enroll-body { display: flex; flex-direction: column; gap: 12px; }
 .enroll-title { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }

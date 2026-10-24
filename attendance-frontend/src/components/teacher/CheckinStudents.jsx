@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
 import EmptyState from "../../ui/EmptyState";
+import Icon from "../../ui/Icon";
 import { DECISION_LABEL, FACE_LABEL, FacePair, QUERY_REASON_LABEL, QueryQuote, ReasonBadges, STATUS_BADGE, displayName, time } from "./recordParts";
 
 const TABS = [
@@ -107,7 +108,7 @@ const StudentPanel = ({ record, locked, busy, onDecide, onClose }) => {
             <strong>{displayName(record)}</strong>
             <span className="ui-muted">{record.email}</span>
           </div>
-          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Close">✕</button>
+          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={20} /></button>
         </header>
         <Badge variant={badge.variant} dot>{badge.label}</Badge>
         <ReasonBadges record={record} />
@@ -176,7 +177,7 @@ const CheckinStudents = ({ records = [], locked, busy, onDecide, initialStudent 
 
       {visible.length === 0 ? (
         <EmptyState
-          icon={activeTab === "review" ? "✓" : "👂"}
+          icon={activeTab === "review" ? "done" : "headphones"}
           title={query ? "No matches" : activeTab === "review" ? "Nothing to review" : "Nobody here yet"}
           text={query ? "Try a different name or roll number." : activeTab === "review" ? "Unsure face checks and unheard phones appear here." : "Students appear as they join and check in."}
         />

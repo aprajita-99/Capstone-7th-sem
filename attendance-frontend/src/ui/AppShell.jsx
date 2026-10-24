@@ -2,11 +2,14 @@ import React from "react";
 import { Link } from "react-router-dom";
 import Badge from "./Badge";
 import Brand from "./Brand";
+import Icon from "./Icon";
 
 // Sticky top bar + centered content column shared by every signed-in page.
-// `links` is an array of { to, label, active, count? } (count > 0 shows a small badge).
+// `links` is an array of { to, label, active, count?, icon?, tab? }: all show in the
+// top nav on wide screens; links with `tab: true` form the bottom tab bar on phones.
 const AppShell = ({ role, name, email, onLogout, links = [], children }) => {
   const initial = String(name || email || "?").trim().charAt(0).toUpperCase();
+  const tabs = links.filter((link) => link.tab);
 
   return (
     <div className="ui-shell">
@@ -17,7 +20,7 @@ const AppShell = ({ role, name, email, onLogout, links = [], children }) => {
           {links.length > 0 && (
             <nav className="ui-shell__nav" aria-label="Primary">
               {links.map((link) => (
-                <Link key={link.to} to={link.to} className={`ui-shell__link ${link.active ? "is-active" : ""}`}>
+                <Link key={link.to} to={link.to} className={`ui-shell__link ${link.active ? "is-active" : ""}`} aria-current={link.active ? "page" : undefined}>
                   {link.label}
                   {link.count > 0 && <span className="ui-shell__count" aria-label={`${link.count} waiting`}>{link.count > 99 ? "99+" : link.count}</span>}
                 </Link>
@@ -45,6 +48,18 @@ const AppShell = ({ role, name, email, onLogout, links = [], children }) => {
         </div>
       </header>
       <main className="ui-shell__main">{children}</main>
+
+      {tabs.length > 0 && (
+        <nav className="ui-tabbar" aria-label="Main">
+          {tabs.map((link) => (
+            <Link key={link.to} to={link.to} className={`ui-tabbar__link ${link.active ? "is-active" : ""}`} aria-current={link.active ? "page" : undefined}>
+              <Icon name={link.icon || "home"} />
+              {link.tabLabel || link.label}
+              {link.count > 0 && <span className="ui-tabbar__count" aria-label={`${link.count} waiting`}>{link.count > 99 ? "99+" : link.count}</span>}
+            </Link>
+          ))}
+        </nav>
+      )}
     </div>
   );
 };

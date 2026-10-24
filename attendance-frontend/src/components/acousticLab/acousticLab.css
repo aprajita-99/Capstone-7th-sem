@@ -37,7 +37,7 @@
   border-radius: var(--radius);
   border: 1px solid var(--danger-border);
   background: var(--danger-soft);
-  color: #b91c1c;
+  color: var(--danger-strong);
   padding: 12px 14px;
 }
 
@@ -56,9 +56,9 @@
 .acoustic-lab th { color: var(--text-soft); font-size: 13px; }
 
 .acoustic-lab__verdict { border-radius: 999px; display: inline-block; font-size: 13px; font-weight: 700; padding: 4px 9px; }
-.acoustic-lab__verdict--strong { background: var(--success-soft); color: #047857; }
-.acoustic-lab__verdict--tentative { background: var(--warning-soft); color: #b45309; }
-.acoustic-lab__verdict--weak { background: var(--danger-soft); color: #b91c1c; }
+.acoustic-lab__verdict--strong { background: var(--success-soft); color: var(--success-strong); }
+.acoustic-lab__verdict--tentative { background: var(--warning-soft); color: var(--warning-strong); }
+.acoustic-lab__verdict--weak { background: var(--danger-soft); color: var(--danger-strong); }
 .acoustic-lab__recommendation { margin-top: 16px !important; font-weight: 700; }
 
 /* Live tone meter (sound lab) */
@@ -113,8 +113,8 @@
 .link-stats strong { font-size: 22px; letter-spacing: -0.02em; }
 
 .link-rate { margin-top: 12px !important; font-weight: 700; padding: 10px 12px; border-radius: var(--radius); }
-.link-rate--pass { background: var(--success-soft); color: #047857; }
-.link-rate--fail { background: var(--danger-soft); color: #b91c1c; }
+.link-rate--pass { background: var(--success-soft); color: var(--success-strong); }
+.link-rate--fail { background: var(--danger-soft); color: var(--danger-strong); }
 
 .link-results {
   margin: 8px 0 0;

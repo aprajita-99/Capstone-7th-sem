@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import Icon from "./Icon";
 
 // Bottom sheet on phones, centred dialog from 640 px. Closes on Escape or a backdrop tap.
 const Sheet = ({ title, subtitle, onClose, footer, children }) => {
@@ -28,7 +29,7 @@ const Sheet = ({ title, subtitle, onClose, footer, children }) => {
             <h2 className="ui-sheet__title">{title}</h2>
             {subtitle && <p className="ui-sheet__subtitle">{subtitle}</p>}
           </div>
-          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Close">✕</button>
+          <button type="button" className="ui-icon-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={20} /></button>
         </header>
         <div className="ui-sheet__body">{children}</div>
         {footer && <footer className="ui-sheet__foot">{footer}</footer>}

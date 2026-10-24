@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Button from "../../ui/Button";
 import EmptyState from "../../ui/EmptyState";
+import Icon from "../../ui/Icon";
 import { lockLabel, lockSoon, shortWhen } from "../../utils/lockTime";
 import { FACE_LABEL, FacePair, QueryQuote, ReasonBadges, displayName } from "./recordParts";
 
@@ -87,7 +88,7 @@ const AttendanceReviews = ({ groups, busy, onDecide, onBulkPresent }) => {
     });
 
   if (groups.length === 0) {
-    return <EmptyState icon="✓" title="No attendance reviews" text="Unsure face checks, unheard phones and student queries appear here until the check-in locks at 09:00 the next morning." />;
+    return <EmptyState icon="done" title="No attendance reviews" text="Unsure face checks, unheard phones and student queries appear here until the check-in locks at 09:00 the next morning." />;
   }
 
   return (
@@ -104,7 +105,7 @@ const AttendanceReviews = ({ groups, busy, onDecide, onBulkPresent }) => {
                   {shortWhen(group.session.startedAt)} · {group.records.length} to review{queries ? ` · ${queries} with a query` : ""}
                 </span>
               </div>
-              <span className={`lock-chip ${lockSoon(group.session.lockAt, now) ? "lock-chip--soon" : ""}`}>🔒 {lockLabel(group.session.lockAt, now)}</span>
+              <span className={`lock-chip ${lockSoon(group.session.lockAt, now) ? "lock-chip--soon" : ""}`}><Icon name="lock" size={13} /> {lockLabel(group.session.lockAt, now)}</span>
               <Button variant="ghost" size="sm" onClick={() => toggleGroup(group)}>{allSelected ? "Clear" : "Select all"}</Button>
             </header>
             <div className="att-card-list">

@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import './ui/ui.css';
 import { ToastProvider } from './ui/Toast';
+import { ConfirmProvider } from './ui/Confirm';
 import Home from './components/Home';
 import NotFound from './components/NotFound';
 import Login from './components/login/Login';
@@ -27,6 +28,7 @@ function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
+        <ConfirmProvider>
         <Routes>
           <Route path={'/'} element={<Home />} />
           <Route path={'/login'} element={<Login />} />
@@ -46,6 +48,7 @@ function App() {
           <Route path={'/teacher-dashboard'} element={<TeacherDashboard />} />
           <Route path='*' element={<NotFound />} />
         </Routes>
+        </ConfirmProvider>
       </ToastProvider>
     </BrowserRouter>
   );
