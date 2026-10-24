@@ -36,7 +36,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **9** | Face + liveness at every check-in (hear → face → relay), 2 tries, 2-min grace, review cases decided same day from the live/summary page | **Shipped** (owner phone test passed 2026-10-24) |
 | **10** | Reviews → Attendance tab (bulk present), present ↔ absent overrides, student queries, lock at 09:00 IST next morning, retention (evidence at lock, audit 180 days, ID card after verify), headcount + spot-check, evening digest email, scheduled jobs | **Shipped** (owner phone test passed 2026-10-24; digest email not yet seen) |
 | **11** | Class Attendance tab (% per student, phone list + desktop matrix, cell → record), class + per-check-in CSV (Excel-safe), dashboard cards (check-ins this week, below 75%), student `/student/attendance` (%, miss / attend-more line, queries, past classes) | **Shipped** (owner test passed 2026-10-25) |
-| **12** | Neighbour verification (ID round) | **Planned** |
+| **12** | Neighbour verification (ID round) | **On hold** (owner, 2026-10-25: needs real-classroom measurements to set the threshold; resume at the class rehearsal) |
 | **13** | Pilot readiness (consent, privacy notice, monitoring, runbook) → live class pilot | **Planned** |
 | — | Native mobile app, iOS, multi-college | **Not in v1** |
 
@@ -914,6 +914,8 @@ Every report first settles the class's check-ins (close → face grace → lock)
 | `POST /sessions/:sessionId/neighbour-reports` | Student (signed) | `{heard:[{slotIndex, margin}]}` → `{ok}` |
 
 **Backend / frontend.** Slot signal = short frame encoding a per-session random slot token (not the student id); server maps tokens → students. `CheckIn.jsx` runs the round using the Phase 4 transmitter/receiver and Phase 6 server clock. Decision adds `neighbour` input.
+
+**Status (2026-10-25).** On hold until a real classroom is available for measurements; until then headcount + spot-check (Phase 10) are the only check against key forwarding and the closed-door case.
 
 **Rollout.** First **record-only** (store data, don't affect status) during rehearsals/pilot to choose the threshold; then enforce (`heardBy < threshold` → `review`).
 
