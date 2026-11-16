@@ -6,7 +6,7 @@
 
 **Classroom attendance that checks the student is really in the room: a near-silent sound key passed between phones, plus a live face check.**
 
-Capstone project · NIT Jamshedpur · live at [capstone-7th-sem.vercel.app](https://markmepresent.vercel.app/)
+Capstone project · NIT Jamshedpur · live at [markmepresent.vercel.app](https://markmepresent.vercel.app/)
 
 ![Node](https://img.shields.io/badge/node-%3E%3D22-339933?logo=node.js&logoColor=white)
 ![React](https://img.shields.io/badge/react-19-61dafb?logo=react&logoColor=white)
