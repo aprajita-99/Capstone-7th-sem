@@ -16,7 +16,7 @@ const attendanceSessionSchema = new mongoose.Schema(
       windowMin: Number,
       keyLifetimeSec: Number,
       maxWaves: Number,
-      profile: { type: String, enum: ["high", "mid"] },
+      profile: { type: String, enum: ["high", "mid", "low"] },
       faceRequired: { type: Boolean, default: true }, // every check-in includes the face check (Phase 9)
     },
     headcount: { count: Number, at: Date }, // teacher's head count (Phase 10)

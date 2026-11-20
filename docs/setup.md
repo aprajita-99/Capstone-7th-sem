@@ -64,7 +64,7 @@ cd attendance-frontend && CI=true npm run build   # production build; lint warni
 | `CLIENT_URL` / `CLIENT_URLS` | Website origin(s) allowed to call the API with cookies |
 | `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | AWS Rekognition (face liveness + matching), region `ap-south-1` |
 | `LIVENESS_THRESHOLD`, `MATCH_THRESHOLD`, `REVIEW_THRESHOLD` | Face pass marks (defaults 80 / 90 / 75) |
-| `CHECKIN_WINDOW_MIN`, `KEY_LIFETIME_SEC`, `MAX_WAVES`, `CHECKIN_PROFILE`, `TIMEZONE` | Check-in defaults (6 min, 15 s, 5, `mid`, `Asia/Kolkata`) |
+| `CHECKIN_WINDOW_MIN`, `KEY_LIFETIME_SEC`, `MAX_WAVES`, `CHECKIN_PROFILE`, `TIMEZONE` | Check-in defaults (6 min, 15 s, 6, `mid`, `Asia/Kolkata`). `CHECKIN_PROFILE` is `high`, `mid` or `low`; `low` (15.0–16.8 kHz) is loudest on phone speakers and reaches the back rows best, but some students may faintly hear it |
 | `LOCK_HOUR`, `AUDIT_RETENTION_DAYS`, `EVIDENCE_TTL_HOURS`, `DIGEST_HOUR` | Lock at 09:00 next morning, 180-day audit retention, 48 h evidence backstop, 20:00 digest |
 | `BREVO_API_KEY`, `MAIL_FROM`, `MAIL_FROM_NAME`, `APP_URL` | Teacher evening digest email (skipped when unset) |
 | `JOBS_SECRET` | Protects `POST /api/v1/jobs/run` (also a GitHub Actions secret) |

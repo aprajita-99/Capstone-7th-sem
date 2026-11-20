@@ -168,7 +168,7 @@ const LiveCheckin = () => {
       transmitter = createTransmitter(mic.context);
       const testKey = Math.floor(Math.random() * fsk.MAX_FRAME_VALUE);
       transmitter.setFrame({ value: testKey, profile });
-      transmitter.start({ volume: 1, gapMs: 300 });
+      transmitter.start({ volume: 1, gapMs: fsk.BEACON_GAP_MS });
 
       const margins = [];
       const deadline = Date.now() + SPEAKER_CHECK_MS;
@@ -202,7 +202,7 @@ const LiveCheckin = () => {
       }
     };
     await refreshKey();
-    transmitter.start({ volume: 1, gapMs: 300 });
+    transmitter.start({ volume: 1, gapMs: fsk.BEACON_GAP_MS });
     setPlaying(true);
     timersRef.current.push(window.setInterval(() => {
       refreshKey().catch(async (requestError) => {

@@ -18,7 +18,7 @@ const { verifyDeviceProof } = require("../utils/deviceProof");
 const { consumeFaceSession } = require("../utils/faceSessions");
 const { SLOT_MS, relayPlan, studentWave } = require("../utils/relay");
 
-const PROFILES = ["high", "mid"];
+const PROFILES = ["high", "mid", "low"];
 const MAX_FACE_ATTEMPTS = 2;
 const FACE_GRACE_MS = 2 * 60 * 1000; // face step may finish up to 2 min after the window closes
 
@@ -30,7 +30,7 @@ const envNumber = (name, fallback) => {
 const defaultSettings = () => ({
   windowMin: envNumber("CHECKIN_WINDOW_MIN", 6),
   keyLifetimeSec: envNumber("KEY_LIFETIME_SEC", 15),
-  maxWaves: envNumber("MAX_WAVES", 5),
+  maxWaves: envNumber("MAX_WAVES", 6),
   profile: PROFILES.includes(process.env.CHECKIN_PROFILE) ? process.env.CHECKIN_PROFILE : "mid",
   faceRequired: true, // owner decision: face check at every check-in
 });

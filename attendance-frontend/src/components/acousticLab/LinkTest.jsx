@@ -12,7 +12,7 @@ import "./acousticLab.css";
 
 const { FrameReceiver } = receiverModule;
 const DEFAULT_KEY = "1234567";
-const GAP_MS = 300;
+const GAP_MS = fsk.BEACON_GAP_MS;
 const SCAN_MS = 500;
 // The codec's detection rule is 9 dB above the median tone. A second
 // receiver at 5 dB runs alongside purely as a measurement, to learn whether a

@@ -32,7 +32,7 @@ const requestConfig = { withCredentials: true };
 const SCAN_MS = 500;
 const STATUS_POLL_MS = 5000;
 const HINT_AFTER_MS = 60 * 1000;
-const RELAY_TIMEOUT_MS = 12 * 1000;
+const RELAY_TIMEOUT_MS = 16 * 1000;
 
 const STEPS = ["Hear key", "Face check", "Help classmates", "Done"];
 // States shown on the dark, focused check-in stage (the AWS face camera and results stay on light cards).
@@ -373,7 +373,7 @@ const CheckIn = () => {
         ? "The camera couldn’t confirm a live face. Use your real face in good light — not a photo or screen."
         : "The match wasn’t certain. Face a light source, remove anything covering your face, and try again.",
     },
-    relaying: { icon: "sound", tone: "success", title: "Helping classmates…", text: "Your phone is passing the key on to students further back (about 8 seconds). Keep this page open." },
+    relaying: { icon: "sound", tone: "success", title: "Helping classmates…", text: "Your phone is passing the key on to students further back (about 12 seconds). Keep this page open." },
     done: doneView(),
     device: { icon: "phone", tone: "danger", title: "This phone isn’t approved", text: "Check-ins only count from your approved phone. Sign in again to confirm this phone with your face, or ask your teacher." },
     error: { icon: "alert", tone: "danger", title: "Something went wrong", text: errorText },

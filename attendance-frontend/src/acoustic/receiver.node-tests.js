@@ -78,6 +78,31 @@ test("mid profile: 200 random keys encode and decode, and never decode as high",
   assert.equal(crossDecoded, 0);
 });
 
+test("low profile: 15.00-16.76 kHz, 200 random keys decode and never decode as mid", () => {
+  assert.equal(fsk.profileRange(fsk.PROFILES.low), "15.00–16.76 kHz");
+  const random = makeRandom(17);
+  let decoded = 0;
+  let crossDecoded = 0;
+  for (let iteration = 0; iteration < 200; iteration += 1) {
+    const digits = Array.from({ length: fsk.DATA_SYMBOL_COUNT }, () => Math.floor(random() * fsk.DIGIT_RADIX));
+    const frame = fsk.encodeFrame(digits, SAMPLE_RATE, { profile: "low" });
+    const result = fsk.decodeFrame(frame.samples, SAMPLE_RATE, { expectedStartSample: 0, profile: "low" });
+    if (result && fsk.digitsToValue(result.dataDigits) === fsk.digitsToValue(digits)) decoded += 1;
+    if (fsk.decodeFrame(frame.samples, SAMPLE_RATE, { expectedStartSample: 0, profile: "mid" })) crossDecoded += 1;
+  }
+  console.log(`[low] clean: ${decoded}/200 decoded; decoded with the wrong (mid) profile: ${crossDecoded}/200`);
+  assert.equal(decoded, 200);
+  assert.equal(crossDecoded, 0);
+});
+
+test("receiver: the looped beacon key at the beacon gap is counted once per frame, low band, 10 dB noise", () => {
+  const values = Array(6).fill(7654321);
+  const found = runReceiver(buildStream({ values, profile: fsk.PROFILES.low, gapMs: fsk.BEACON_GAP_MS, snrDb: 10, seed: 21 }), fsk.PROFILES.low);
+  console.log(`[receiver] low, ${fsk.BEACON_GAP_MS} ms gaps, 10 dB SNR: ${found.length}/6 frames`);
+  assert.equal(found.length, 6);
+  assert.ok(found.every((frame) => frame.value === 7654321));
+});
+
 test("receiver: a repeated key streamed in 2048-sample chunks is counted once per frame", () => {
   const values = Array(6).fill(1234567);
   const found = runReceiver(buildStream({ values, profile: fsk.PROFILES.high }), fsk.PROFILES.high);
