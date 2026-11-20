@@ -27,7 +27,7 @@ A row is **Shipped** only when it runs today against the real backend. Nothing h
 | **3** | Device binding v2 (signed challenges — proves the phone holds its key; approving one device supersedes the student's other requests) | **Shipped** |
 | **4** | Sound lab (sample rate, mic settings, 5-tone margins, < 44.1 kHz refusal, 6 ms fades, live meter) | **Shipped** |
 | **4** | FSK codec (encode / decode / checksum), 12 synthetic tests | **Shipped** |
-| **4** | Band profiles (high 18.00–19.76 kHz, mid 16.50–18.26 kHz), streaming receiver with **repeat combining**, transmitter, wake lock, `/acoustic-lab/link` | **Shipped** (19/19 codec tests; first phone runs logged) |
+| **4** | Band profiles (high 18.00–19.76 kHz, mid 16.50–18.26 kHz, low 15.00–16.76 kHz for back-row reach), streaming receiver with **repeat combining**, transmitter, wake lock, `/acoustic-lab/link` | **Shipped** (19/19 codec tests; first phone runs logged) |
 | **4** | Phone-to-phone measurements at 1 m / 6 m / far corner → band decision | **Planned** (owner) |
 | **5** | Check-in sessions: teacher speaker check + live page playing the rotating key, student Join → listen → signed claim → present; joined-but-unheard → review; auto-close; class session history | **Built** (25/25 backend tests, 33/33 live API checks; phone test pending) |
 | **6** | Cascade relay: a newly present phone plays the next wave's key 3× at shared 2 s server-clock slots; `/time` clock sync; per-wave counts on the live page | **Shipped** (relay verified on real phones 2026-10-23; full-class rehearsal still to come) |
@@ -579,7 +579,7 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 - Auto-close: on each read/claim, if `now > closesAt` close the session (no cron needed); plus a lightweight `setInterval` sweep every minute in `index.js`.
 
 **Frontend work.**
-- `components/teacher/LiveCheckin.jsx` (`/teacher/classes/:classId/live`): big **Start/Close**, timer, wake lock, polls `/beacon` and re-loads the transmitter when the key rotates (loop K0 with ~300 ms gap), counts (present / review / not yet), live name list.
+- `components/teacher/LiveCheckin.jsx` (`/teacher/classes/:classId/live`): big **Start/Close**, timer, wake lock, polls `/beacon` and re-loads the transmitter when the key rotates (loop K0 with a 120 ms gap, `fsk.BEACON_GAP_MS`), counts (present / review / not yet), live name list.
 - Class detail + teacher dashboard: **Start check-in** button.
 - `components/student/CheckIn.jsx` (`/student/check-in/:sessionId`): state machine `idle → permissions → listening → submitting → done | failed` with clear messages (mic blocked, sample rate too low, not heard after 60 s → "move closer / ask teacher").
 - Student dashboard polls `/sessions/active` every 10 s while open and shows the **Join** card.
@@ -982,7 +982,7 @@ Every report first settles the class's check-ins (close → face grace → lock)
 
 | Risk | Effect | Mitigation |
 | --- | --- | --- |
-| Phones that cannot play or hear 16.5–19.8 kHz | Those students fail the sound step | Per-model checks in the sound lab; mid band by default; relay from nearby phones; review, never silently absent |
+| Phones that cannot play or hear 15.0–19.8 kHz, or back rows too far from the teacher | Those students fail the sound step | Per-model checks in the sound lab; mid band by default, `CHECKIN_PROFILE=low` for large or noisy rooms; beacon looped with a 120 ms gap; each relaying phone repeats 5 times, up to 6 waves; review, never silently absent |
 | Many phones sounding in a hard-walled room | Garbled frames | Identical signals per wave, long symbols, repeat combining; measure in the class rehearsal |
 | Key forwarded to someone outside | Remote student obtains a key | Keys live seconds; neighbour verification (Phase 12, on hold) |
 | Student just outside the door (**confirmed 2026-10-23, door closed**) | Can hear the key and be marked present | Teacher phone away from the door, relay so the teacher can play quieter, head count + spot-check; Phase 12 to close it |

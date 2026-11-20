@@ -7,7 +7,7 @@
  * colliding. A frame (~1.32 s) fits inside one slot.
  */
 const SLOT_MS = 2000;
-const RELAY_REPEATS = 3;
+const RELAY_REPEATS = 5; // more repeats = more chances for back rows to decode or combine
 const LEAD_MS = 2500; // time for the response to reach the phone (via Vercel → Render) and audio to be scheduled
 
 const studentWave = (keyWave) => keyWave + 1;

@@ -13,7 +13,7 @@ export const createTransmitter = (context) => {
   let buffer = null;
   let timer = null;
   let nextTime = 0;
-  let gapS = 0.3;
+  let gapS = fsk.BEACON_GAP_MS / 1000;
   let onPlayed = null;
   const scheduled = new Set();
 
@@ -47,7 +47,7 @@ export const createTransmitter = (context) => {
     get frameSeconds() {
       return buffer ? buffer.duration : 0;
     },
-    start: ({ volume = 0.5, gapMs = 300, onFramePlayed } = {}) => {
+    start: ({ volume = 1, gapMs = fsk.BEACON_GAP_MS, onFramePlayed } = {}) => {
       gain.gain.value = volume;
       gapS = gapMs / 1000;
       onPlayed = onFramePlayed;

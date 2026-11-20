@@ -6,8 +6,10 @@
  *
  * Signal design (starting values from the original signal plan; tune only with measurements):
  * - 17 tones, 110 Hz apart. The band is a profile: "high" = 18.0-19.76 kHz
- *   (default, original starting value), "mid" = 16.5-18.26 kHz (measured to be
- *   stronger on budget phones). Tone count and frame layout never change.
+ *   (original starting value), "mid" = 16.5-18.26 kHz (measured to be
+ *   stronger on budget phones; the check-in default), "low" = 15.0-16.76 kHz
+ *   (loudest on phone speakers and carries furthest across a room, but faintly
+ *   audible to some young ears). Tone count and frame layout never change.
  * - Tone 0 (18.0 kHz) is the start marker; tones 1..16 carry symbols.
  * - Frame: 2 marker symbols + 7 data symbols + 2 check symbols, 120 ms each (~1.32 s).
  * - Data and check symbols are digits 0..14 (base 15); 15^7 = 170,859,375 keys.
@@ -24,12 +26,17 @@ const TONE_COUNT = 17;
 const PROFILES = {
   high: { id: "high", label: "High band", baseHz: 18000, spacingHz: 110 },
   mid: { id: "mid", label: "Mid band", baseHz: 16500, spacingHz: 110 },
+  low: { id: "low", label: "Low band (loudest)", baseHz: 15000, spacingHz: 110 },
 };
 const DEFAULT_PROFILE = PROFILES.high;
 const BASE_FREQUENCY_HZ = DEFAULT_PROFILE.baseHz;
 const TONE_SPACING_HZ = DEFAULT_PROFILE.spacingHz;
 const SYMBOL_DURATION_MS = 120;
 const FADE_DURATION_MS = 6;
+// Silence between looped beacon frames. Short so more repeats reach the back
+// rows per minute (more chances to decode, more readings for repeat combining);
+// 120 ms is the shortest gap the receiver tests cover.
+const BEACON_GAP_MS = 120;
 
 const MARKER_TONE = 0;
 const DATA_TONE_COUNT = 16;
@@ -381,6 +388,7 @@ module.exports = {
   TONE_SPACING_HZ,
   SYMBOL_DURATION_MS,
   FADE_DURATION_MS,
+  BEACON_GAP_MS,
   MARKER_TONE,
   DATA_TONE_COUNT,
   DATA_SYMBOL_COUNT,

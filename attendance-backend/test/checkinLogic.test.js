@@ -58,13 +58,13 @@ test("roster: test-student Gmails are accepted only while listed in TEST_STUDENT
   assert.ok(normaliseRosterEntry("someone.else@gmail.com").error);
 });
 
-const { relayPlan, studentWave, SLOT_MS } = require("../utils/relay");
+const { relayPlan, studentWave, SLOT_MS, RELAY_REPEATS } = require("../utils/relay");
 
 test("relay: hearing the teacher makes a wave-1 student who relays wave 1", () => {
   assert.equal(studentWave(0), 1);
   const plan = relayPlan({ keyWave: 0, maxWaves: 5, now: 1_000_000_300 });
   assert.equal(plan.wave, 1);
-  assert.equal(plan.playAt.length, 3);
+  assert.equal(plan.playAt.length, RELAY_REPEATS);
   // Shared slot boundaries, at least the lead time ahead, one slot apart.
   plan.playAt.forEach((time) => assert.equal(time % SLOT_MS, 0));
   assert.ok(plan.playAt[0] >= 1_000_000_300 + 2500);
