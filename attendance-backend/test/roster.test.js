@@ -9,9 +9,11 @@ test("single-student add uses the same rules as CSV import", () => {
   assert.equal(entry.name, "Aprajita");
   assert.equal(entry.identity.rollNumber, "111");
 
-  assert.match(normaliseRosterEntry("someone@gmail.com").error, /@nitjsr\.ac\.in/);
-  assert.match(normaliseRosterEntry("x@sub.nitjsr.ac.in").error, /@nitjsr\.ac\.in/);
-  assert.match(normaliseRosterEntry("").error, /@nitjsr\.ac\.in/);
+  assert.equal(normaliseRosterEntry(" Someone@Gmail.com ").entry.email, "someone@gmail.com");
+  assert.equal(normaliseRosterEntry("x@sub.example.edu").error, undefined);
+  assert.match(normaliseRosterEntry("").error, /valid email/);
+  assert.match(normaliseRosterEntry("not-an-email").error, /valid email/);
+  assert.match(normaliseRosterEntry("a@b").error, /valid email/);
   assert.equal(normaliseRosterEntry("a b@nitjsr.ac.in").entry, undefined);
 });
 
@@ -38,17 +40,19 @@ test("accepts a CSV header and derives identity fields from a college email", ()
   });
 });
 
-test("reports duplicate and non-institutional roster rows", () => {
+test("accepts any email domain and reports duplicate and malformed rows", () => {
   const { entries, errors } = parseRosterText([
     "2023ugcs059@nitjsr.ac.in",
     "2023ugcs059@nitjsr.ac.in",
     "student@example.com",
+    "student-at-example.com",
   ].join("\n"));
 
-  assert.equal(entries.length, 1);
+  assert.equal(entries.length, 2);
+  assert.equal(entries[1].email, "student@example.com");
   assert.equal(errors.length, 2);
   assert.match(errors[0].message, /Duplicate/);
-  assert.match(errors[1].message, /@nitjsr\.ac\.in/);
+  assert.match(errors[1].message, /valid email/);
 });
 
 test("parses a quoted CSV name without changing the email", () => {

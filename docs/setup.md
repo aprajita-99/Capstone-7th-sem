@@ -75,7 +75,7 @@ cd attendance-frontend && CI=true npm run build   # production build; lint warni
 | --- | --- |
 | `REACT_APP_GOOGLE_CLIENT_ID` | Same Google OAuth web client ID |
 | `REACT_APP_API_URL` | API base; on Vercel `/api/v1` (proxied to Render, so the cookie is first-party) |
-| `REACT_APP_GOOGLE_HOSTED_DOMAIN` | Limits the Google picker to the college domain; `any` allows test Gmails (development) |
+| `REACT_APP_GOOGLE_HOSTED_DOMAIN` | Optional: limits the Google picker to one domain (e.g. `nitjsr.ac.in`). Empty or `any` (the default) shows every account; the server admits students only if their email is on a roster |
 | `REACT_APP_AWS_REGION`, `REACT_APP_AWS_IDENTITY_POOL_ID` | Cognito guest credentials for the live face check |
 
 ## 3. Hosting

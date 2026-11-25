@@ -31,7 +31,7 @@ function Home() {
               confirms it’s really them. No GPS, no roll call, no extra hardware.
             </p>
             <div className="hero__actions">
-              <Link to="/login" className="ui-btn ui-btn--primary ui-btn--lg">Sign in with college Google</Link>
+              <Link to="/login" className="ui-btn ui-btn--primary ui-btn--lg">Sign in with Google</Link>
               <a href="#sign-in" className="ui-btn ui-btn--secondary ui-btn--lg">How to sign in</a>
             </div>
             <div className="hero__wave" aria-hidden="true">
@@ -51,7 +51,7 @@ function Home() {
               <span className="signin-card__icon"><FaUserGraduate /></span>
               <h3>Students</h3>
               <ol className="signin-card__steps">
-                <li>Sign in with your <strong>college Google account</strong> (e.g. 2023ugcs001@nitjsr.ac.in) on <strong>your own phone</strong>.</li>
+                <li>Sign in with the <strong>Google account your teacher added to the class roster</strong> (e.g. 2023ugcs001@nitjsr.ac.in) on <strong>your own phone</strong>.</li>
                 <li>It works once your teacher has added your email to a class roster.</li>
                 <li>First time only: this phone is linked to you, then a 2-minute identity check (photo of your college ID card + a live selfie).</li>
                 <li>Every class: when your teacher starts a check-in, tap <strong>Join</strong>.</li>
@@ -62,7 +62,7 @@ function Home() {
               <span className="signin-card__icon"><FaChalkboardTeacher /></span>
               <h3>Teachers</h3>
               <ol className="signin-card__steps">
-                <li>Sign in with your <strong>NIT Jamshedpur Google account</strong>.</li>
+                <li>Sign in with your <strong>Google account</strong> (your college account, e.g. you@nitjsr.ac.in).</li>
                 <li>Teacher access is turned on for your email by the MarkMePresent admin — if you land on a student page, ask them to add you.</li>
                 <li>Create a class and add its roster (paste or upload the CSV of student emails).</li>
                 <li>In class, start a check-in from your phone; review any unsure cases before 9:00 the next morning.</li>
@@ -106,7 +106,7 @@ function Home() {
             <article className="feature">
               <span className="feature__icon"><FaUserShield /></span>
               <h3>College Google sign-in</h3>
-              <p>Only verified NIT Jamshedpur accounts enter the system — no passwords to leak or forget.</p>
+              <p>Only verified Google accounts on a class roster enter the system — no passwords to leak or forget.</p>
             </article>
             <article className="feature">
               <span className="feature__icon"><FaVolumeUp /></span>
@@ -129,7 +129,7 @@ function Home() {
         <section className="cta-wrap">
           <div className="cta">
             <h2>Ready when your class is.</h2>
-            <p>Sign in with your NIT Jamshedpur account to continue.</p>
+            <p>Sign in with your Google account to continue.</p>
             <Link to="/login" className="ui-btn ui-btn--lg">Get started</Link>
           </div>
         </section>

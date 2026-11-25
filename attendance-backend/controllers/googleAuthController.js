@@ -10,11 +10,10 @@ const { PURPOSES, issueChallenge, verifyDeviceProof } = require("../utils/device
 const { reviewableStudentEmails, teacherCanReviewStudent } = require("../utils/teacherAccess");
 const AuditLog = require("../models/auditLogModels");
 const {
-  WORKSPACE_DOMAIN,
   normaliseEmail,
   isProvisionedTeacher,
   isTestStudent,
-  isWorkspaceAccount,
+  isAllowedSignInEmail,
 } = require("../utils/signInPolicy");
 
 const getGoogleClient = () => {
@@ -47,11 +46,10 @@ exports.googleSignIn = catchAsyncError(async (req, res, next) => {
   }
 
   const email = normaliseEmail(payload?.email);
-  const workspaceAccount = Boolean(payload) && payload.hd === WORKSPACE_DOMAIN && isWorkspaceAccount(email);
-  const testAccount = isTestStudent(email);
-  if (!payload || !payload.email_verified || (!workspaceAccount && !testAccount)) {
-    return next(new ErrorHandler("Sign in with your NIT Jamshedpur Google Workspace account", 403));
+  if (!payload || !payload.email_verified || !isAllowedSignInEmail(email)) {
+    return next(new ErrorHandler("Sign in with a Google account that has a verified email", 403));
   }
+  const testAccount = isTestStudent(email);
 
   let user = await User.findOne({ email });
   // Test students (TEST_STUDENT_EMAILS) skip the roster gate: they exist to
@@ -67,7 +65,7 @@ exports.googleSignIn = catchAsyncError(async (req, res, next) => {
     return next(new ErrorHandler("Your account is not on an active class roster", 403));
   }
   if (!user && !rosterAccess && !teacherAccess) {
-    return next(new ErrorHandler("Your college account is not on an active class roster", 403));
+    return next(new ErrorHandler("Your account is not on an active class roster. Ask your teacher to add this email.", 403));
   }
 
   if (!user) {
