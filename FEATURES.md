@@ -162,7 +162,7 @@ MarkMePresent replaces roll call. During the last minutes of class the teacher t
 | Rule | Detail |
 | --- | --- |
 | Sign-in | Google only. No passwords. |
-| College gate | Token must be verified **and** `hd = nitjsr.ac.in` (or the email is in `TEST_STUDENT_EMAILS`). |
+| Email gate | Token must be verified with a verified email (any domain). Students then need an active roster entry; teachers need `TEACHER_EMAILS` or an existing teacher role. (Changed 2026-11-25: the `nitjsr.ac.in`-only rule was removed.) |
 | Teacher | Created on first sign-in if email in `TEACHER_EMAILS`; afterwards the role lives in the database. |
 | Student | Must be on an **active** roster at **every** sign-in. |
 | Session | JWT in an httpOnly cookie (`token`), expiry `JWT_EXPIRE`. |
@@ -452,7 +452,7 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 - New `components/teacher/ClassDetail.jsx` (`/teacher/classes/:classId`): header, roster table, sessions tab (filled in Phase 5/11).
 - Student dashboard: "Your classes" card from `GET /me/classes`.
 
-**Rules & edge cases.** Roster max 250; only `@nitjsr.ac.in`; duplicate emails rejected; removing a student who is mid-session does not delete existing records.
+**Rules & edge cases.** Roster max 250; any valid email domain (since 2026-11-25); duplicate emails rejected; removing a student who is mid-session does not delete existing records.
 
 **Done when.** New unit tests for add/remove-one validation; existing 3 roster tests pass; manual: create room → class → roster → student signs in → sees class.
 

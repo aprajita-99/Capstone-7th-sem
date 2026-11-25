@@ -391,7 +391,7 @@ const ClassDetail = () => {
         )}
       >
         <form className="add-student" onSubmit={addStudent}>
-          <input className="ui-input" type="email" required placeholder="2023ugcs001@nitjsr.ac.in" value={newStudent.email} onChange={(event) => setNewStudent({ ...newStudent, email: event.target.value })} aria-label="Student college email" />
+          <input className="ui-input" type="email" required placeholder="2023ugcs001@nitjsr.ac.in" value={newStudent.email} onChange={(event) => setNewStudent({ ...newStudent, email: event.target.value })} aria-label="Student email" />
           <input className="ui-input" placeholder="Name (optional)" maxLength={120} value={newStudent.name} onChange={(event) => setNewStudent({ ...newStudent, name: event.target.value })} aria-label="Student name" />
           <Button type="submit" variant="soft" loading={busy} disabled={!newStudent.email.trim()}>Add student</Button>
         </form>
@@ -426,7 +426,7 @@ const ClassDetail = () => {
       </Card>
 
       <Card className="classes-section" title="Import from CSV"
-        subtitle="Replaces the whole roster. One college email per line, or email,name. Students missing from the file are removed from this class."
+        subtitle="Replaces the whole roster. One email per line (any domain), or email,name. Students missing from the file are removed from this class."
         actions={<Button size="sm" variant="ghost" onClick={downloadSample}>Download sample CSV</Button>}
       >
         <div className="ui-stack">

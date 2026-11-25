@@ -99,7 +99,7 @@ const Login = () => {
                 <div className="login-card">
                     <span className="login-card__logo" role="img" aria-label="MarkMePresent"><BrandMark size={34} /></span>
                     <h2>Welcome back</h2>
-                    <p className="login-card__sub">Sign in with your college account to continue.</p>
+                    <p className="login-card__sub">Sign in with your Google account to continue.</p>
                     <p className="login-card__roles">
                         <strong>Teachers and students use the same button</strong> — MarkMePresent opens the right page for your account.
                         Students: use your own phone. <Link to="/#sign-in">How to sign in</Link>
@@ -121,7 +121,7 @@ const Login = () => {
                     {error && <div className="error-message">{error}</div>}
 
                     <p className="login-card__help">
-                        Need access? Ask your teacher to add your college email to the class roster.
+                        Need access? Ask your teacher to add your email to the class roster.
                     </p>
                 </div>
                 <p className="login-foot">MarkMePresent · NIT Jamshedpur · <Link to="/help">Help</Link> · <Link to="/privacy">Privacy</Link></p>

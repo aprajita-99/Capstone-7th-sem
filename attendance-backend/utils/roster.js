@@ -1,4 +1,4 @@
-const { isTestStudent } = require("./signInPolicy");
+const { isValidEmail } = require("./signInPolicy");
 
 const INSTITUTIONAL_DOMAIN = "nitjsr.ac.in";
 
@@ -53,10 +53,9 @@ const normaliseRosterEntry = (rawEmail, rawName = "") => {
   const email = String(rawEmail || "").trim().toLowerCase();
   const name = String(rawName || "").trim().slice(0, 120);
 
-  // Development only: addresses in TEST_STUDENT_EMAILS may be put on a roster
-  // so test students can join check-ins. Empty in production.
-  if (!isTestStudent(email) && (!email.endsWith(`@${INSTITUTIONAL_DOMAIN}`) || !/^[^\s@]+@nitjsr\.ac\.in$/i.test(email))) {
-    return { error: `Use a valid @${INSTITUTIONAL_DOMAIN} email.` };
+  // Any email domain is allowed; being on the roster is what lets a student sign in.
+  if (!isValidEmail(email)) {
+    return { error: "Use a valid email address." };
   }
 
   return { entry: { email, name, identity: deriveIdentity(email) } };

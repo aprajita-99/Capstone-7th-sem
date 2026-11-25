@@ -48,14 +48,12 @@ test("clock: end of the Indian day, whatever the UTC date", () => {
   assert.equal(endOfDay(new Date("2026-10-22T12:00:00Z"), "UTC").toISOString(), "2026-10-22T23:59:59.999Z");
 });
 
-test("roster: test-student Gmails are accepted only while listed in TEST_STUDENT_EMAILS", () => {
+test("roster: Gmail and other domains are accepted whether or not TEST_STUDENT_EMAILS is set", () => {
   process.env.TEST_STUDENT_EMAILS = "";
-  assert.ok(normaliseRosterEntry("tester@gmail.com").error);
-  process.env.TEST_STUDENT_EMAILS = "tester@gmail.com";
   const { entry, error } = normaliseRosterEntry(" Tester@Gmail.com ");
   assert.equal(error, undefined);
   assert.equal(entry.email, "tester@gmail.com");
-  assert.ok(normaliseRosterEntry("someone.else@gmail.com").error);
+  assert.equal(normaliseRosterEntry("someone.else@gmail.com").error, undefined);
 });
 
 const { relayPlan, studentWave, SLOT_MS, RELAY_REPEATS } = require("../utils/relay");

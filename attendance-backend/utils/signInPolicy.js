@@ -1,8 +1,9 @@
 /**
  * Google sign-in policy (shared by the auth controller and its unit tests).
  *
- * Production rule: only verified NIT Jamshedpur Google Workspace accounts
- * (nitjsr.ac.in) may sign in, and students must be on an active class roster.
+ * Rule: any Google account with a verified email may attempt sign-in. Students
+ * must be on an active class roster (any email domain the teacher added);
+ * teachers must already be teachers or be listed in TEACHER_EMAILS.
  *
  * Testing rule: addresses listed in TEST_STUDENT_EMAILS (e.g. a couple of
  * friendly Gmail accounts) may also sign in and are treated as students.
@@ -33,7 +34,10 @@ const isTestStudent = (email) => testStudentEmails().includes(normaliseEmail(ema
 
 const isWorkspaceAccount = (email) => normaliseEmail(email).endsWith(`@${WORKSPACE_DOMAIN}`);
 
-const isAllowedSignInEmail = (email) => isWorkspaceAccount(email) || isTestStudent(email);
+// A plain, single-address email ("name@domain.tld"), any domain.
+const isValidEmail = (email) => /^[^\s@,;"<>]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(normaliseEmail(email));
+
+const isAllowedSignInEmail = (email) => isValidEmail(email);
 
 module.exports = {
   WORKSPACE_DOMAIN,
@@ -44,5 +48,6 @@ module.exports = {
   isProvisionedTeacher,
   isTestStudent,
   isWorkspaceAccount,
+  isValidEmail,
   isAllowedSignInEmail,
 };

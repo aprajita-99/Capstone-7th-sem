@@ -8,11 +8,11 @@ const SECTIONS = [
     items: [
       {
         q: "It says I can't sign in / I'm not on a roster",
-        a: "Students can sign in only after a teacher adds their college email to a class roster. Ask your teacher to check that your email (e.g. 2023ugcs001@nitjsr.ac.in) is on the roster, then try again.",
+        a: "Students can sign in only after a teacher adds their email to a class roster. Ask your teacher to check that your email (e.g. 2023ugcs001@nitjsr.ac.in) is on the roster, then try again.",
       },
       {
         q: "Which account should I use?",
-        a: "Your NIT Jamshedpur Google account. Teachers and students use the same “Sign in with Google” button — the app opens the right pages for you.",
+        a: "The Google account whose email is on your class roster (your college account, or any other email your teacher added). Teachers and students use the same “Sign in with Google” button — the app opens the right pages for you.",
       },
       {
         q: "I'm a teacher but I see the student pages",

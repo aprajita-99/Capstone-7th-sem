@@ -28,17 +28,20 @@ test("look-alike domains are rejected", () => {
   assert.equal(policy.isAllowedSignInEmail(""), false);
 });
 
-test("gmail accounts are rejected unless listed as test students", () => {
-  process.env.TEST_STUDENT_EMAILS = "";
-  assert.equal(policy.isAllowedSignInEmail("testforshivansh059@gmail.com"), false);
+test("any well-formed email may attempt sign-in (the roster decides access)", () => {
+  assert.equal(policy.isAllowedSignInEmail("someone@gmail.com"), true);
+  assert.equal(policy.isAllowedSignInEmail(" Student@Other-College.edu.in "), true);
+  assert.equal(policy.isAllowedSignInEmail("no-at-sign"), false);
+  assert.equal(policy.isAllowedSignInEmail("a@b"), false);
+  assert.equal(policy.isAllowedSignInEmail("a,b@gmail.com"), false);
+});
 
+test("test student list is parsed from TEST_STUDENT_EMAILS", () => {
   process.env.TEST_STUDENT_EMAILS = " testforshivansh059@gmail.com , 12shivanshsingha@gmail.com ";
   assert.equal(policy.isTestStudent("testforshivansh059@gmail.com"), true);
   assert.equal(policy.isTestStudent(" TESTFORSHIVANSH059@GMAIL.COM "), true);
   assert.equal(policy.isTestStudent("12shivanshsingha@gmail.com"), true);
   assert.equal(policy.isTestStudent("someone.else@gmail.com"), false);
-  assert.equal(policy.isAllowedSignInEmail("someone.else@gmail.com"), false);
-  assert.equal(policy.isAllowedSignInEmail("2023ugcs059@nitjsr.ac.in"), true);
 });
 
 test("teacher list is parsed from TEACHER_EMAILS with trim and case folding", () => {
