@@ -4,6 +4,7 @@ import axios from "axios";
 import { FaChalkboardTeacher, FaUserGraduate, FaMobileAlt } from "react-icons/fa";
 import SERVER_URL from "../../config/api";
 import { cachedGet, fetchSessionUser, peekCached } from "../../utils/session";
+import useLiveRefresh from "../../utils/useLiveRefresh";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -54,17 +55,15 @@ const TeacherDashboard = () => {
         return () => window.clearInterval(timer);
     }, []);
 
-    // Today's check-ins across active classes, in one request; refreshed every 30 s.
-    useEffect(() => {
-        if (!user) return undefined;
-        const loadToday = () =>
-            cachedGet(TODAY_URL)
-                .then((response) => setToday(todayView(response.data)))
-                .catch(() => setToday((current) => current || { running: [], done: [] }));
-        loadToday();
-        const timer = window.setInterval(loadToday, 30000);
-        return () => window.clearInterval(timer);
-    }, [user]);
+    // Today's check-ins across active classes, in one request: every 15 s and at
+    // once when the teacher comes back to the app. Review counts refresh with it.
+    const loadToday = useCallback(() => {
+        cachedGet(TODAY_URL)
+            .then((response) => setToday(todayView(response.data)))
+            .catch(() => setToday((current) => current || { running: [], done: [] }));
+        fetchReviewCounts().then(setReviewCounts).catch(() => {});
+    }, []);
+    useLiveRefresh(loadToday, 15000, Boolean(user));
 
     useEffect(() => {
         const load = async () => {

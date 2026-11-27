@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import { cachedGet, peekCached } from "../../utils/session";
+import useLiveRefresh from "../../utils/useLiveRefresh";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -145,6 +146,17 @@ const ClassDetail = () => {
     });
     cachedGet(`${SERVER_URL}/rooms`).then((response) => setRooms(response.data.rooms)).catch(() => {});
   }, [user, loadClass, navigate, toast]);
+
+  // Check-ins started, closed or locked elsewhere (another phone, the server's
+  // timer) show up without a refresh: every 20 s and on return to the app.
+  const loadSessions = useCallback(
+    () =>
+      cachedGet(`${SERVER_URL}/classes/${classId}/sessions`)
+        .then((response) => setSessions({ openSession: response.data.openSession, sessions: response.data.sessions, loaded: true }))
+        .catch(() => {}),
+    [classId]
+  );
+  useLiveRefresh(loadSessions, 20000, Boolean(user));
 
   const visibleRoster = useMemo(() => {
     const query = filter.trim().toLowerCase();

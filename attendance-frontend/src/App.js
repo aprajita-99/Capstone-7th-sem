@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import './ui/ui.css';
 import { ToastProvider } from './ui/Toast';
 import { ConfirmProvider } from './ui/Confirm';
@@ -10,6 +10,7 @@ import StudentDashboard from './components/student/studentDashboard';
 import TeacherDashboard from './components/teacher/teacherDashboard';
 import ClassManagement from './components/teacher/classManagement';
 import { PageLoader } from './ui/Spinner';
+import ErrorBoundary from './ui/ErrorBoundary';
 
 // Pages that are not landing pages load on demand, keeping the first download small,
 // and are fetched in the background once the first page is idle (no wait when opened).
@@ -37,6 +38,12 @@ const Help = lazy(() => import('./components/info/Help'));
 const withPageLoader = (element) => <Suspense fallback={<PageLoader label="Loading…" />}>{element}</Suspense>;
 const withFaceLoader = (element) => <Suspense fallback={<PageLoader label="Loading face check…" />}>{element}</Suspense>;
 
+// Never a blank page: errors while drawing are caught, retried once, or shown with Reload.
+const PageErrorBoundary = ({ children }) => {
+  const location = useLocation();
+  return <ErrorBoundary resetKey={location.pathname}>{children}</ErrorBoundary>;
+};
+
 function App() {
   useEffect(() => {
     const idle = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 1500));
@@ -45,6 +52,7 @@ function App() {
 
   return (
     <BrowserRouter>
+      <PageErrorBoundary>
       <ToastProvider>
         <ConfirmProvider>
         <Routes>
@@ -70,6 +78,7 @@ function App() {
         </Routes>
         </ConfirmProvider>
       </ToastProvider>
+      </PageErrorBoundary>
     </BrowserRouter>
   );
 }

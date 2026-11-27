@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import { cachedGet, cachedSessionUser, fetchSessionUser, peekCached } from "../../utils/session";
+import useLiveRefresh from "../../utils/useLiveRefresh";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -274,36 +275,29 @@ const StudentDashboard = () => {
         fetchUser();
     }, [navigate, toast]);
 
-    // Open check-ins for the student's classes, refreshed every 10 seconds.
-    useEffect(() => {
-        if (!user) return undefined;
-        const load = () =>
+    // Open check-ins for the student's classes: every 10 seconds, and at once
+    // when the student comes back to the app (phones pause timers in the background).
+    const loadOpenCheckins = useCallback(
+        () =>
             cachedGet(URLS.active)
                 .then((response) => {
                     setOpenCheckins(response.data.sessions);
                     setCheckinIdentityOk(response.data.identityVerified !== false);
                 })
-                .catch(() => {});
-        load();
-        const timer = window.setInterval(load, 10000);
-        return () => window.clearInterval(timer);
-    }, [user]);
+                .catch(() => {}),
+        []
+    );
+    useLiveRefresh(loadOpenCheckins, 10000, Boolean(user));
 
     // Attendance per class (summary, can-miss / needed) for the attendance tiles (Phase 11).
-    useEffect(() => {
-        if (!user) return;
-        cachedGet(URLS.attendance)
-            .then((response) => setPercentByClass(attendanceByClass(response.data)))
-            .catch(() => {});
-    }, [user]);
+    const loadAttendance = useCallback(
+        () => cachedGet(URLS.attendance).then((response) => setPercentByClass(attendanceByClass(response.data))).catch(() => {}),
+        []
+    );
+    useLiveRefresh(loadAttendance, 60000, Boolean(user));
 
-    // Recent check-ins (decisions, queries), refreshed every 30 seconds.
-    useEffect(() => {
-        if (!user) return undefined;
-        loadRecent();
-        const timer = window.setInterval(loadRecent, 30000);
-        return () => window.clearInterval(timer);
-    }, [user, loadRecent]);
+    // Recent check-ins (decisions, queries): every 30 seconds and on return to the app.
+    useLiveRefresh(loadRecent, 30000, Boolean(user));
 
     const queryDone = () => {
         setQuerying(null);

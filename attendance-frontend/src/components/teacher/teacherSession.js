@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import SERVER_URL from "../../config/api";
+import SERVER_URL from "../../config/api";
 import { cachedGet, cachedSessionUser, fetchSessionUser, peekCached } from "../../utils/session";
 import { useToast } from "../../ui/Toast";
+import useLiveRefresh from "../../utils/useLiveRefresh";
 
 // counts: GET /reviews/counts → the Reviews link shows the number of open cases.
 export const teacherLinks = (active, counts) => [
@@ -71,6 +72,8 @@ export const useTeacherSession = () => {
   }, [navigate, toast]);
 
   const refreshCounts = useCallback(() => fetchReviewCounts().then(setCounts).catch(() => {}), []);
+  // The nav's review count stays current: every minute and when the teacher returns to the app.
+  useLiveRefresh(refreshCounts, 60000, Boolean(user));
 
   return { user, logout, counts, refreshCounts };
 };

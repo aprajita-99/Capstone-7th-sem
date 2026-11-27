@@ -1,8 +1,9 @@
-import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
+import React, { Suspense, lazy, useCallback, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
 import { cachedGet, peekCached } from "../../utils/session";
+import useLiveRefresh from "../../utils/useLiveRefresh";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -138,20 +139,25 @@ const Reviews = () => {
     setTabState((current) => current || TAB_IDS.find((id) => waiting[id] > 0) || "attendance");
   }, []);
 
-  useEffect(() => {
-    if (!user) return;
+  // New queries, phones and identity checks appear on their own: every 30 s and
+  // when the teacher comes back to the app. Only the first failure is reported.
+  const reportedFailure = useRef(false);
+  const loadLive = useCallback(() => {
     load().catch(() => {
-      toast("Could not load reviews.", "error");
+      if (!reportedFailure.current) toast("Could not load reviews.", "error");
+      reportedFailure.current = true;
       setDevices((current) => current || []);
       setTabState((current) => current || "attendance");
     });
-  }, [user, load, toast]);
+  }, [load, toast]);
+  useLiveRefresh(loadLive, 30000, Boolean(user));
 
   const run = async (action, success) => {
     setBusy(true);
     try {
+      // Actions return either a message (string) or the raw response; only show strings.
       const message = await action();
-      toast(message || success, "success");
+      toast(typeof message === "string" && message ? message : success, "success");
       await load();
       refreshCounts();
     } catch (requestError) {
