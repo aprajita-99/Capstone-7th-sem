@@ -1,8 +1,8 @@
 import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
-import SERVER_URL from "../../config/api";
-import { fetchSessionUser } from "../../utils/session";
+import SERVER_URL from "../../config/api";
+import { cachedGet, cachedSessionUser, fetchSessionUser, peekCached } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -20,6 +20,18 @@ import "./studentDashboard.css";
 import "../checkin.css";
 
 const QuerySheet = lazy(() => import("./QuerySheet"));
+
+// The dashboard's GETs, also the keys of their cached responses.
+const URLS = {
+    identity: `${SERVER_URL}/enrollment/status`,
+    binding: `${SERVER_URL}/device-bindings/status`,
+    classes: `${SERVER_URL}/me/classes`,
+    active: `${SERVER_URL}/sessions/active`,
+    attendance: `${SERVER_URL}/me/attendance`,
+    recent: `${SERVER_URL}/me/recent-checkins`,
+};
+const attendanceByClass = (data) =>
+    data?.classes ? Object.fromEntries(data.classes.map((item) => [String(item.class._id), item])) : {};
 
 const RECENT_BADGE = {
     present: { variant: "success", label: "Present" },
@@ -204,14 +216,19 @@ const StudentDashboard = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const toast = useToast();
-    const [user, setUser] = useState(null);
-    const [deviceStatus, setDeviceStatus] = useState(location.state?.deviceStatus || "checking");
-    const [classes, setClasses] = useState(null);
-    const [identity, setIdentity] = useState(null);
-    const [openCheckins, setOpenCheckins] = useState([]);
-    const [checkinIdentityOk, setCheckinIdentityOk] = useState(true);
-    const [recent, setRecent] = useState([]);
-    const [percentByClass, setPercentByClass] = useState({});
+    // Start from the last known data (if any) so the page shows at once; every
+    // request below refreshes it.
+    const [user, setUser] = useState(() => {
+        const cachedUser = cachedSessionUser();
+        return cachedUser?.role === "student" ? cachedUser : null;
+    });
+    const [deviceStatus, setDeviceStatus] = useState(location.state?.deviceStatus || peekCached(URLS.binding)?.status || "checking");
+    const [classes, setClasses] = useState(() => peekCached(URLS.classes)?.classes ?? null);
+    const [identity, setIdentity] = useState(() => peekCached(URLS.identity)?.enrollment ?? null);
+    const [openCheckins, setOpenCheckins] = useState(() => peekCached(URLS.active)?.sessions ?? []);
+    const [checkinIdentityOk, setCheckinIdentityOk] = useState(() => peekCached(URLS.active)?.identityVerified !== false);
+    const [recent, setRecent] = useState(() => peekCached(URLS.recent)?.checkins ?? []);
+    const [percentByClass, setPercentByClass] = useState(() => attendanceByClass(peekCached(URLS.attendance)));
     const [querying, setQuerying] = useState(null);
     const [now, setNow] = useState(Date.now());
 
@@ -222,26 +239,29 @@ const StudentDashboard = () => {
     }, []);
 
     const loadRecent = useCallback(
-        () => axios.get(`${SERVER_URL}/me/recent-checkins`, { withCredentials: true }).then((response) => setRecent(response.data.checkins)).catch(() => {}),
+        () => cachedGet(URLS.recent).then((response) => setRecent(response.data.checkins)).catch(() => {}),
         []
     );
 
     useEffect(() => {
         const fetchUser = async () => {
+            // Start the page's requests together with the login check instead of
+            // after it; the server still checks the login on each of them.
+            const userRequest = fetchSessionUser();
+            cachedGet(URLS.identity)
+                .then((statusResponse) => setIdentity(statusResponse.data.enrollment))
+                .catch(() => {});
+            const bindingRequest = cachedGet(URLS.binding);
+            bindingRequest.catch(() => {}); // handled below; ignored if this turns out to be a teacher
+            const classesRequest = cachedGet(URLS.classes).catch(() => null);
             try {
-                const response = await fetchSessionUser();
+                const response = await userRequest;
                 if (response.data.user.role === "teacher") {
                     navigate("/teacher-dashboard");
                     return;
                 }
                 setUser(response.data.user);
-                axios.get(`${SERVER_URL}/enrollment/status`, { withCredentials: true })
-                    .then((statusResponse) => setIdentity(statusResponse.data.enrollment))
-                    .catch(() => {});
-                const [bindingResponse, classesResponse] = await Promise.all([
-                    axios.get(`${SERVER_URL}/device-bindings/status`, { withCredentials: true }),
-                    axios.get(`${SERVER_URL}/me/classes`, { withCredentials: true }).catch(() => null),
-                ]);
+                const [bindingResponse, classesResponse] = await Promise.all([bindingRequest, classesRequest]);
                 setDeviceStatus(bindingResponse.data.status);
                 setClasses(classesResponse ? classesResponse.data.classes : []);
             } catch (error) {
@@ -258,8 +278,7 @@ const StudentDashboard = () => {
     useEffect(() => {
         if (!user) return undefined;
         const load = () =>
-            axios
-                .get(`${SERVER_URL}/sessions/active`, { withCredentials: true })
+            cachedGet(URLS.active)
                 .then((response) => {
                     setOpenCheckins(response.data.sessions);
                     setCheckinIdentityOk(response.data.identityVerified !== false);
@@ -273,9 +292,8 @@ const StudentDashboard = () => {
     // Attendance per class (summary, can-miss / needed) for the attendance tiles (Phase 11).
     useEffect(() => {
         if (!user) return;
-        axios
-            .get(`${SERVER_URL}/me/attendance`, { withCredentials: true })
-            .then((response) => setPercentByClass(Object.fromEntries(response.data.classes.map((item) => [String(item.class._id), item]))))
+        cachedGet(URLS.attendance)
+            .then((response) => setPercentByClass(attendanceByClass(response.data)))
             .catch(() => {});
     }, [user]);
 

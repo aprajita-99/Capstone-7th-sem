@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
-import { fetchSessionUser } from "../../utils/session";
+import { cachedGet, cachedSessionUser, fetchSessionUser, peekCached } from "../../utils/session";
 import { useToast } from "../../ui/Toast";
 
 // counts: GET /reviews/counts → the Reviews link shows the number of open cases.
@@ -15,18 +15,29 @@ export const teacherLinks = (active, counts) => [
 ];
 
 // Open review counts for the nav badge (best-effort; the page works without them).
-export const fetchReviewCounts = () =>
-  axios.get(`${SERVER_URL}/reviews/counts`, { withCredentials: true }).then((response) => response.data.counts);
+const COUNTS_URL = `${SERVER_URL}/reviews/counts`;
+export const fetchReviewCounts = () => cachedGet(COUNTS_URL).then((response) => response.data.counts);
+// Last known counts (shown at once while they refresh), or null.
+export const cachedReviewCounts = () => peekCached(COUNTS_URL)?.counts ?? null;
+// Last known signed-in teacher, or null (always confirmed by fetchSessionUser).
+export const cachedTeacher = () => {
+  const user = cachedSessionUser();
+  return user?.role === "teacher" ? user : null;
+};
 
 // Loads the signed-in teacher (+ open review counts); students go to their dashboard, anyone else to login.
 export const useTeacherSession = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const [user, setUser] = useState(null);
-  const [counts, setCounts] = useState(null);
+  // Start from the last known teacher so the page renders at once.
+  const [user, setUser] = useState(cachedTeacher);
+  const [counts, setCounts] = useState(cachedReviewCounts);
 
   useEffect(() => {
     let cancelled = false;
+    // Counts load together with the login check, not after it.
+    const countsRequest = fetchReviewCounts();
+    countsRequest.catch(() => {});
     fetchSessionUser()
       .then((response) => {
         if (cancelled) return;
@@ -35,7 +46,7 @@ export const useTeacherSession = () => {
           return;
         }
         setUser(response.data.user);
-        fetchReviewCounts()
+        countsRequest
           .then((value) => {
             if (!cancelled) setCounts(value);
           })

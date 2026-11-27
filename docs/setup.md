@@ -85,9 +85,18 @@ cd attendance-frontend && CI=true npm run build   # production build; lint warni
 | API | **Render** web service, root `attendance-backend`, build `npm install`, start `npm start` | `NODE_ENV=PRODUCTION` plus the backend variables above |
 | Website | **Vercel**, root `attendance-frontend` | `vercel.json` rewrites `/api/*` to the Render URL and every other path to `index.html` |
 | Database | **MongoDB Atlas** (AWS Mumbai, `ap-south-1`) | Network access must allow the Render service |
-| Scheduled jobs | **GitHub Actions** `.github/workflows/jobs.yml`, every 30 min | Calls `POST /api/v1/jobs/run` with the `JOBS_SECRET` repository secret: lock at 09:00, retention, 20:00 digest. The server also runs them every 10 min while awake |
+| Scheduled jobs | **GitHub Actions** `.github/workflows/jobs.yml`, every 30 min (plus `keep-awake.yml`, a `/health` ping every 10 min) | Calls `POST /api/v1/jobs/run` with the `JOBS_SECRET` repository secret: lock at 09:00, retention, 20:00 digest. The server also runs them every 10 min while awake |
 
-**Speed notes.** `GET /api/v1/health?db=1` shows the server's round trip to the database (`dbPingMs`). With Render in the US and Atlas in Mumbai it is about 230 ms per database call; a Render service in **Singapore** brings it to roughly 30–60 ms (create a new service there, copy the variables, then point `vercel.json` and `jobs.yml` at the new URL). The Render free tier sleeps after ~15 minutes idle (first request then takes 30–60 s); a paid instance or a 10-minute keep-alive ping to `/api/v1/health` avoids that.
+**Speed notes.** `GET /api/v1/health?db=1` shows the server's round trip to the database (`dbPingMs`). With Render in the US and Atlas in Mumbai it is about 230 ms per database call, and every page waits on several. Run the API next to the database and keep it awake:
+
+1. Render → **New → Web Service** → this repository, region **Singapore**, root `attendance-backend`, build `npm install`, start `npm start` (the free plan is fine).
+2. Copy every environment variable from the old service (Environment → copy each value). If Atlas Network Access lists fixed IPs, add the new service's outbound IPs.
+3. Open `https://<new-service>.onrender.com/api/v1/health?db=1`: `dbPingMs` should be about 30–60.
+4. Point the website at it: change the Render URL in `attendance-frontend/vercel.json`, commit, and let Vercel redeploy.
+5. GitHub → Settings → Secrets and variables → Actions → **Variables** → `API_URL` = `https://<new-service>.onrender.com` (used by `jobs.yml` and `keep-awake.yml`).
+6. Suspend or delete the old US service once the site works.
+
+The Render free tier sleeps after ~15 minutes idle (the first request then takes 30–60 s). `.github/workflows/keep-awake.yml` pings `/api/v1/health` every 10 minutes; because GitHub can delay scheduled runs, also add a free external monitor (cron-job.org or UptimeRobot, every 5 minutes, same URL). One always-on service fits in the free 750 hours a month.
 
 ## 4. Outside services
 

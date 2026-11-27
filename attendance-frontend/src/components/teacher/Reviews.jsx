@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
+import { cachedGet, peekCached } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -84,16 +85,38 @@ const EnrollmentCard = ({ row, busy, onDecide, onReset, onForce }) => {
  * (Phase 10), identity enrollments and new-device requests (Phase 8) — the
  * cases the system could not decide on its own.
  */
+const REVIEW_URLS = {
+  devices: `${SERVER_URL}/device-reviews`,
+  enrollments: `${SERVER_URL}/enrollment-reviews`,
+  attendance: `${SERVER_URL}/reviews?type=attendance`,
+};
+
+// Tab to open from the last known lists (something waiting, attendance first), or null.
+const cachedTab = () => {
+  const devices = peekCached(REVIEW_URLS.devices);
+  if (!devices) return null;
+  const waiting = {
+    attendance: (peekCached(REVIEW_URLS.attendance)?.groups || []).length,
+    enrollments: (peekCached(REVIEW_URLS.enrollments)?.reviews || []).length,
+    devices: (devices.reviews || []).length,
+  };
+  return TAB_IDS.find((id) => waiting[id] > 0) || "attendance";
+};
+
 const Reviews = () => {
   const toast = useToast();
   const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, logout, counts, refreshCounts } = useTeacherSession();
   const requestedTab = TAB_IDS.includes(searchParams.get("tab")) ? searchParams.get("tab") : null;
-  const [tab, setTabState] = useState(requestedTab);
-  const [devices, setDevices] = useState(null);
-  const [enrollments, setEnrollments] = useState({ reviews: [], blocked: [] });
-  const [attendance, setAttendance] = useState([]);
+  const [tab, setTabState] = useState(() => requestedTab || cachedTab());
+  // Last known lists first (page shows at once), refreshed by load.
+  const [devices, setDevices] = useState(() => peekCached(REVIEW_URLS.devices)?.reviews ?? null);
+  const [enrollments, setEnrollments] = useState(() => {
+    const saved = peekCached(REVIEW_URLS.enrollments);
+    return { reviews: saved?.reviews || [], blocked: saved?.blocked || [] };
+  });
+  const [attendance, setAttendance] = useState(() => peekCached(REVIEW_URLS.attendance)?.groups || []);
   const [busy, setBusy] = useState(false);
 
   const setTab = (next) => {
@@ -103,9 +126,9 @@ const Reviews = () => {
 
   const load = useCallback(async () => {
     const [deviceResponse, enrollmentResponse, attendanceResponse] = await Promise.all([
-      axios.get(`${SERVER_URL}/device-reviews`, requestConfig),
-      axios.get(`${SERVER_URL}/enrollment-reviews`, requestConfig),
-      axios.get(`${SERVER_URL}/reviews?type=attendance`, requestConfig),
+      cachedGet(REVIEW_URLS.devices),
+      cachedGet(REVIEW_URLS.enrollments),
+      cachedGet(REVIEW_URLS.attendance),
     ]);
     setDevices(deviceResponse.data.reviews);
     setEnrollments({ reviews: enrollmentResponse.data.reviews, blocked: enrollmentResponse.data.blocked || [] });

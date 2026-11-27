@@ -23,7 +23,7 @@ exports.isAuth = catchAsyncError(async (req, res, next) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id);
+    req.user = await User.findById(decoded.id).lean(); // read-only: no document overhead
 
     if (!req.user) {
         return next(new ErrorHandler("User account no longer exists", 401));

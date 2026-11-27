@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
+import { cachedGet, peekCached } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -26,22 +27,22 @@ const ClassManagement = () => {
   const navigate = useNavigate();
   const toast = useToast();
   const { user, logout, counts } = useTeacherSession();
-  const [classes, setClasses] = useState(null);
-  const [rooms, setRooms] = useState([]);
   const [showArchived, setShowArchived] = useState(false);
+  const classesUrl = `${SERVER_URL}/classes${showArchived ? "?archived=1" : ""}`;
+  const roomsUrl = `${SERVER_URL}/rooms`;
+  // Last known lists first (page shows at once), refreshed by loadData.
+  const [classes, setClasses] = useState(() => peekCached(classesUrl)?.classes ?? null);
+  const [rooms, setRooms] = useState(() => peekCached(roomsUrl)?.rooms ?? []);
   const [formData, setFormData] = useState(blankClass);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [creating, setCreating] = useState(false);
 
   const loadData = useCallback(async () => {
-    const [classesResponse, roomsResponse] = await Promise.all([
-      axios.get(`${SERVER_URL}/classes${showArchived ? "?archived=1" : ""}`, requestConfig),
-      axios.get(`${SERVER_URL}/rooms`, requestConfig),
-    ]);
+    const [classesResponse, roomsResponse] = await Promise.all([cachedGet(classesUrl), cachedGet(roomsUrl)]);
     setClasses(classesResponse.data.classes);
     setRooms(roomsResponse.data.rooms);
-  }, [showArchived]);
+  }, [classesUrl, roomsUrl]);
 
   useEffect(() => {
     if (!user) return;

@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
-import { fetchSessionUser } from "../../utils/session";
+import { cachedGet, cachedSessionUser, fetchSessionUser, peekCached } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -101,17 +101,23 @@ const ClassCard = ({ item, minPercent, expanded, onToggle, onQuery }) => {
  * Student attendance (Phase 11): % per class over closed check-ins, what it
  * takes to stay at 75%, every check-in with its decision, queries until the lock.
  */
+const ATTENDANCE_URL = `${SERVER_URL}/me/attendance`;
+
 const StudentAttendance = () => {
   const navigate = useNavigate();
   const toast = useToast();
-  const [user, setUser] = useState(null);
-  const [data, setData] = useState(null);
+  // Last known data first (page shows at once), refreshed below.
+  const [user, setUser] = useState(() => {
+    const cachedUser = cachedSessionUser();
+    return cachedUser?.role === "student" ? cachedUser : null;
+  });
+  const [data, setData] = useState(() => peekCached(ATTENDANCE_URL) ?? null);
   const [expanded, setExpanded] = useState(() => new Set());
   const [querying, setQuerying] = useState(null);
 
   const load = useCallback(
     () =>
-      axios.get(`${SERVER_URL}/me/attendance`, requestConfig).then((response) => {
+      cachedGet(ATTENDANCE_URL).then((response) => {
         setData(response.data);
         setExpanded((current) => (current.size ? current : new Set(response.data.classes.filter((item) => item.current).slice(0, 1).map((item) => String(item.class._id)))));
       }),
@@ -119,6 +125,9 @@ const StudentAttendance = () => {
   );
 
   useEffect(() => {
+    // The attendance request starts together with the login check.
+    const attendanceRequest = load();
+    attendanceRequest.catch(() => {});
     fetchSessionUser()
       .then((response) => {
         if (response.data.user.role === "teacher") {
@@ -126,7 +135,7 @@ const StudentAttendance = () => {
           return;
         }
         setUser(response.data.user);
-        load().catch(() => toast("Could not load your attendance.", "error"));
+        attendanceRequest.catch(() => toast("Could not load your attendance.", "error"));
       })
       .catch(() => navigate("/login"));
   }, [navigate, toast, load]);

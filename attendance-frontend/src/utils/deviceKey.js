@@ -77,17 +77,22 @@ const toBase64Url = (buffer) =>
  * Ask the server for a one-time challenge and sign it with this browser's
  * device key. Returns { challengeId, signature } to send with the request.
  * `payload` must contain exactly the request fields the server re-checks.
+ * `challenge` ({ challengeId, nonce }) skips the request when the server
+ * already issued one (sign-in returns a bind challenge).
  */
-export const signDeviceChallenge = async ({ purpose, payload = {} }) => {
+export const signDeviceChallenge = async ({ purpose, payload = {}, challenge = null }) => {
   const { privateKey } = await getOrCreateDeviceKey();
-  const response = await fetch(`${SERVER_URL}/device/challenge`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ purpose }),
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || "Could not start the device check.");
+  let data = challenge;
+  if (!data?.challengeId || !data?.nonce) {
+    const response = await fetch(`${SERVER_URL}/device/challenge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ purpose }),
+    });
+    data = await response.json();
+    if (!response.ok) throw new Error(data.message || "Could not start the device check.");
+  }
 
   const message = `${purpose}|${data.nonce}|${await sha256Hex(canonicalJson(payload))}`;
   const signature = await window.crypto.subtle.sign(

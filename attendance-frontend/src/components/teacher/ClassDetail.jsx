@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
 import SERVER_URL from "../../config/api";
+import { cachedGet, peekCached } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -91,11 +92,19 @@ const ClassDetail = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = CLASS_TABS.some((item) => item.id === searchParams.get("tab")) ? searchParams.get("tab") : null;
 
-  const [courseClass, setCourseClass] = useState(null);
-  const [roster, setRoster] = useState([]);
-  const [sessions, setSessions] = useState({ openSession: null, sessions: [], loaded: false });
-  const [identity, setIdentity] = useState({ statuses: {}, maxAttempts: 3 });
-  const [rooms, setRooms] = useState([]);
+  const classUrl = `${SERVER_URL}/classes/${classId}`;
+  // Last known data first (page shows at once), refreshed by loadClass.
+  const [courseClass, setCourseClass] = useState(() => peekCached(classUrl)?.courseClass ?? null);
+  const [roster, setRoster] = useState(() => peekCached(`${classUrl}/roster`)?.enrollments ?? []);
+  const [sessions, setSessions] = useState(() => {
+    const saved = peekCached(`${classUrl}/sessions`);
+    return saved ? { openSession: saved.openSession, sessions: saved.sessions, loaded: true } : { openSession: null, sessions: [], loaded: false };
+  });
+  const [identity, setIdentity] = useState(() => {
+    const saved = peekCached(`${classUrl}/enrollment-status`);
+    return saved ? { statuses: saved.statuses, maxAttempts: saved.maxAttempts } : { statuses: {}, maxAttempts: 3 };
+  });
+  const [rooms, setRooms] = useState(() => peekCached(`${SERVER_URL}/rooms`)?.rooms ?? []);
   const [busy, setBusy] = useState(false);
 
   const [editing, setEditing] = useState(false);
@@ -109,18 +118,21 @@ const ClassDetail = () => {
   const [preview, setPreview] = useState(null);
 
   const loadClass = useCallback(async () => {
+    // Sessions and identity load alongside the class, not after it.
+    const sessionsRequest = cachedGet(`${SERVER_URL}/classes/${classId}/sessions`);
+    const identityRequest = cachedGet(`${SERVER_URL}/classes/${classId}/enrollment-status`);
+    sessionsRequest.catch(() => {});
+    identityRequest.catch(() => {});
     const [classResponse, rosterResponse] = await Promise.all([
-      axios.get(`${SERVER_URL}/classes/${classId}`, requestConfig),
-      axios.get(`${SERVER_URL}/classes/${classId}/roster`, requestConfig),
+      cachedGet(`${SERVER_URL}/classes/${classId}`),
+      cachedGet(`${SERVER_URL}/classes/${classId}/roster`),
     ]);
     setCourseClass(classResponse.data.courseClass);
     setRoster(rosterResponse.data.enrollments);
-    axios
-      .get(`${SERVER_URL}/classes/${classId}/sessions`, requestConfig)
+    sessionsRequest
       .then((response) => setSessions({ openSession: response.data.openSession, sessions: response.data.sessions, loaded: true }))
       .catch(() => setSessions((current) => ({ ...current, loaded: true })));
-    axios
-      .get(`${SERVER_URL}/classes/${classId}/enrollment-status`, requestConfig)
+    identityRequest
       .then((response) => setIdentity({ statuses: response.data.statuses, maxAttempts: response.data.maxAttempts }))
       .catch(() => {});
   }, [classId]);
@@ -131,7 +143,7 @@ const ClassDetail = () => {
       toast(errorMessage(requestError, "Could not load this class."), "error");
       navigate("/teacher/classes");
     });
-    axios.get(`${SERVER_URL}/rooms`, requestConfig).then((response) => setRooms(response.data.rooms)).catch(() => {});
+    cachedGet(`${SERVER_URL}/rooms`).then((response) => setRooms(response.data.rooms)).catch(() => {});
   }, [user, loadClass, navigate, toast]);
 
   const visibleRoster = useMemo(() => {

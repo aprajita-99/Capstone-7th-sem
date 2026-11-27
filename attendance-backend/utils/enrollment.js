@@ -41,4 +41,23 @@ const parseImageDataUrl = (dataUrl, maxBytes = 700 * 1024) => {
   return { contentType: match[1], buffer };
 };
 
-module.exports = { MAX_ATTEMPTS, CONSENT_VERSION, loginIdFromEmail, textContainsRoll, enrollmentDecision, parseImageDataUrl };
+// What a student sees about their own identity check (GET /enrollment/status,
+// also returned by the sign-in device claim so login needs no extra request).
+const enrollmentView = (user) => {
+  const enrollment = user.enrollment || {};
+  return {
+    status: enrollment.status || "none",
+    attempts: enrollment.attempts || 0,
+    attemptsLeft: Math.max(0, MAX_ATTEMPTS - (enrollment.attempts || 0)),
+    maxAttempts: MAX_ATTEMPTS,
+    reasons: enrollment.reasons || [],
+    rejectReason: enrollment.rejectReason || null,
+    idCardUploaded: Boolean(enrollment.idCardMedia),
+    idCheck: enrollment.idCheck || null,
+    consentRequired: user.consent?.version !== CONSENT_VERSION,
+    consentVersion: CONSENT_VERSION,
+    verifiedAt: enrollment.verifiedAt || null,
+  };
+};
+
+module.exports = { enrollmentView, MAX_ATTEMPTS, CONSENT_VERSION, loginIdFromEmail, textContainsRoll, enrollmentDecision, parseImageDataUrl };
