@@ -11,6 +11,7 @@ const faceClient = require("../utils/faceClient");
 const { consumeFaceSession } = require("../utils/faceSessions");
 const { verifyDeviceProof } = require("../utils/deviceProof");
 const { isTestStudent } = require("../utils/signInPolicy");
+const { isDevMode } = require("../utils/devMode");
 const { reviewableStudentEmails, teacherCanReviewStudent } = require("../utils/teacherAccess");
 const { enrollmentView, MAX_ATTEMPTS, CONSENT_VERSION, loginIdFromEmail, textContainsRoll, enrollmentDecision, parseImageDataUrl } = require("../utils/enrollment");
 const { applyDeviceDecision } = require("./googleAuthController");
@@ -88,7 +89,8 @@ exports.submitSelfie = catchAsyncError(async (req, res, next) => {
   const user = req.user;
   if (!canSubmit(user)) return next(new ErrorHandler("Your identity check is already submitted", 409));
   if ((user.enrollment?.attempts || 0) >= MAX_ATTEMPTS) return next(new ErrorHandler("No attempts left. Ask your teacher to reset your identity check.", 403));
-  if (!user.enrollment?.idCardMedia) return next(new ErrorHandler("Upload your college ID card first", 400));
+  const devMode = isDevMode(); // no ID card: the live selfie alone verifies
+  if (!devMode && !user.enrollment?.idCardMedia) return next(new ErrorHandler("Upload your college ID card first", 400));
 
   const { livenessSessionId, challengeId, signature } = req.body || {};
   const proof = await verifyDeviceProof({ user, challengeId, signature, purpose: "face", payload: { livenessSessionId: String(livenessSessionId || "") } });
@@ -98,10 +100,12 @@ exports.submitSelfie = catchAsyncError(async (req, res, next) => {
   if (!faceSession) return next(new ErrorHandler("Face check expired or already used, please start again", 404));
 
   const liveness = await faceClient.getLivenessResult(faceSession.awsSessionId);
-  const idCard = await IdentityMedia.findById(user.enrollment.idCardMedia);
-  const comparison = liveness.verdict === "live" && liveness.referenceImage && idCard
-    ? await faceClient.compareFaces(idCard.data, liveness.referenceImage)
-    : { similarity: 0, decision: "no_match" };
+  const idCard = !devMode && user.enrollment.idCardMedia ? await IdentityMedia.findById(user.enrollment.idCardMedia) : null;
+  const comparison = devMode
+    ? { similarity: 0, decision: "skipped" }
+    : liveness.verdict === "live" && liveness.referenceImage && idCard
+      ? await faceClient.compareFaces(idCard.data, liveness.referenceImage)
+      : { similarity: 0, decision: "no_match" };
 
   const testAccount = isTestStudent(user.email);
   const decision = enrollmentDecision({
@@ -109,6 +113,7 @@ exports.submitSelfie = catchAsyncError(async (req, res, next) => {
     matchDecision: comparison.decision,
     rollMatch: user.enrollment.idCheck?.rollMatch ?? null,
     testAccount,
+    devMode: devMode && Boolean(liveness.referenceImage),
   });
 
   const enrollment = currentEnrollment(user);
@@ -135,7 +140,7 @@ exports.submitSelfie = catchAsyncError(async (req, res, next) => {
   user.markModified("enrollment");
   await user.save();
   if (decision.outcome === "verified") {
-    await AuditLog.create({ action: "enrollment_auto_verified", target: { type: "User", id: user._id }, note: `similarity ${comparison.similarity.toFixed(1)}` });
+    await AuditLog.create({ action: "enrollment_auto_verified", target: { type: "User", id: user._id }, note: devMode ? "dev mode: live selfie only, no ID card" : `similarity ${comparison.similarity.toFixed(1)}` });
   }
 
   res.status(200).json({ success: true, outcome: decision.outcome, enrollment: enrollmentView(user) });

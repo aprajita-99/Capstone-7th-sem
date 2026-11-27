@@ -61,6 +61,7 @@ cd attendance-frontend && CI=true npm run build   # production build; lint warni
 | `GOOGLE_CLIENT_ID` | Google OAuth web client ID |
 | `TEACHER_EMAILS` | Comma-separated college emails that become teachers on first sign-in |
 | `TEST_STUDENT_EMAILS` | **Development only**: Gmail accounts allowed as students without a roster. Empty it before a real pilot |
+| `DEV_MODE` | **Development only** (`true` to turn on; `/health` shows `devMode`). For **every student**: the identity check skips the ID card (a live selfie alone verifies and becomes the reference face), and any number of browsers can be used (each one is trusted at sign-in, no phone review). Turn it off before a real pilot: with it on, anyone can check in from a friend's phone |
 | `CLIENT_URL` / `CLIENT_URLS` | Website origin(s) allowed to call the API with cookies |
 | `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | AWS Rekognition (face liveness + matching), region `ap-south-1` |
 | `LIVENESS_THRESHOLD`, `MATCH_THRESHOLD`, `REVIEW_THRESHOLD` | Face pass marks (defaults 80 / 90 / 75) |

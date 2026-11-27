@@ -88,6 +88,7 @@ Words we use everywhere:
 | **Teacher** | College account listed in `TEACHER_EMAILS`; creates classes, starts check-ins, reviews unsure cases |
 | **Student** | College account on at least one active class roster |
 | **Test student** | Gmail in `TEST_STUDENT_EMAILS`; skips domain + roster gate (development only) |
+| **Dev mode** | `DEV_MODE=true` (development only): every student enrolls with a live selfie only (no ID card) and may use any number of browsers (no one-phone rule) |
 | **Roster** | List of student emails allowed in a class |
 | **Bound device** | The one browser/phone whose secret key is linked to a student |
 | **Enrollment** | One-time ID card + live selfie; produces the student's reference face |
@@ -342,6 +343,7 @@ Face service: AWS Rekognition, called only by the backend (`CreateFaceLivenessSe
 | --- | --- | --- | --- |
 | `PORT`, `DB_URI`, `JWT_SECRET`, `JWT_EXPIRE`, `COOKIE_EXPIRE` | backend | Existing | 0 |
 | `GOOGLE_CLIENT_ID`, `TEACHER_EMAILS`, `TEST_STUDENT_EMAILS` | backend | Existing | 1 |
+| `DEV_MODE` | backend | Dev mode: no ID card step, no one-phone rule (all students; off for the pilot) | 8 |
 | `CLIENT_URLS`, `NODE_ENV` | backend | Allowed origins; `PRODUCTION` = secure cookies, no tunnel wildcard | 0 |
 | `TIMEZONE` (default `Asia/Kolkata`) | backend | Day boundary for lock / same-day rules | 5 |
 | `CHECKIN_WINDOW_MIN` (6), `KEY_LIFETIME_SEC` (15), `MAX_WAVES` (5), `CHECKIN_PROFILE` (`mid`) | backend | Session defaults (band = mid until the band decision) | 5–6 |
@@ -945,6 +947,7 @@ Every report first settles the class's check-ins (close → face grace → lock)
 - Monitoring: request logging, error alerts (Render logs), AWS face service configured/reachable on the API `/health`, AWS Budget alert.
 - Pilot runbook: warm-up (open site 2 min early), teacher phone placement, volume, what to do if the sound fails (fall back to roll call), data collection sheet.
 - Remove `TEST_STUDENT_EMAILS` and `REACT_APP_GOOGLE_HOSTED_DOMAIN=` override before the pilot.
+- Turn `DEV_MODE` off before the pilot (students enrolled in dev mode have a selfie-only reference face; force re-enrollment if an ID check is wanted).
 - Metrics: coverage (% joined), true present / false reject / false accept vs roll call, time to finish, review count, audibility complaints, iOS count.
 
 **Done when.** Two pilot sessions completed; results table and honest findings written in `progress.md` and the project report.

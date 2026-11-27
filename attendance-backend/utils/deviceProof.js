@@ -11,6 +11,7 @@
  */
 const crypto = require("crypto");
 const DeviceChallenge = require("../models/deviceChallengeModels");
+const { isDevMode } = require("./devMode");
 
 const CHALLENGE_TTL_MS = 60 * 1000;
 const PURPOSES = ["bind", "claim", "face", "neighbour"];
@@ -64,8 +65,11 @@ const issueChallenge = async (userId, purpose) => {
 const verifyDeviceProof = async ({ user, challengeId, signature, purpose, payload = {}, publicKeyJwk }) => {
   if (!challengeId || !signature) return { ok: false, reason: "Device proof is missing" };
 
-  const key = publicKeyJwk || user.deviceBinding?.publicKeyJwk;
-  if (!key) return { ok: false, reason: "This browser is not bound to your account" };
+  // The bound phone's key; in dev mode also every other browser the student signed in on.
+  const keys = publicKeyJwk
+    ? [publicKeyJwk]
+    : [user.deviceBinding?.publicKeyJwk, ...(isDevMode() ? (user.deviceBinding?.devKeys || []).map((entry) => entry?.publicKeyJwk) : [])].filter(Boolean);
+  if (keys.length === 0) return { ok: false, reason: "This browser is not bound to your account" };
 
   let challenge;
   try {
@@ -80,7 +84,8 @@ const verifyDeviceProof = async ({ user, challengeId, signature, purpose, payloa
   }
   if (!challenge) return { ok: false, reason: "Device check expired, please try again" };
 
-  if (!verifySignature(key, buildProofMessage(purpose, challenge.nonce, payload), signature)) {
+  const message = buildProofMessage(purpose, challenge.nonce, payload);
+  if (!keys.some((key) => verifySignature(key, message, signature))) {
     return { ok: false, reason: "Device signature could not be verified" };
   }
   return { ok: true };
