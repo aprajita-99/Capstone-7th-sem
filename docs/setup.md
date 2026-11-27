@@ -82,8 +82,8 @@ cd attendance-frontend && CI=true npm run build   # production build; lint warni
 
 | Piece | Where | Notes |
 | --- | --- | --- |
-| API | **Render** web service, root `attendance-backend`, build `npm install`, start `npm start` | `NODE_ENV=PRODUCTION` plus the backend variables above |
-| Website | **Vercel**, root `attendance-frontend` | `vercel.json` rewrites `/api/*` to the Render URL and every other path to `index.html` |
+| API + website | **Render** web service `capstone-7th-sem-1` (Singapore), root `attendance-backend`, build `npm install && npm run build:web`, start `npm start` | `NODE_ENV=PRODUCTION`, the backend variables above, and the website's build variables (`REACT_APP_GOOGLE_CLIENT_ID`, `REACT_APP_AWS_REGION`, `REACT_APP_AWS_IDENTITY_POOL_ID`, optional `REACT_APP_GOOGLE_HOSTED_DOMAIN`; `REACT_APP_API_URL` defaults to `/api/v1`). The server serves `attendance-frontend/build` (`utils/serveWebsite.js`), so site and API share one address |
+| Website (backup) | **Vercel**, root `attendance-frontend` | `vercel.json` rewrites `/api/*` to the Render URL. Some Indian ISPs block or stall `*.vercel.app` (10 s+ "Stalled" in DevTools), which is why the main address is the Render one |
 | Database | **MongoDB Atlas** (AWS Mumbai, `ap-south-1`) | Network access must allow the Render service |
 | Scheduled jobs | **GitHub Actions** `.github/workflows/jobs.yml`, every 30 min (plus `keep-awake.yml`, a `/health` ping every 10 min) | Calls `POST /api/v1/jobs/run` with the `JOBS_SECRET` repository secret: lock at 09:00, retention, 20:00 digest. The server also runs them every 10 min while awake |
 

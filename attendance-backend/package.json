@@ -10,6 +10,7 @@
     "prestart": "node scripts/verify-node-version.js",
     "test": "node --test",
     "seed:rooms": "node scripts/seed-rooms.js",
+    "build:web": "cd ../attendance-frontend && npm ci --include=dev && REACT_APP_API_URL=${REACT_APP_API_URL:-/api/v1} GENERATE_SOURCEMAP=false npm run build",
     "start": "node index.js"
   },
   "engines": {
@@ -17,6 +18,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.1156.0",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^16.6.1",
