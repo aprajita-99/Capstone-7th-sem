@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import "./Login.css";
 import SERVER_URL from "../../config/api";
-import { clearSession } from "../../utils/session";
+import { primeSession } from "../../utils/session";
 import GoogleSignInButton from "./GoogleSignInButton";
 import { getOrCreateDevicePublicKey, publicKeyPayload, signDeviceChallenge } from "../../utils/deviceKey";
 import { enrollmentPostponed } from "../../utils/enrollPrompt";
@@ -27,13 +27,16 @@ const Login = () => {
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.message || "Google sign-in was not accepted.");
-            clearSession(); // a new account: never reuse a cached user from before
+            // A new account: drop anything cached from before and keep this user,
+            // so the next page does not ask /islogin again.
+            primeSession(data.user);
 
             let deviceStatus = "approved";
             if (data.user.role === "student") {
                 const publicKeyJwk = await getOrCreateDevicePublicKey();
-                // Prove this browser holds the private half of the key it submits.
-                const proof = await signDeviceChallenge({ purpose: "bind", payload: publicKeyPayload(publicKeyJwk) });
+                // Prove this browser holds the private half of the key it submits
+                // (the sign-in response already carries the one-time challenge).
+                const proof = await signDeviceChallenge({ purpose: "bind", payload: publicKeyPayload(publicKeyJwk), challenge: data.deviceChallenge });
                 const bindingResponse = await fetch(`${SERVER_URL}/device-bindings/claim`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -51,9 +54,11 @@ const Login = () => {
                 }
                 // First sign-in (or unfinished): open the identity check unless the student chose "Later".
                 if (bindingData.status === "approved" && !enrollmentPostponed()) {
-                    const statusResponse = await fetch(`${SERVER_URL}/enrollment/status`, { credentials: "include" });
-                    const statusData = statusResponse.ok ? await statusResponse.json() : null;
-                    const enrollment = statusData?.enrollment;
+                    let enrollment = bindingData.enrollment; // sent with the claim; older servers omit it
+                    if (!enrollment) {
+                        const statusResponse = await fetch(`${SERVER_URL}/enrollment/status`, { credentials: "include" });
+                        enrollment = statusResponse.ok ? (await statusResponse.json()).enrollment : null;
+                    }
                     if (enrollment && ["none", "rejected"].includes(enrollment.status) && enrollment.attemptsLeft > 0) {
                         navigate("/student/enroll");
                         return;

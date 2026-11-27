@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import './ui/ui.css';
 import { ToastProvider } from './ui/Toast';
@@ -9,14 +9,24 @@ import Login from './components/login/Login';
 import StudentDashboard from './components/student/studentDashboard';
 import TeacherDashboard from './components/teacher/teacherDashboard';
 import ClassManagement from './components/teacher/classManagement';
-import ClassDetail from './components/teacher/ClassDetail';
-import LiveCheckin from './components/teacher/LiveCheckin';
-import CheckIn from './components/student/CheckIn';
-import Reviews from './components/teacher/Reviews';
-import AcousticLab from './components/acousticLab/AcousticLab';
-import LinkTest from './components/acousticLab/LinkTest';
 import { PageLoader } from './ui/Spinner';
 
+// Pages that are not landing pages load on demand, keeping the first download small,
+// and are fetched in the background once the first page is idle (no wait when opened).
+const PREFETCH = [
+  () => import('./components/teacher/ClassDetail'),
+  () => import('./components/teacher/LiveCheckin'),
+  () => import('./components/student/CheckIn'),
+  () => import('./components/teacher/Reviews'),
+  () => import('./components/student/StudentAttendance'),
+];
+const prefetchPages = () => PREFETCH.forEach((load) => load().catch(() => {}));
+const ClassDetail = lazy(() => import('./components/teacher/ClassDetail'));
+const LiveCheckin = lazy(() => import('./components/teacher/LiveCheckin'));
+const CheckIn = lazy(() => import('./components/student/CheckIn'));
+const Reviews = lazy(() => import('./components/teacher/Reviews'));
+const AcousticLab = lazy(() => import('./components/acousticLab/AcousticLab'));
+const LinkTest = lazy(() => import('./components/acousticLab/LinkTest'));
 // The AWS liveness component is large; load it only on pages that use it.
 const FaceTest = lazy(() => import('./components/face/FaceTest'));
 const Enroll = lazy(() => import('./components/student/Enroll'));
@@ -24,9 +34,15 @@ const VerifyDevice = lazy(() => import('./components/student/VerifyDevice'));
 const StudentAttendance = lazy(() => import('./components/student/StudentAttendance'));
 const Privacy = lazy(() => import('./components/info/Privacy'));
 const Help = lazy(() => import('./components/info/Help'));
+const withPageLoader = (element) => <Suspense fallback={<PageLoader label="Loading…" />}>{element}</Suspense>;
 const withFaceLoader = (element) => <Suspense fallback={<PageLoader label="Loading face check…" />}>{element}</Suspense>;
 
 function App() {
+  useEffect(() => {
+    const idle = window.requestIdleCallback || ((callback) => window.setTimeout(callback, 1500));
+    idle(prefetchPages);
+  }, []);
+
   return (
     <BrowserRouter>
       <ToastProvider>
@@ -37,16 +53,16 @@ function App() {
           <Route path='/privacy' element={<Suspense fallback={<PageLoader label="Loading…" />}><Privacy /></Suspense>} />
           <Route path='/help' element={<Suspense fallback={<PageLoader label="Loading…" />}><Help /></Suspense>} />
           <Route path='/teacher/classes' element={<ClassManagement />} />
-          <Route path='/teacher/classes/:classId' element={<ClassDetail />} />
-          <Route path='/teacher/classes/:classId/live' element={<LiveCheckin />} />
-          <Route path='/teacher/sessions/:sessionId' element={<LiveCheckin />} />
-          <Route path='/student/check-in/:sessionId' element={<CheckIn />} />
-          <Route path='/acoustic-lab' element={<AcousticLab />} />
-          <Route path='/acoustic-lab/link' element={<LinkTest />} />
+          <Route path='/teacher/classes/:classId' element={withPageLoader(<ClassDetail />)} />
+          <Route path='/teacher/classes/:classId/live' element={withPageLoader(<LiveCheckin />)} />
+          <Route path='/teacher/sessions/:sessionId' element={withPageLoader(<LiveCheckin />)} />
+          <Route path='/student/check-in/:sessionId' element={withPageLoader(<CheckIn />)} />
+          <Route path='/acoustic-lab' element={withPageLoader(<AcousticLab />)} />
+          <Route path='/acoustic-lab/link' element={withPageLoader(<LinkTest />)} />
           <Route path='/face-test' element={withFaceLoader(<FaceTest />)} />
           <Route path='/student/enroll' element={withFaceLoader(<Enroll />)} />
           <Route path='/student/verify-device' element={withFaceLoader(<VerifyDevice />)} />
-          <Route path='/teacher/reviews' element={<Reviews />} />
+          <Route path='/teacher/reviews' element={withPageLoader(<Reviews />)} />
           <Route path='/student/attendance' element={<Suspense fallback={<PageLoader label="Loading your attendance…" />}><StudentAttendance /></Suspense>} />
           <Route path={'/student-dashboard'} element={<StudentDashboard />} />
           <Route path={'/teacher-dashboard'} element={<TeacherDashboard />} />

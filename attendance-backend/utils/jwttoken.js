@@ -1,6 +1,7 @@
 const cookieOptions = require("./cookieOptions");
 
-const sendToken = (user, statusCode, res) => {
+// `extra` adds fields to the JSON body (e.g. the device challenge at sign-in).
+const sendToken = (user, statusCode, res, extra = {}) => {
   const token = user.getJWTtoken();
 
   const options = cookieOptions(new Date(
@@ -12,6 +13,7 @@ const sendToken = (user, statusCode, res) => {
   res.status(statusCode).cookie("token", token, options).json({
     success: true,
     user: user.toObject ? user.toObject() : user,
+    ...extra,
   });
 };
 

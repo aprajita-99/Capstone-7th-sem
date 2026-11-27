@@ -12,30 +12,13 @@ const { consumeFaceSession } = require("../utils/faceSessions");
 const { verifyDeviceProof } = require("../utils/deviceProof");
 const { isTestStudent } = require("../utils/signInPolicy");
 const { reviewableStudentEmails, teacherCanReviewStudent } = require("../utils/teacherAccess");
-const { MAX_ATTEMPTS, CONSENT_VERSION, loginIdFromEmail, textContainsRoll, enrollmentDecision, parseImageDataUrl } = require("../utils/enrollment");
+const { enrollmentView, MAX_ATTEMPTS, CONSENT_VERSION, loginIdFromEmail, textContainsRoll, enrollmentDecision, parseImageDataUrl } = require("../utils/enrollment");
 const { applyDeviceDecision } = require("./googleAuthController");
 
 const requireFace = (next) => {
   if (faceClient.isConfigured()) return true;
   next(new ErrorHandler("Face checks are not configured on the server", 503));
   return false;
-};
-
-const enrollmentView = (user) => {
-  const enrollment = user.enrollment || {};
-  return {
-    status: enrollment.status || "none",
-    attempts: enrollment.attempts || 0,
-    attemptsLeft: Math.max(0, MAX_ATTEMPTS - (enrollment.attempts || 0)),
-    maxAttempts: MAX_ATTEMPTS,
-    reasons: enrollment.reasons || [],
-    rejectReason: enrollment.rejectReason || null,
-    idCardUploaded: Boolean(enrollment.idCardMedia),
-    idCheck: enrollment.idCheck || null,
-    consentRequired: user.consent?.version !== CONSENT_VERSION,
-    consentVersion: CONSENT_VERSION,
-    verifiedAt: enrollment.verifiedAt || null,
-  };
 };
 
 const saveMedia = (userId, kind, contentType, buffer) =>

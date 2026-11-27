@@ -1,0 +1,24 @@
+# Pings the backend every 10 minutes so the free Render instance never falls
+# asleep (it sleeps after ~15 minutes idle and then takes 30-60 s to answer).
+# GitHub can delay scheduled runs; an external pinger (cron-job.org or
+# UptimeRobot, every 5 min, GET <API_URL>/api/v1/health) is a good backup.
+# The backend address comes from the repository variable API_URL (Settings →
+# Secrets and variables → Actions → Variables), falling back to the old service.
+name: Keep backend awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /health
+        env:
+          API_URL: ${{ vars.API_URL || 'https://capstone-7th-sem.onrender.com' }}
+        run: |
+          curl --fail --silent --show-error --retry 3 --retry-delay 20 --retry-all-errors --max-time 90 \
+            "$API_URL/api/v1/health"

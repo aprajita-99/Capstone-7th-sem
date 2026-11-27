@@ -9,6 +9,7 @@ const { fingerprintPublicKey } = require("../utils/deviceBinding");
 const { PURPOSES, issueChallenge, verifyDeviceProof } = require("../utils/deviceProof");
 const { reviewableStudentEmails, teacherCanReviewStudent } = require("../utils/teacherAccess");
 const AuditLog = require("../models/auditLogModels");
+const { enrollmentView } = require("../utils/enrollment");
 const {
   normaliseEmail,
   isProvisionedTeacher,
@@ -16,9 +17,13 @@ const {
   isAllowedSignInEmail,
 } = require("../utils/signInPolicy");
 
+// One client for the whole process: it caches Google's signing certificates,
+// so sign-ins after the first do not wait for an extra fetch to Google.
+let googleClient = null;
 const getGoogleClient = () => {
   if (!process.env.GOOGLE_CLIENT_ID) return null;
-  return new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+  if (!googleClient) googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+  return googleClient;
 };
 
 const hasRosterAccess = async (email) => Enrollment.exists({ email, status: "active" });
@@ -51,10 +56,11 @@ exports.googleSignIn = catchAsyncError(async (req, res, next) => {
   }
   const testAccount = isTestStudent(email);
 
-  let user = await User.findOne({ email });
   // Test students (TEST_STUDENT_EMAILS) skip the roster gate: they exist to
   // exercise the app before the pilot and are never on a college roster.
-  const rosterAccess = (await hasRosterAccess(email)) || testAccount;
+  const [existingUser, onRoster] = await Promise.all([User.findOne({ email }), hasRosterAccess(email)]);
+  let user = existingUser;
+  const rosterAccess = Boolean(onRoster) || testAccount;
 
   if (user?.googleSubject && user.googleSubject !== payload.sub) {
     return next(new ErrorHandler("This account is already linked to a different Google identity", 403));
@@ -83,7 +89,10 @@ exports.googleSignIn = catchAsyncError(async (req, res, next) => {
     await user.save();
   }
 
-  sendToken(user, 200, res);
+  // Students bind this browser right after sign-in; hand them the one-time
+  // challenge now so the browser skips a separate POST /device/challenge.
+  const extra = user.role === "student" ? { deviceChallenge: await issueChallenge(user._id, "bind") } : {};
+  sendToken(user, 200, res, extra);
 });
 
 exports.issueDeviceChallenge = catchAsyncError(async (req, res, next) => {
@@ -133,13 +142,14 @@ exports.claimDeviceBinding = catchAsyncError(async (req, res, next) => {
     };
     req.user.markModified("deviceBinding");
     await req.user.save();
-    return res.status(201).json({ success: true, status: "approved", firstBinding: true });
+    // The identity-check status comes along so login needs no GET /enrollment/status.
+    return res.status(201).json({ success: true, status: "approved", firstBinding: true, enrollment: enrollmentView(req.user) });
   }
 
   if (req.user.deviceBinding.fingerprint === fingerprint) {
     req.user.deviceBinding.lastSeenAt = now;
     await req.user.save();
-    return res.status(200).json({ success: true, status: "approved", firstBinding: false });
+    return res.status(200).json({ success: true, status: "approved", firstBinding: false, enrollment: enrollmentView(req.user) });
   }
 
   const request = await DeviceBindingRequest.findOneAndUpdate(

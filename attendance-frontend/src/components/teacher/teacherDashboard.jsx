@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { FaChalkboardTeacher, FaUserGraduate, FaMobileAlt } from "react-icons/fa";
 import SERVER_URL from "../../config/api";
-import { fetchSessionUser } from "../../utils/session";
+import { cachedGet, fetchSessionUser, peekCached } from "../../utils/session";
 import AppShell from "../../ui/AppShell";
 import Badge from "../../ui/Badge";
 import Button from "../../ui/Button";
@@ -15,10 +15,14 @@ import { PageLoader, Skeleton } from "../../ui/Spinner";
 import StatCard from "../../ui/StatCard";
 import { useToast } from "../../ui/Toast";
 import { roomLabel } from "../../utils/rooms";
-import { fetchReviewCounts, teacherLinks } from "./teacherSession";
+import { cachedReviewCounts, cachedTeacher, fetchReviewCounts, teacherLinks } from "./teacherSession";
 import "./teacherDashboard.css";
 
 const requestConfig = { withCredentials: true };
+const CLASSES_URL = `${SERVER_URL}/classes`;
+const TODAY_URL = `${SERVER_URL}/sessions/today`;
+const toEntries = (list = []) => list.filter((entry) => entry.class).map((entry) => ({ courseClass: entry.class, session: entry.session }));
+const todayView = (data) => (data ? { running: toEntries(data.running), done: toEntries(data.done) } : null);
 
 const formatClock = (ms) => {
     const total = Math.max(0, Math.round(ms / 1000));
@@ -36,11 +40,12 @@ const reviewHint = (counts) =>
 const TeacherDashboard = () => {
     const navigate = useNavigate();
     const toast = useToast();
-    const [user, setUser] = useState(null);
-    const [classes, setClasses] = useState([]);
-    const [reviewCounts, setReviewCounts] = useState(null);
+    // Last known data first (page shows at once), refreshed by the requests below.
+    const [user, setUser] = useState(cachedTeacher);
+    const [classes, setClasses] = useState(() => peekCached(CLASSES_URL)?.classes ?? []);
+    const [reviewCounts, setReviewCounts] = useState(cachedReviewCounts);
     const pendingReviews = reviewCounts?.total || 0;
-    const [today, setToday] = useState(null); // { running: [...], done: [...] }
+    const [today, setToday] = useState(() => todayView(peekCached(TODAY_URL))); // { running: [...], done: [...] }
     const [now, setNow] = useState(Date.now());
 
     // Clock for the running check-in countdown.
@@ -52,11 +57,9 @@ const TeacherDashboard = () => {
     // Today's check-ins across active classes, in one request; refreshed every 30 s.
     useEffect(() => {
         if (!user) return undefined;
-        const toEntries = (list) => list.filter((entry) => entry.class).map((entry) => ({ courseClass: entry.class, session: entry.session }));
         const loadToday = () =>
-            axios
-                .get(`${SERVER_URL}/sessions/today`, requestConfig)
-                .then((response) => setToday({ running: toEntries(response.data.running), done: toEntries(response.data.done) }))
+            cachedGet(TODAY_URL)
+                .then((response) => setToday(todayView(response.data)))
                 .catch(() => setToday((current) => current || { running: [], done: [] }));
         loadToday();
         const timer = window.setInterval(loadToday, 30000);
@@ -65,18 +68,18 @@ const TeacherDashboard = () => {
 
     useEffect(() => {
         const load = async () => {
+            // Classes and counts load together with the login check, not after it.
+            const userRequest = fetchSessionUser();
+            const dataRequest = Promise.allSettled([cachedGet(CLASSES_URL), fetchReviewCounts()]);
             try {
-                const userResponse = await fetchSessionUser();
+                const userResponse = await userRequest;
                 if (userResponse.data.user.role !== "teacher") {
                     navigate("/student-dashboard");
                     return;
                 }
                 setUser(userResponse.data.user);
 
-                const [classesResult, countsResult] = await Promise.allSettled([
-                    axios.get(`${SERVER_URL}/classes`, requestConfig),
-                    fetchReviewCounts(),
-                ]);
+                const [classesResult, countsResult] = await dataRequest;
                 if (classesResult.status === "fulfilled") {
                     setClasses(classesResult.value.data.classes);
                 } else {
