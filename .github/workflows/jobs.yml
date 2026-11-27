@@ -18,7 +18,7 @@ jobs:
         env:
           JOBS_SECRET: ${{ secrets.JOBS_SECRET }}
           # Backend address: repository variable API_URL (see keep-awake.yml).
-          API_URL: ${{ vars.API_URL || 'https://capstone-7th-sem.onrender.com' }}
+          API_URL: ${{ vars.API_URL || 'https://capstone-7th-sem-1.onrender.com' }}
         run: |
           if [ -z "$JOBS_SECRET" ]; then
             echo "JOBS_SECRET is not set in the repository secrets"; exit 1
