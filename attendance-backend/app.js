@@ -1,8 +1,13 @@
 const express = require('express');
 const cookieParser = require('cookie-parser');
 const cors = require('cors');
+const compression = require('compression');
+const serveWebsite = require('./utils/serveWebsite');
 
 const app = express();
+
+// gzip JSON and website files (the main script is ~4x smaller compressed).
+app.use(compression());
 
 // Browser origins allowed to call this API with cookies.
 // Add exact origins (deployments) with CLIENT_URLS=origin1,origin2 in config.env.
@@ -79,6 +84,10 @@ app.use("/api/v1", reportRoute);
 
 const jobsRoute = require('./routes/jobsRoute');
 app.use("/api/v1", jobsRoute);
+
+// The website itself (attendance-frontend/build), when it was built on this
+// server. Same address as the API: no proxy hop, first-party login cookie.
+serveWebsite(app);
 
 const errorMiddleware = require('./middleware/error');
 app.use(errorMiddleware);
