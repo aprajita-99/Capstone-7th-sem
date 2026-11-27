@@ -33,6 +33,9 @@ const userSchema = new mongoose.Schema({
         publicKeyJwk: mongoose.Schema.Types.Mixed,
         approvedAt: Date,
         lastSeenAt: Date,
+        // Dev mode only (DEV_MODE=true): other browsers the student signed in on,
+        // each { fingerprint, publicKeyJwk, addedAt }. Ignored when dev mode is off.
+        devKeys: { type: [mongoose.Schema.Types.Mixed], default: undefined },
     },
     // Identity enrollment (Phase 8): ID card + live selfie → reference face.
     enrollment: {

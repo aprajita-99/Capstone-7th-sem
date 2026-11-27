@@ -33,12 +33,18 @@ const REASON_TEXT = {
 
 const describeReasons = (reasons = []) => reasons.map((reason) => REASON_TEXT[reason] || reason).join("; ");
 
+// Dev mode (server DEV_MODE): no ID card step, the live selfie alone verifies.
+const needsIdCard = (enrollment) => enrollment?.idCardRequired !== false;
+
+// After consent: the ID card step, or straight to the selfie when it is done or not needed.
+const afterConsentStep = (enrollment) => (needsIdCard(enrollment) && !enrollment.idCardUploaded ? "idcard" : "selfie-ready");
+
 // Which wizard step fits the server's enrollment state.
 const pickStep = (enrollment) => {
   if (["verified", "pending"].includes(enrollment.status)) return "result";
   if (enrollment.attemptsLeft === 0) return "result";
   if (enrollment.consentRequired) return "consent";
-  return enrollment.idCardUploaded ? "selfie-ready" : "idcard";
+  return afterConsentStep(enrollment);
 };
 
 /**
@@ -87,7 +93,7 @@ const Enroll = () => {
     try {
       const response = await axios.post(`${SERVER_URL}/enrollment/consent`, { version: status.consentVersion }, requestConfig);
       setStatus(response.data.enrollment);
-      setStep(response.data.enrollment.idCardUploaded ? "selfie-ready" : "idcard");
+      setStep(afterConsentStep(response.data.enrollment));
     } catch (requestError) {
       setError(errorMessage(requestError, "Could not save your consent."));
     } finally {
@@ -143,7 +149,11 @@ const Enroll = () => {
 
   if (!user || step === "loading" || !status) return <PageLoader label="Loading identity check…" />;
 
-  const stepIndex = { consent: 1, idcard: 2, "selfie-ready": 3, selfie: 3, submitting: 3, result: 4 }[step] || 1;
+  const idCardStep = needsIdCard(status);
+  const stepLabels = idCardStep ? ["Consent", "ID card", "Live selfie", "Done"] : ["Consent", "Live selfie", "Done"];
+  const stepIndex = (idCardStep
+    ? { consent: 1, idcard: 2, "selfie-ready": 3, selfie: 3, submitting: 3, result: 4 }
+    : { consent: 1, "selfie-ready": 2, selfie: 2, submitting: 2, result: 3 })[step] || 1;
   const verified = status.status === "verified";
 
   return (
@@ -151,17 +161,20 @@ const Enroll = () => {
       <PageHeader
         back={{ to: "/student-dashboard", label: "Dashboard" }}
         title="Identity check"
-        subtitle="One time only. It links your face to your college ID so check-ins can confirm it is really you."
+        subtitle={idCardStep
+          ? "One time only. It links your face to your college ID so check-ins can confirm it is really you."
+          : "One time only. A live selfie becomes your reference face so check-ins can confirm it is really you."}
       />
+      {status.devMode && <p className="enroll-devmode"><Badge variant="warning" dot>Development mode: no ID card needed</Badge></p>}
 
       <ol className="ready-path" aria-label="Getting ready for check-ins">
         <li className="is-done"><span className="ready-path__icon"><Icon name="phone" /></span><span><strong>Phone linked</strong><small>This phone is yours for check-ins</small></span></li>
-        <li className={verified ? "is-done" : "is-current"}><span className="ready-path__icon"><Icon name="idcard" /></span><span><strong>Identity check</strong><small>ID card + live selfie, about 2 minutes</small></span></li>
+        <li className={verified ? "is-done" : "is-current"}><span className="ready-path__icon"><Icon name="idcard" /></span><span><strong>Identity check</strong><small>{idCardStep ? "ID card + live selfie, about 2 minutes" : "Live selfie, about 1 minute"}</small></span></li>
         <li className={verified ? "is-done" : ""}><span className="ready-path__icon"><Icon name="check" /></span><span><strong>Ready for check-ins</strong><small>Join when your teacher starts one</small></span></li>
       </ol>
 
       <ol className="enroll-steps" aria-label="Progress">
-        {["Consent", "ID card", "Live selfie", "Done"].map((label, index) => (
+        {stepLabels.map((label, index) => (
           <li key={label} className={index + 1 < stepIndex ? "is-done" : index + 1 === stepIndex ? "is-current" : ""}>
             <span className="enroll-steps__bar" aria-hidden="true" />
             {label}
@@ -176,7 +189,7 @@ const Enroll = () => {
           <div className="enroll-body">
             <h2 className="enroll-title">Before you start</h2>
             <ul className="enroll-summary">
-              <li><span className="enroll-summary__icon"><Icon name="camera" /></span><span><strong>What we collect</strong>A photo of your college ID card and a short live selfie.</span></li>
+              <li><span className="enroll-summary__icon"><Icon name="camera" /></span><span><strong>What we collect</strong>{idCardStep ? "A photo of your college ID card and a short live selfie." : "A short live selfie."}</span></li>
               <li><span className="enroll-summary__icon"><Icon name="shield" /></span><span><strong>Why</strong>To confirm the person checking in is you. Only you and your teachers can see it.</span></li>
               <li><span className="enroll-summary__icon"><Icon name="clock" /></span><span><strong>How long</strong>While you are on a class roster this term.</span></li>
             </ul>
@@ -250,7 +263,7 @@ const Enroll = () => {
             {status.idCheck?.rollMatch === false && <Badge variant="warning" dot>Roll number not found on the card — a teacher will check it</Badge>}
             <div className="enroll-actions">
               <Button size="lg" onClick={() => setStep("selfie")}><Icon name="face" /> Start live selfie</Button>
-              <Button variant="secondary" size="lg" onClick={() => setStep("idcard")}>Retake ID photo</Button>
+              {idCardStep && <Button variant="secondary" size="lg" onClick={() => setStep("idcard")}>Retake ID photo</Button>}
               <Button variant="ghost" onClick={later}>Later</Button>
             </div>
           </div>
@@ -259,7 +272,7 @@ const Enroll = () => {
         {step === "selfie" && <FaceCheck purpose="enroll" onFinished={submitSelfie} onCancel={() => setStep("selfie-ready")} />}
 
         {step === "submitting" && (
-          <p className="enroll-busy"><Spinner /> Comparing your live face with your ID card…</p>
+          <p className="enroll-busy"><Spinner /> {idCardStep ? "Comparing your live face with your ID card…" : "Checking your live selfie…"}</p>
         )}
 
         {step === "result" && (
@@ -289,7 +302,7 @@ const Enroll = () => {
                 </p>
                 {status.attemptsLeft > 0 && (
                   <div className="enroll-actions">
-                    <Button size="lg" onClick={() => setStep(status.idCardUploaded ? "selfie-ready" : "idcard")}>Try again</Button>
+                    <Button size="lg" onClick={() => setStep(afterConsentStep(status))}>Try again</Button>
                   </div>
                 )}
               </>

@@ -1,6 +1,8 @@
 /**
  * Identity enrollment rules (FEATURES.md Phase 8), kept pure for unit tests.
  */
+const { isDevMode } = require("./devMode");
+
 const MAX_ATTEMPTS = 3;
 const CONSENT_VERSION = "2026-10-v1";
 
@@ -21,9 +23,11 @@ const textContainsRoll = (lines, loginId) => {
  *  - not live → failed (likely a photo/screen; the attempt is used, student may retry)
  *  - live + strong match + roll ok (or test account) → verified
  *  - otherwise → pending for a teacher, with reasons
+ *  - dev mode (no ID card): live → verified; the selfie becomes the reference face
  */
-const enrollmentDecision = ({ livenessVerdict, matchDecision, rollMatch, testAccount = false }) => {
+const enrollmentDecision = ({ livenessVerdict, matchDecision, rollMatch, testAccount = false, devMode = false }) => {
   if (livenessVerdict !== "live") return { outcome: "failed", reasons: [livenessVerdict === "not_live" ? "not_live" : "liveness_incomplete"] };
+  if (devMode) return { outcome: "verified", reasons: [] };
   const reasons = [];
   if (matchDecision === "unsure") reasons.push("face_unsure");
   if (matchDecision === "no_match") reasons.push("face_mismatch");
@@ -57,6 +61,9 @@ const enrollmentView = (user) => {
     consentRequired: user.consent?.version !== CONSENT_VERSION,
     consentVersion: CONSENT_VERSION,
     verifiedAt: enrollment.verifiedAt || null,
+    // Dev mode: the live selfie alone verifies the student (no ID card step).
+    idCardRequired: !isDevMode(),
+    devMode: isDevMode(),
   };
 };
 

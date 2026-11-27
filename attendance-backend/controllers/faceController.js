@@ -6,6 +6,7 @@ const faceClient = require("../utils/faceClient");
 
 const DeviceBindingRequest = require("../models/deviceBindingRequestModels");
 const { MAX_ATTEMPTS } = require("../utils/enrollment");
+const { isDevMode } = require("../utils/devMode");
 const { checkinFaceState } = require("./sessionController");
 
 const FACE_SESSION_TTL_MS = 5 * 60 * 1000;
@@ -31,7 +32,8 @@ exports.startLivenessSession = catchAsyncError(async (req, res, next) => {
     if (!req.user.consent?.acceptedAt) return next(new ErrorHandler("Accept the consent notice first", 400));
     if (!["none", "rejected", undefined].includes(enrollment.status)) return next(new ErrorHandler("Your identity check is already submitted", 409));
     if ((enrollment.attempts || 0) >= MAX_ATTEMPTS) return next(new ErrorHandler("No attempts left. Ask your teacher to reset your identity check.", 403));
-    if (!enrollment.idCardMedia) return next(new ErrorHandler("Upload your college ID card first", 400));
+    // Dev mode has no ID card step (the live selfie alone verifies).
+    if (!isDevMode() && !enrollment.idCardMedia) return next(new ErrorHandler("Upload your college ID card first", 400));
   }
   if (purpose === "rebind") {
     if (req.user.enrollment?.status !== "verified") return next(new ErrorHandler("Your identity is not verified yet; your teacher will approve this phone", 409));

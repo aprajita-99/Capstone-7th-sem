@@ -10,6 +10,7 @@ const { PURPOSES, issueChallenge, verifyDeviceProof } = require("../utils/device
 const { reviewableStudentEmails, teacherCanReviewStudent } = require("../utils/teacherAccess");
 const AuditLog = require("../models/auditLogModels");
 const { enrollmentView } = require("../utils/enrollment");
+const { isDevMode, MAX_DEV_DEVICES } = require("../utils/devMode");
 const {
   normaliseEmail,
   isProvisionedTeacher,
@@ -152,6 +153,17 @@ exports.claimDeviceBinding = catchAsyncError(async (req, res, next) => {
     return res.status(200).json({ success: true, status: "approved", firstBinding: false, enrollment: enrollmentView(req.user) });
   }
 
+  // Dev mode: any number of browsers. Trust this one at once (no review) and
+  // keep its key so its signed requests verify alongside the bound phone's.
+  if (isDevMode()) {
+    const others = (req.user.deviceBinding.devKeys || []).filter((entry) => entry?.fingerprint !== fingerprint);
+    req.user.deviceBinding.devKeys = [...others, { fingerprint, publicKeyJwk: req.body.publicKeyJwk, addedAt: now }].slice(-MAX_DEV_DEVICES);
+    req.user.deviceBinding.lastSeenAt = now;
+    req.user.markModified("deviceBinding");
+    await req.user.save();
+    return res.status(200).json({ success: true, status: "approved", firstBinding: false, devMode: true, enrollment: enrollmentView(req.user) });
+  }
+
   const request = await DeviceBindingRequest.findOneAndUpdate(
     { student: req.user._id, fingerprint },
     {
@@ -167,6 +179,10 @@ exports.claimDeviceBinding = catchAsyncError(async (req, res, next) => {
 });
 
 exports.getDeviceBindingStatus = catchAsyncError(async (req, res) => {
+  // Dev mode: every signed-in browser is trusted, old pending requests don't matter.
+  if (isDevMode()) {
+    return res.status(200).json({ success: true, status: req.user.deviceBinding?.fingerprint ? "approved" : "unbound", devMode: true });
+  }
   const pendingRequest = await DeviceBindingRequest.findOne({ student: req.user._id, status: "pending" }).sort({ updatedAt: -1 });
   res.status(200).json({
     success: true,

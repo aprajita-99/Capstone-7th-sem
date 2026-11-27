@@ -55,6 +55,7 @@
 }
 .enroll-busy { display: flex; align-items: center; gap: 10px; color: var(--text-soft); padding: 18px 0; }
 .enroll-error { margin-bottom: 12px; }
+.enroll-devmode { margin: 0 0 12px; }
 
 /* ID card framing guide */
 .id-frame {
