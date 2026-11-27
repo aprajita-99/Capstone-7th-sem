@@ -22,8 +22,10 @@ export const ToastProvider = ({ children }) => {
   }, []);
 
   const push = useCallback(
-    (message, variant = "info", ttl = 4200) => {
+    (rawMessage, variant = "info", ttl = 4200) => {
       const id = ++idRef.current;
+      // Only text is rendered: an object here would crash the whole app (blank page).
+      const message = typeof rawMessage === "string" ? rawMessage : rawMessage?.message ? String(rawMessage.message) : "Done.";
       setToasts((current) => [...current, { id, message, variant }]);
       if (ttl > 0) window.setTimeout(() => dismiss(id), ttl);
       return id;

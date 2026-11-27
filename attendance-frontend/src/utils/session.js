@@ -50,6 +50,19 @@ export const clearSession = () => {
   store.clear();
 };
 
+// Drop saved page data but keep the signed-in user (used after a page error,
+// in case stale data caused it).
+export const clearCachedData = () => {
+  memory.clear();
+  try {
+    Object.keys(window.sessionStorage)
+      .filter((key) => key.startsWith(DATA_PREFIX))
+      .forEach((key) => window.sessionStorage.removeItem(key));
+  } catch {
+    // Nothing stored.
+  }
+};
+
 // Sign-in already returned the user: reuse it instead of asking /islogin again.
 export const primeSession = (user) => {
   clearSession();

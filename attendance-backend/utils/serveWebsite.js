@@ -29,6 +29,10 @@ const serveWebsite = (app) => {
     })
   );
 
+  // A missing code file (an old version's, after a deploy) is a real 404, not the
+  // home page; the website then reloads itself to get the new version.
+  app.use("/static", (req, res) => res.status(404).type("text/plain").send("Not found"));
+
   app.get(/^(?!\/api\/).*/, (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.sendFile(indexFile);

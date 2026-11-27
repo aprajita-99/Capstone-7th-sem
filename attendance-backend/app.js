@@ -9,6 +9,13 @@ const app = express();
 // gzip JSON and website files (the main script is ~4x smaller compressed).
 app.use(compression());
 
+// API answers are live data: never let a browser or proxy reuse an old one
+// (e.g. an open check-in that did not show up until a manual refresh).
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+});
+
 // Browser origins allowed to call this API with cookies.
 // Add exact origins (deployments) with CLIENT_URLS=origin1,origin2 in config.env.
 // In production only CLIENT_URL / CLIENT_URLS are allowed: production cookies
